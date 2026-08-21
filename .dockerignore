@@ -1,0 +1,12 @@
+.git
+.gitignore
+README.md
+
+backend/vendor
+backend/var
+backend/.env.local
+backend/.env.*.local
+
+frontend/node_modules
+frontend/dist
+frontend/build

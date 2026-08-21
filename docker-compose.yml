@@ -1,0 +1,52 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: nev-climate-data-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8080}:80"
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      APP_SECRET: ${APP_SECRET}
+      # Le service "database" utilise pour l'instant l'image postgres:16-alpine.
+      # Elle sera remplacée par timescale/timescaledb:latest-pg16 au Point 3
+      # (A1.3) sans avoir à modifier cette URL de connexion.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+    networks:
+      - nev-network
+
+  database:
+    image: postgres:16-alpine
+    container_name: nev-climate-data-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nev-network
+
+networks:
+  nev-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  backend_vendor:

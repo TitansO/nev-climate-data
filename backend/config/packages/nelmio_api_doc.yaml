@@ -1,0 +1,9 @@
+nelmio_api_doc:
+    documentation:
+        info:
+            title: NEV Climate Data API
+            description: API de la plateforme NEV Climate Data (fondations — Phase A1)
+            version: 0.1.0
+    areas:
+        path_patterns:
+            - ^/api(?!/doc$)
