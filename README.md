@@ -135,8 +135,10 @@ http://localhost:8080/api/doc.json
 
 ## Tests automatisés
 
+Le conteneur `backend` tourne avec `APP_ENV=dev` (variable réelle injectée par Docker Compose), qui prend le pas sur la configuration de PHPUnit. Il faut donc la surcharger explicitement pour lancer les tests en environnement `test` :
+
 ```bash
-docker compose exec backend php bin/phpunit
+docker compose exec -e APP_ENV=test backend php bin/phpunit
 ```
 
 ## Connexion à la base de données
@@ -146,7 +148,7 @@ La connexion Symfony → PostgreSQL est configurée via la variable `DATABASE_UR
 Pour vérifier manuellement la connexion :
 
 ```bash
-docker compose exec backend php bin/console doctrine:query:sql "SELECT 1"
+docker compose exec backend php bin/console dbal:run-sql "SELECT 1 AS ok"
 ```
 
 ## Prochaine étape
