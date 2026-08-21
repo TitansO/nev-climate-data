@@ -1,5 +1,5 @@
 ### Racine du projet ###
-.env
+/.env
 .env.local
 .env.*.local
 *.log
