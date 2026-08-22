@@ -10,9 +10,6 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-dev}
       APP_SECRET: ${APP_SECRET}
-      # Le service "database" utilise pour l'instant l'image postgres:16-alpine.
-      # Elle sera remplacée par timescale/timescaledb:latest-pg16 au Point 3
-      # (A1.3) sans avoir à modifier cette URL de connexion.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
     depends_on:
       database:
@@ -24,7 +21,7 @@ services:
       - nev-network
 
   database:
-    image: postgres:16-alpine
+    image: timescale/timescaledb:latest-pg16
     container_name: nev-climate-data-db
     restart: unless-stopped
     environment:
