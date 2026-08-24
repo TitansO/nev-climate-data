@@ -8,10 +8,12 @@ use App\Entity\Enum\UserRole;
 use App\Repository\UserRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 #[ORM\Table(name: 'users')]
 #[ORM\Entity(repositoryClass: UserRepository::class)]
-class User
+class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -98,5 +100,34 @@ class User
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getRoles(): array
+    {
+        $roleName = match ($this->role) {
+            UserRole::Admin => 'ROLE_ADMIN',
+            UserRole::InternalAnalyst => 'ROLE_INTERNAL_ANALYST',
+            UserRole::ExternalPartner => 'ROLE_EXTERNAL_PARTNER',
+        };
+
+        return [$roleName, 'ROLE_USER'];
+    }
+
+    public function getPassword(): string
+    {
+        return $this->passwordHash;
+    }
+
+    public function getUserIdentifier(): string
+    {
+        return $this->email;
+    }
+
+    public function eraseCredentials(): void
+    {
+        // No plaintext credential is ever held on this entity — nothing to erase.
     }
 }
