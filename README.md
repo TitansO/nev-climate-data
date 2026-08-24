@@ -251,6 +251,51 @@ Nécessite `JWT_PASSPHRASE` déjà défini dans `.env` (voir `.env.example`). Le
 
 `User.role` (`Admin` / `InternalAnalyst` / `ExternalPartner`) est mappé vers `ROLE_ADMIN` / `ROLE_INTERNAL_ANALYST` / `ROLE_EXTERNAL_PARTNER` (+ `ROLE_USER` pour tout utilisateur authentifié). Le "Visiteur" du cahier des charges correspond à l'absence de compte, donc à l'absence de jeton — pas à un rôle stocké en base.
 
+## Gestion des clés API (A1.5)
+
+Chaque utilisateur authentifié peut générer, lister et révoquer ses propres clés API (cahier des charges 5.2.b). Détails de conception : voir le rapport final A1.5 dans l'historique de conversation du projet (pas de fichier spec dédié pour cette tâche).
+
+### Principe de sécurité
+
+- La clé brute (`nev_<64 caractères hex>`, 256 bits d'entropie via `random_bytes`) n'est **retournée qu'une seule fois**, à la création. Elle n'est jamais stockée : seul son hash SHA-256 l'est (colonne `key_hash`), et aucun endpoint ne le renvoie jamais.
+- Une clé révoquée est immédiatement refusée par la validation, mais reste en base (traçabilité) avec `status = revoked` et `revoked_at` renseigné.
+
+### Endpoints (authentification JWT requise — voir « Limites actuelles » ci-dessous)
+
+| Endpoint | Description |
+|---|---|
+| `POST /api/api-keys` | Génère une nouvelle clé pour l'utilisateur connecté. Réponse `201` avec `key` (clé brute, à sauvegarder immédiatement). |
+| `GET /api/api-keys` | Liste les clés de l'utilisateur connecté (métadonnées seulement — jamais `key` ni le hash). |
+| `DELETE /api/api-keys/{id}` | Révoque une clé appartenant à l'utilisateur connecté. `404` si la clé n'existe pas ou appartient à quelqu'un d'autre (pas de `403`, pour ne pas révéler l'existence de la clé d'un tiers). |
+
+### Utiliser une clé API
+
+Envoyer la clé dans l'en-tête `X-API-Key` sur n'importe quelle route `/api/*` :
+
+```bash
+curl -H "X-API-Key: nev_<votre_clé>" http://localhost:8080/api/auth/me
+```
+
+L'authentification par clé API (`App\Security\ApiKeyAuthenticator`) est enregistrée sur le firewall `api` aux côtés de JWT (`security.yaml`) — les deux mécanismes coexistent, chacun ne réagissant qu'à son propre en-tête (`Authorization: Bearer` vs `X-API-Key`).
+
+**Important — les endpoints `/api/api-keys` eux-mêmes exigent une authentification JWT et refusent une clé API** (`403`) : une clé API compromise ne doit pas pouvoir en générer d'autres. C'est une politique volontairement plus stricte que le reste de l'API, documentée dans `App\Controller\ApiKeyController::assertJwtAuthenticated()`.
+
+### Quotas par rôle
+
+| Rôle | Quota (requêtes/jour) |
+|---|---|
+| Admin | 100 000 |
+| Analyste interne | 20 000 |
+| Partenaire externe | 5 000 |
+
+⚠️ **Ces valeurs sont provisoires** : ni le cahier des charges ni le plan d'implémentation ne fixent de chiffres officiels (la spec A1.3 précise seulement que `quota` est "a daily request quota"). Elles sont centralisées dans `App\Security\ApiKeyQuotaPolicy` — à ajuster dès que le client valide des valeurs définitives.
+
+### Limites actuelles
+
+- **Le quota n'est pas encore appliqué en usage réel** : la colonne `ApiKey.quota` porte la limite attribuée à la création, mais rien ne compte ni ne décrémente les requêtes consommées à ce stade — le schéma actuel ne porte aucun compteur d'usage ni fenêtre temporelle. L'attribution du quota par rôle est fonctionnelle ; son application (rejet au-delà du quota) reste à concevoir, probablement en A2 ou A3, avec une réflexion sur le stockage (compteur en base vs. Redis avec fenêtre glissante).
+- **Aucune gestion des clés d'un autre utilisateur par un admin** n'est implémentée : le cahier des charges ne définit pas encore cette politique: seule la gestion de ses propres clés est disponible.
+- **Aucune route métier n'accepte encore la clé API** au-delà de l'infrastructure elle-même : le firewall accepte `X-API-Key` sur tout `/api/*`, validé par les tests contre `/api/auth/me`, mais aucun endpoint de données (Phase A2) n'existe encore pour en tirer parti.
+
 ## Points d'attention (pièges déjà rencontrés — à ne pas réintroduire)
 
 Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont pas évidents et peuvent facilement revenir si on n'y fait pas attention en continuant le projet :
@@ -281,12 +326,12 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont
 | A1.2 | Squelette API Symfony | ✅ Fait (Oumar) |
 | A1.3 | Schéma TimescaleDB « pipeline-ready » (8 entités + enums, 2 migrations) | ✅ Fait |
 | A1.4 | Authentification JWT (login/refresh/logout/me, rôles, anti-brute-force) | ✅ Fait |
-| A1.5 | Gestion des clés API (génération, quotas, révocation) | ⬜ Reste à faire — `ApiKey` existe déjà en base (A1.3), seuls les endpoints manquent |
+| A1.5 | Gestion des clés API (génération, quotas, révocation) | ✅ Fait — application du quota (compteur d'usage) non encore implémentée, voir « Limites actuelles » |
 | A1.6 | Scripts de seed/fixtures (jeu de données de démonstration) | ⬜ Reste à faire |
 | A1.7 | Pipeline CI/CD | ⬜ Reste à faire |
 | A1.8 | Recette Auth → API → Base de données | ⬜ Reste à faire |
 
-**Reste à faire :** A1.5 à A1.8 (fin de Phase A1), puis Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
+**Reste à faire :** A1.6 à A1.8 (fin de Phase A1), puis Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
 
 **Documentation de conception disponible** pour tout ce qui est fait jusqu'ici (décisions prises, alternatives écartées, justifications) :
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)
