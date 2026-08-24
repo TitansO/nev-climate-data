@@ -36,6 +36,11 @@ security:
             jwt: ~
             refresh-jwt:
                 check_path: /api/auth/refresh
+            # X-API-Key header authentication (A1.5), alongside JWT. Its
+            # supports() only claims requests carrying that header, so JWT
+            # bearer-token requests are unaffected.
+            custom_authenticators:
+                - App\Security\ApiKeyAuthenticator
 
     # Note: Only the *first* matching rule is applied
     access_control:
