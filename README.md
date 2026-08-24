@@ -296,6 +296,63 @@ L'authentification par clé API (`App\Security\ApiKeyAuthenticator`) est enregis
 - **Aucune gestion des clés d'un autre utilisateur par un admin** n'est implémentée : le cahier des charges ne définit pas encore cette politique: seule la gestion de ses propres clés est disponible.
 - **Aucune route métier n'accepte encore la clé API** au-delà de l'infrastructure elle-même : le firewall accepte `X-API-Key` sur tout `/api/*`, validé par les tests contre `/api/auth/me`, mais aucun endpoint de données (Phase A2) n'existe encore pour en tirer parti.
 
+## Scripts de seed / fixtures (A1.6)
+
+Un jeu de données de démonstration cohérent et reproductible, chargé via `doctrine/doctrine-fixtures-bundle` (dépendance `dev`/`test` uniquement — jamais chargée en `prod`).
+
+### Prérequis
+
+Aucune installation supplémentaire : `doctrine/doctrine-fixtures-bundle` est déjà dans `composer.json` (`require-dev`). Après un `git pull`, reconstruire l'image backend si ce n'est pas déjà fait (voir la checklist de reprise plus haut) — `composer install` s'exécute automatiquement au build.
+
+### Charger les fixtures
+
+```bash
+docker compose exec backend php bin/console doctrine:fixtures:load --no-interaction
+```
+
+**Purge et recharge** : la commande ci-dessus **purge déjà** la base avant de recharger (comportement par défaut de `doctrine:fixtures:load`) — pas de commande séparée nécessaire. Rejouable autant de fois que nécessaire : toutes les valeurs sont calculées par des formules déterministes (aucun `rand()`/Faker), donc chaque rechargement reproduit exactement les mêmes lignes.
+
+### Contenu du jeu de données
+
+| Entité | Nombre | Détail |
+|---|---|---|
+| `Country` | **54** | Les 54 pays membres de l'ONU en Afrique, classés en 5 régions (Afrique du Nord, de l'Ouest, centrale, de l'Est, australe) — liste explicite dans `CountryFixtures.php`, pas générée |
+| `Sector` | **5** | Renewable Energy, Sustainable Transport, Agriculture, Forestry, Adaptation — repris tels quels des exemples déjà présents dans `docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md` |
+| `Source` | 4 | Une par valeur de `SourceType` (API officielle, rapport PDF, évènement GreenAccess, démonstration interne) |
+| `User` | 3 | Un par rôle (`Admin`, `InternalAnalyst`, `ExternalPartner`) |
+| `Funding` | **1 080** | 54 pays × 5 secteurs × 4 années (2022-2025) — voir « Volume et répartition » |
+| `Report` | 6 | Mélange rapports globaux / régionaux / par pays, statuts `Draft`/`Published` |
+| `Notification` | 7 | Réparties sur les 3 utilisateurs, mélange lu/non lu |
+| `ApiKey` | 2 | Une active, une révoquée — juste de quoi tester la relation avec `User` |
+
+### Volume et répartition des données Funding
+
+**Toutes les données `Funding` de ces fixtures utilisent `ValidationStatus::Demo`** — jamais `ValidationStatus::Validated` (règle 5.7 du cahier des charges : jeu de démonstration marqué comme tel).
+
+- **Plage d'années** : 2022-2025 (4 années). Aucune plage officielle n'étant définie dans le cahier des charges ni le plan, ce choix est documenté ici comme provisoire.
+- **Volume** : 1 080 lignes = 54 pays × 5 secteurs × 4 années, en couverture complète (pas d'échantillonnage) — choisi plutôt qu'une plage d'années plus longue précisément pour garder ce produit croisé rapide à charger tout en couvrant chaque pays/secteur sur une série temporelle complète (utile pour les futurs graphiques de tendance).
+- **Répartition par type** : exactement 360 `Public` / 360 `Private` / 360 `Multilateral` (rotation déterministe selon pays × secteur × année).
+- **Montants** : formule déterministe (base par secteur × facteur pays × croissance annuelle × multiplicateur de type), jamais de `float` PHP — toujours une chaîne formatée à 2 décimales, conforme au typage `DECIMAL` de la colonne. Ce sont des montants illustratifs, pas des données financières réelles.
+- **Conversion de devise** : `originalAmount`/`originalCurrency`/`exchangeRate` renseignés uniquement sur les financements `Multilateral` (EUR, taux fixe illustratif 1,08) pour exercer ces champs réservés au Volet B, sans prétendre représenter un vrai taux de change.
+
+### Utilisateurs de démonstration
+
+⚠️ **Environnement local/développement uniquement — jamais de secret réel.**
+
+| Rôle | Email | Mot de passe |
+|---|---|---|
+| Admin | `admin@nev-climate-data.demo` | `ClimateDemo2026!` |
+| Analyste interne | `analyste@nev-climate-data.demo` | `ClimateDemo2026!` |
+| Partenaire externe | `partenaire@nev-climate-data.demo` | `ClimateDemo2026!` |
+
+Mot de passe hashé via `password_hash()` (jamais stocké en clair). Les clés API de démonstration (`ApiKeyFixtures.php`) sont générées à partir de valeurs brutes fixes et non secrètes, hashées avec `ApiKeyService::hashKey()` (le même algorithme qu'en production) — **ces clés brutes ne sont pas exploitables** (non documentées, non fonctionnelles pour un usage réel) et ne sont volontairement pas reproduites ici ; pour obtenir une clé utilisable, générer la vôtre via `POST /api/api-keys` après connexion.
+
+### Limites actuelles
+
+- Le volume de `Funding` (1 080 lignes) est pensé pour la démonstration et le développement des dashboards — pas pour un test de charge.
+- Les montants et taux de change sont illustratifs, générés par formule, pas des données réelles.
+- Pas de fixtures pour `RefreshToken` (entité technique, générée uniquement par le mécanisme d'authentification — jamais de faux token créé pour remplir la base).
+
 ## Points d'attention (pièges déjà rencontrés — à ne pas réintroduire)
 
 Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont pas évidents et peuvent facilement revenir si on n'y fait pas attention en continuant le projet :
@@ -327,11 +384,11 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont
 | A1.3 | Schéma TimescaleDB « pipeline-ready » (8 entités + enums, 2 migrations) | ✅ Fait |
 | A1.4 | Authentification JWT (login/refresh/logout/me, rôles, anti-brute-force) | ✅ Fait |
 | A1.5 | Gestion des clés API (génération, quotas, révocation) | ✅ Fait — application du quota (compteur d'usage) non encore implémentée, voir « Limites actuelles » |
-| A1.6 | Scripts de seed/fixtures (jeu de données de démonstration) | ⬜ Reste à faire |
+| A1.6 | Scripts de seed/fixtures (jeu de données de démonstration) | ✅ Fait |
 | A1.7 | Pipeline CI/CD | ⬜ Reste à faire |
 | A1.8 | Recette Auth → API → Base de données | ⬜ Reste à faire |
 
-**Reste à faire :** A1.6 à A1.8 (fin de Phase A1), puis Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
+**Reste à faire :** A1.7 et A1.8 (fin de Phase A1), puis Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
 
 **Documentation de conception disponible** pour tout ce qui est fait jusqu'ici (décisions prises, alternatives écartées, justifications) :
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)
