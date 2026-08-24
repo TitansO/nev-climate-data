@@ -174,4 +174,38 @@ final class AuthenticationControllerTest extends WebTestCase
         );
         self::assertSame(401, $client->getResponse()->getStatusCode());
     }
+
+    public function testMeWithoutTokenFails(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/api/auth/me');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testMeWithValidTokenReturnsUserIdentity(): void
+    {
+        $client = static::createClient();
+        $this->createTestUser($client, 'amina5@example.com', 'correct-horse-battery-staple', UserRole::Admin);
+
+        $client->request(
+            'POST',
+            '/api/auth/login',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['email' => 'amina5@example.com', 'password' => 'correct-horse-battery-staple']),
+        );
+        $loginData = json_decode($client->getResponse()->getContent(), true);
+
+        $client->request(
+            'GET',
+            '/api/auth/me',
+            server: ['HTTP_AUTHORIZATION' => 'Bearer '.$loginData['token']],
+        );
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame('amina5@example.com', $data['email']);
+        self::assertSame('admin', $data['role']);
+    }
 }
