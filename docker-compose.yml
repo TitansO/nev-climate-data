@@ -11,6 +11,7 @@ services:
       APP_ENV: ${APP_ENV:-dev}
       APP_SECRET: ${APP_SECRET}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE}
     depends_on:
       database:
         condition: service_healthy
