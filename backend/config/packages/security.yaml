@@ -23,7 +23,7 @@ security:
                 username_path: email
                 password_path: password
                 success_handler: lexik_jwt_authentication.handler.authentication_success
-                failure_handler: lexik_jwt_authentication.handler.authentication_failure
+                failure_handler: App\Security\LoginFailureHandler
             login_throttling:
                 max_attempts: 5
                 interval: '15 minutes'

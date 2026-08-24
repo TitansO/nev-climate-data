@@ -247,4 +247,35 @@ final class AuthenticationControllerTest extends WebTestCase
 
         self::assertSame(401, $client->getResponse()->getStatusCode());
     }
+
+    public function testSixthFailedLoginAttemptIsThrottled(): void
+    {
+        // A unique email per run: login_throttling's rate limiter is keyed by
+        // username in a filesystem-backed cache, which — unlike the database —
+        // isn't cleaned up by this class's per-test transaction rollback. A
+        // fixed email would accumulate throttle state across separate test
+        // runs and make this test flaky depending on run history.
+        $email = sprintf('amina7-%s@example.com', bin2hex(random_bytes(4)));
+
+        $client = static::createClient();
+        $this->createTestUser($client, $email, 'correct-horse-battery-staple');
+
+        for ($i = 0; $i < 5; ++$i) {
+            $client->request(
+                'POST',
+                '/api/auth/login',
+                server: ['CONTENT_TYPE' => 'application/json'],
+                content: json_encode(['email' => $email, 'password' => 'wrong-password']),
+            );
+            self::assertSame(401, $client->getResponse()->getStatusCode(), "Attempt {$i} should be a plain auth failure, not a lockout yet.");
+        }
+
+        $client->request(
+            'POST',
+            '/api/auth/login',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['email' => $email, 'password' => 'wrong-password']),
+        );
+        self::assertSame(429, $client->getResponse()->getStatusCode());
+    }
 }
