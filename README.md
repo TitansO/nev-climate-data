@@ -1,6 +1,6 @@
 # NEV Climate Data
 
-Plateforme de collecte, structuration et diffusion de données climatiques et de financement (Volet A : application ; Volet B : pipeline de données). Ce dépôt contient actuellement les **fondations** du Volet A : environnement Docker et squelette de l'API backend Symfony (Phase A1, tâches A1.1 et A1.2 du plan d'implémentation).
+Plateforme de collecte, structuration et diffusion de données climatiques et de financement (Volet A : application ; Volet B : pipeline de données). Ce dépôt contient actuellement les **fondations** du Volet A : environnement Docker, squelette de l'API backend Symfony, et le schéma de données TimescaleDB « pipeline-ready » (Phase A1, tâches A1.1, A1.2 et A1.3 du plan d'implémentation).
 
 ## Structure du dépôt
 
@@ -9,10 +9,10 @@ nev-climate-data/
 ├── backend/                 Application Symfony (API REST)
 │   ├── src/
 │   │   ├── Controller/      Contrôleurs HTTP (ex: HealthController)
-│   │   ├── Entity/          Entités Doctrine (vide pour l'instant — Point 3 du plan)
+│   │   ├── Entity/          Entités Doctrine (Country, Sector, Source, User, Funding, Report, ApiKey, Notification)
 │   │   └── Repository/      Repositories Doctrine
 │   ├── config/               Configuration Symfony (routes, packages, bundles)
-│   ├── migrations/           Migrations Doctrine (vide pour l'instant)
+│   ├── migrations/           Migrations Doctrine (2 migrations : couche 1 puis couche 2 — voir « Schéma de données »)
 │   ├── tests/                Tests automatisés (PHPUnit)
 │   ├── public/                Point d'entrée HTTP (index.php)
 │   └── composer.json
@@ -25,7 +25,6 @@ nev-climate-data/
 ```
 
 > Le dossier `frontend/` est volontairement vide à ce stade : il sera peuplé lors de la Phase A2.
-> Les entités métier, migrations et TimescaleDB seront ajoutées au Point 3 (A1.3) du plan.
 
 ## Prérequis
 
@@ -54,7 +53,7 @@ cp .env.example .env
 
 Le fichier `.env` réel n'est **jamais** versionné (voir `.gitignore`). Aucun secret n'est codé en dur dans les fichiers Docker.
 
-> Note : le service `database` utilise pour l'instant l'image standard `postgres:16-alpine`. Elle sera remplacée par l'image `timescale/timescaledb:latest-pg16` (compatible protocole PostgreSQL) au Point 3 du plan (A1.3), sans modification des variables de connexion.
+> Note : le service `database` utilise l'image `timescale/timescaledb:latest-pg16` (compatible protocole PostgreSQL) depuis le Point 3 du plan (A1.3). Les variables de connexion (`DATABASE_URL`, `POSTGRES_*`) n'ont pas changé lors de ce remplacement.
 
 ## Démarrer le projet
 
@@ -133,6 +132,43 @@ La spécification OpenAPI brute (JSON) est disponible sur :
 http://localhost:8080/api/doc.json
 ```
 
+## Schéma de données
+
+Le schéma est réparti en deux migrations Doctrine, correspondant à deux couches de dépendances :
+
+**Couche 1 — sans clé étrangère** : `Country`, `Sector`, `Source`, `User` (table `users`, car `user` est un mot réservé en PostgreSQL).
+
+**Couche 2 — dépend de la couche 1** : `Funding` (clés étrangères vers `Country`, `Sector`, `Source`), `Report` (clé étrangère optionnelle vers `Country`), `ApiKey` et `Notification` (clé étrangère vers `User`).
+
+Toutes les valeurs à faible cardinalité et stables (rôle utilisateur, type de financement, statut de validation, statut de rapport, statut de clé API, type/fiabilité de source, type de notification) sont des enums PHP natifs mappés via Doctrine, pas des tables de référence.
+
+`Funding` porte dès maintenant les colonnes nécessaires au Volet B sans que la logique applicative du Volet A les exploite :
+- `originalAmount` / `originalCurrency` / `exchangeRate` (montant dans la devise pivot USD dans `amount`, métadonnées de conversion réservées au Volet B)
+- `validFrom` / `validTo` / `isCurrent` (hooks d'historisation ; le Volet A continue de faire de simples `UPDATE` en place)
+
+Détails complets du modèle de données et des décisions de conception : voir
+[`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md).
+
+> **Note technique — TimescaleDB et `doctrine:migrations:diff`** : `backend/config/packages/doctrine.yaml` définit un `schema_filter` qui exclut les schémas/séquences internes de l'extension TimescaleDB (`_timescaledb_catalog`, `_timescaledb_internal`, etc.) de la comparaison de schéma Doctrine. Sans ce filtre, `doctrine:migrations:diff` et `doctrine:schema:validate` tentent de gérer (voire supprimer) ces objets internes à l'extension. Si une future migration générée contient malgré tout des `CREATE SCHEMA`/`DROP SEQUENCE` sur des objets `timescaledb*`/`_timescaledb*`, les retirer manuellement avant d'appliquer la migration.
+
+### Appliquer les migrations
+
+```bash
+docker compose exec backend php bin/console doctrine:migrations:migrate
+```
+
+### Voir l'état des migrations
+
+```bash
+docker compose exec backend php bin/console doctrine:migrations:status
+```
+
+### Valider le schéma (mapping + synchronisation base)
+
+```bash
+docker compose exec backend php bin/console doctrine:schema:validate
+```
+
 ## Tests automatisés
 
 Le conteneur `backend` tourne avec `APP_ENV=dev` (variable réelle injectée par Docker Compose), qui prend le pas sur la configuration de PHPUnit. Il faut donc la surcharger explicitement pour lancer les tests en environnement `test` :
@@ -153,4 +189,4 @@ docker compose exec backend php bin/console dbal:run-sql "SELECT 1 AS ok"
 
 ## Prochaine étape
 
-Les fondations Docker et Symfony (Points 1 et 2) sont posées. La suite du plan (Point 3 — déploiement de TimescaleDB et schéma de données « pipeline-ready ») sera traitée séparément.
+Les fondations Docker et Symfony (Points 1 et 2) sont posées. TimescaleDB est déployé et le schéma « pipeline-ready » (Point 3 — A1.3) est en place : voir la section « Schéma de données » ci-dessus. La suite du plan (Point 4 — authentification JWT, A1.4) sera traitée séparément.
