@@ -187,6 +187,41 @@ Pour vérifier manuellement la connexion :
 docker compose exec backend php bin/console dbal:run-sql "SELECT 1 AS ok"
 ```
 
+## Authentification
+
+Authentification par JWT (access token courte durée + refresh token), conforme à la section 5.2.a du cahier des charges. Détails de conception : voir
+[`docs/superpowers/specs/2026-08-24-a14-jwt-authentication-design.md`](docs/superpowers/specs/2026-08-24-a14-jwt-authentication-design.md).
+
+### Générer la paire de clés JWT (une fois, en local)
+
+```bash
+docker compose exec backend php bin/console lexik:jwt:generate-keypair --overwrite
+```
+
+Nécessite `JWT_PASSPHRASE` déjà défini dans `.env` (voir `.env.example`). Les clés (`backend/config/jwt/*.pem`) ne sont jamais versionnées.
+
+### Endpoints
+
+| Endpoint | Auth requise | Description |
+|---|---|---|
+| `POST /api/auth/login` | Non | `{email, password}` → `{token, refresh_token}` |
+| `POST /api/auth/refresh` | Non | `{refresh_token}` → nouvelle paire (rotation à usage unique) |
+| `GET /api/auth/me` | Oui (Bearer token) | `{email, role}` de l'utilisateur authentifié |
+| `POST /api/auth/logout` | Oui (Bearer token) | Révoque le refresh token de l'utilisateur — 204 |
+
+### Durées de vie
+
+- Access token : 15 minutes
+- Refresh token : 30 jours, à usage unique (rotation à chaque `/api/auth/refresh`)
+
+### Protection anti-brute-force
+
+5 tentatives de connexion échouées par identifiant sur une fenêtre de 15 minutes déclenchent un blocage temporaire (`429 Too Many Requests`).
+
+### Rôles
+
+`User.role` (`Admin` / `InternalAnalyst` / `ExternalPartner`) est mappé vers `ROLE_ADMIN` / `ROLE_INTERNAL_ANALYST` / `ROLE_EXTERNAL_PARTNER` (+ `ROLE_USER` pour tout utilisateur authentifié). Le "Visiteur" du cahier des charges correspond à l'absence de compte, donc à l'absence de jeton — pas à un rôle stocké en base.
+
 ## Prochaine étape
 
-Les fondations Docker et Symfony (Points 1 et 2) sont posées. TimescaleDB est déployé et le schéma « pipeline-ready » (Point 3 — A1.3) est en place : voir la section « Schéma de données » ci-dessus. La suite du plan (Point 4 — authentification JWT, A1.4) sera traitée séparément.
+Les fondations Docker et Symfony (Points 1 et 2) sont posées, TimescaleDB et le schéma « pipeline-ready » (Point 3 — A1.3) sont en place, et l'authentification JWT (Point 4 — A1.4) est opérationnelle : voir la section « Authentification » ci-dessus. La suite du plan (Phase A2 — fonctionnalités et intégration frontend) sera traitée séparément.
