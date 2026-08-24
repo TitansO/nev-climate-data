@@ -208,4 +208,43 @@ final class AuthenticationControllerTest extends WebTestCase
         self::assertSame('amina5@example.com', $data['email']);
         self::assertSame('admin', $data['role']);
     }
+
+    public function testLogoutRevokesRefreshToken(): void
+    {
+        $client = static::createClient();
+        $this->createTestUser($client, 'amina6@example.com', 'correct-horse-battery-staple');
+
+        $client->request(
+            'POST',
+            '/api/auth/login',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['email' => 'amina6@example.com', 'password' => 'correct-horse-battery-staple']),
+        );
+        $loginData = json_decode($client->getResponse()->getContent(), true);
+
+        $client->request(
+            'POST',
+            '/api/auth/logout',
+            server: ['HTTP_AUTHORIZATION' => 'Bearer '.$loginData['token']],
+        );
+        self::assertSame(204, $client->getResponse()->getStatusCode());
+
+        // The refresh token issued at login must no longer work after logout.
+        $client->request(
+            'POST',
+            '/api/auth/refresh',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['refresh_token' => $loginData['refresh_token']]),
+        );
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testLogoutWithoutTokenFails(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/api/auth/logout');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
 }
