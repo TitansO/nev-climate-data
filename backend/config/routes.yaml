@@ -9,3 +9,17 @@
 
 controllers:
     resource: routing.controllers
+
+# These two routes are never actually resolved to a controller: the "login"
+# and "api" firewalls' authenticators (json_login, refresh-jwt) intercept the
+# request at kernel.request and return a response before controller
+# resolution runs. The routes must still exist, though — routing itself
+# happens before the firewall does, so without a matching route the router
+# throws a 404 first and the authenticator never gets a chance to run.
+api_auth_login:
+    path: /api/auth/login
+    methods: [POST]
+
+api_auth_refresh:
+    path: /api/auth/refresh
+    methods: [POST]
