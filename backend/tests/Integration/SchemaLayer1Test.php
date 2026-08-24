@@ -22,6 +22,7 @@ final class SchemaLayer1Test extends KernelTestCase
     {
         self::bootKernel();
         $this->entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        $this->entityManager->getConnection()->beginTransaction();
     }
 
     public function testCountryCanBePersistedAndFetched(): void
@@ -85,7 +86,11 @@ final class SchemaLayer1Test extends KernelTestCase
 
     protected function tearDown(): void
     {
-        parent::tearDown();
+        $connection = $this->entityManager->getConnection();
+        if ($connection->isTransactionActive()) {
+            $connection->rollBack();
+        }
         $this->entityManager->close();
+        parent::tearDown();
     }
 }
