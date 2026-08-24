@@ -25,6 +25,14 @@ final class AuthenticationControllerTest extends WebTestCase
         string $plainPassword = 'correct-horse-battery-staple',
         UserRole $role = UserRole::InternalAnalyst,
     ): User {
+        // KernelBrowser reboots the kernel (fresh container, fresh DB
+        // connection) before every request after the first. That would make
+        // the transaction opened below invisible to a second request in the
+        // same test (e.g. login then refresh) — disable it so every request
+        // in a test shares the same connection, and the rolled-back
+        // transaction stays visible throughout.
+        $client->disableReboot();
+
         $container = static::getContainer();
         $this->entityManager = $container->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
@@ -100,6 +108,70 @@ final class AuthenticationControllerTest extends WebTestCase
             content: json_encode(['email' => 'nobody@example.com', 'password' => 'whatever']),
         );
 
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testRefreshWithValidTokenReturnsNewPair(): void
+    {
+        $client = static::createClient();
+        $this->createTestUser($client, 'amina3@example.com', 'correct-horse-battery-staple');
+
+        $client->request(
+            'POST',
+            '/api/auth/login',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['email' => 'amina3@example.com', 'password' => 'correct-horse-battery-staple']),
+        );
+        $loginData = json_decode($client->getResponse()->getContent(), true);
+
+        $client->request(
+            'POST',
+            '/api/auth/refresh',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['refresh_token' => $loginData['refresh_token']]),
+        );
+
+        self::assertResponseIsSuccessful();
+        $refreshData = json_decode($client->getResponse()->getContent(), true);
+        self::assertArrayHasKey('token', $refreshData);
+        self::assertArrayHasKey('refresh_token', $refreshData);
+        // Not asserting the access token differs: a JWT's claims (iat/exp)
+        // are second-resolution, so login and refresh happening within the
+        // same wall-clock second legitimately produce byte-identical tokens.
+        // The refresh token, not the access token, is what single_use
+        // rotation actually guarantees changes on every refresh.
+        self::assertNotSame($loginData['refresh_token'], $refreshData['refresh_token']);
+    }
+
+    public function testReusingARotatedRefreshTokenFails(): void
+    {
+        $client = static::createClient();
+        $this->createTestUser($client, 'amina4@example.com', 'correct-horse-battery-staple');
+
+        $client->request(
+            'POST',
+            '/api/auth/login',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['email' => 'amina4@example.com', 'password' => 'correct-horse-battery-staple']),
+        );
+        $loginData = json_decode($client->getResponse()->getContent(), true);
+
+        // First refresh: rotates the token, old one becomes invalid (single_use: true).
+        $client->request(
+            'POST',
+            '/api/auth/refresh',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['refresh_token' => $loginData['refresh_token']]),
+        );
+        self::assertResponseIsSuccessful();
+
+        // Second refresh with the SAME (now-rotated-away) token must fail.
+        $client->request(
+            'POST',
+            '/api/auth/refresh',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['refresh_token' => $loginData['refresh_token']]),
+        );
         self::assertSame(401, $client->getResponse()->getStatusCode());
     }
 }
