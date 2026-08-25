@@ -1,0 +1,49 @@
+stages:
+  - test
+  - build
+
+phpunit:
+  stage: test
+  image: php:8.4-cli
+  services:
+    - name: timescale/timescaledb:latest-pg16
+      alias: database
+  variables:
+    POSTGRES_DB: nev_climate_data_ci
+    POSTGRES_USER: nev_ci
+    POSTGRES_PASSWORD: nev_ci_password
+    DATABASE_URL: "postgresql://nev_ci:nev_ci_password@database:5432/nev_climate_data_ci?serverVersion=16&charset=utf8"
+    APP_ENV: test
+    JWT_PASSPHRASE: ci_ephemeral_passphrase
+  cache:
+    key:
+      files:
+        - backend/composer.lock
+    paths:
+      - backend/vendor/
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends git unzip libpq-dev libicu-dev libzip-dev zip
+    - docker-php-ext-install pdo pdo_pgsql intl opcache zip
+    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+  script:
+    - cd backend
+    - composer install --no-interaction --no-progress --prefer-dist
+    - mkdir -p config/jwt
+    - php bin/console lexik:jwt:generate-keypair --overwrite
+    - php bin/console doctrine:database:create --if-not-exists
+    - php bin/console doctrine:migrations:migrate --no-interaction
+    - php bin/phpunit
+
+build_and_push_image:
+  stage: build
+  image: docker:27-cli
+  services:
+    - docker:27-dind
+  needs: ["phpunit"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "developp"'
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build -t "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE/backend:developp" -f docker/backend/Dockerfile .
+    - docker push "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE/backend:developp"

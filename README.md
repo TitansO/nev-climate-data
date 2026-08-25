@@ -353,6 +353,31 @@ Mot de passe hashé via `password_hash()` (jamais stocké en clair). Les clés A
 - Les montants et taux de change sont illustratifs, générés par formule, pas des données réelles.
 - Pas de fixtures pour `RefreshToken` (entité technique, générée uniquement par le mécanisme d'authentification — jamais de faux token créé pour remplir la base).
 
+## CI/CD
+
+Pipeline GitLab CI (`.gitlab-ci.yml`), deux étapes :
+
+| Étape | Job | Déclenchement | Rôle |
+|---|---|---|---|
+| `test` | `phpunit` | Tout push, toute branche | Installe PHP 8.4 + extensions, lance la suite PHPUnit contre un service TimescaleDB éphémère |
+| `build` | `build_and_push_image` | Uniquement `developp`, et seulement si `phpunit` a réussi | Construit l'image Docker backend, la publie sur le Container Registry GitLab (tags : SHA du commit + `developp`) |
+
+**Important — ceci n'est pas un déploiement.** L'image est publiée dans le Container Registry du projet ; rien ne la récupère ni ne la fait tourner automatiquement quelque part. Le déploiement d'un environnement de production réel est la tâche A3.8, plus tard dans le plan.
+
+### Suivre l'état d'un pipeline
+
+`https://gitlab.com/nev-consulting-group/nev-climate-data/-/pipelines`
+
+### Voir les images publiées
+
+`https://gitlab.com/nev-consulting-group/nev-climate-data/-/packages` (section Container Registry)
+
+### Runners
+
+Aucun runner dédié n'est configuré pour ce projet — le pool de runners partagés gitlab.com (confirmé disponible : **Settings → CI/CD → Runners → Instance**) est utilisé.
+
+Détails de conception complets : voir [`docs/superpowers/specs/2026-08-24-a17-cicd-pipeline-design.md`](docs/superpowers/specs/2026-08-24-a17-cicd-pipeline-design.md).
+
 ## Points d'attention (pièges déjà rencontrés — à ne pas réintroduire)
 
 Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont pas évidents et peuvent facilement revenir si on n'y fait pas attention en continuant le projet :
@@ -373,6 +398,8 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont
 
 8. **Un `AuthenticationFailureHandlerInterface` référencé par `security.yaml` ne peut pas être décoré (`decorates:`) de façon fiable.** Les factories `json_login`/`form_login` clonent la définition du service en un service anonyme lors de la compilation du conteneur, ce qui contourne le mécanisme de décoration Symfony. Pour personnaliser un handler, créer un service dédié référencé directement dans `security.yaml`, pas un décorateur (voir `App\Security\LoginFailureHandler`).
 
+9. **La liste d'extensions PHP du job `phpunit` (`.gitlab-ci.yml`) est dupliquée depuis `docker/backend/Dockerfile`, pas partagée.** Le job de test tourne dans une image PHP générique, pas dans l'image Docker du projet (choix documenté dans le spec A1.7, pour garder le pipeline rapide sur chaque push). Si une extension PHP est ajoutée/retirée du `Dockerfile`, il faut penser à répercuter le changement dans `.gitlab-ci.yml` — rien ne le fait automatiquement, et un oubli ne casse rien immédiatement (juste une divergence silencieuse entre l'environnement testé et l'environnement réel).
+
 ## État d'avancement
 
 **Fait (Phase A1 — Fondations, ~13 tâches sur le plan) :**
@@ -385,7 +412,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont
 | A1.4 | Authentification JWT (login/refresh/logout/me, rôles, anti-brute-force) | ✅ Fait |
 | A1.5 | Gestion des clés API (génération, quotas, révocation) | ✅ Fait — application du quota (compteur d'usage) non encore implémentée, voir « Limites actuelles » |
 | A1.6 | Scripts de seed/fixtures (jeu de données de démonstration) | ✅ Fait |
-| A1.7 | Pipeline CI/CD | ⬜ Reste à faire |
+| A1.7 | Pipeline CI/CD (build, tests, publication d'image) | ✅ Fait — publie l'image sur le Container Registry, ne déploie pas (voir section CI/CD) |
 | A1.8 | Recette Auth → API → Base de données | ⬜ Reste à faire |
 
 **Reste à faire :** A1.7 et A1.8 (fin de Phase A1), puis Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
