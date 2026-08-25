@@ -57,10 +57,10 @@ Le fichier `.env` réel n'est **jamais** versionné (voir `.gitignore`). Aucun s
 
 ### Après avoir récupéré ce travail (`git pull`) : checklist de reprise
 
-Si tu avais déjà un environnement local avant ce commit, cinq choses ont changé et nécessitent une action :
+Si tu avais déjà un environnement local avant ce commit, ces étapes nécessitent une action :
 
 1. **Nouvelle variable d'environnement** : ajoute `JWT_PASSPHRASE=<valeur aléatoire>` à ton `.env` local (voir `.env.example` — génère une valeur avec `openssl rand -hex 16`).
-2. **Reconstruire l'image backend** (nouvelles dépendances Composer — JWT, refresh token, rate limiter) :
+2. **Reconstruire l'image backend** (nouvelles dépendances Composer — JWT, refresh token, rate limiter, fixtures) :
    ```bash
    docker compose up -d --build backend
    ```
@@ -73,14 +73,15 @@ Si tu avais déjà un environnement local avant ce commit, cinq choses ont chang
    ```bash
    docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
    ```
-5. **Vérifier que tout est sain** :
+5. **(Optionnel) Charger un jeu de données de démonstration** — voir « Scripts de seed / fixtures (A1.6) » ci-dessous ; sans cette étape la base est vide mais parfaitement fonctionnelle (schéma en place, aucune erreur).
+6. **Vérifier que tout est sain** :
    ```bash
    docker compose exec backend php bin/console doctrine:schema:validate
    docker compose exec -e APP_ENV=test backend php bin/console doctrine:database:create --if-not-exists
    docker compose exec -e APP_ENV=test backend php bin/console doctrine:migrations:migrate --no-interaction
    docker compose exec -e APP_ENV=test backend php bin/phpunit
    ```
-   Attendu : `doctrine:schema:validate` → deux `[OK]` ; la suite de tests → 46 tests au vert.
+   Attendu : `doctrine:schema:validate` → deux `[OK]` ; la suite de tests → 65 tests au vert.
 
 ## Démarrer le projet
 
@@ -386,7 +387,7 @@ Détails de conception complets : voir [`docs/superpowers/specs/2026-08-24-a17-c
 
 ## Points d'attention (pièges déjà rencontrés — à ne pas réintroduire)
 
-Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont pas évidents et peuvent facilement revenir si on n'y fait pas attention en continuant le projet :
+Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne sont pas évidents et peuvent facilement revenir si on n'y fait pas attention en continuant le projet :
 
 1. **`access_control` protège désormais tout `/api/*` par défaut.** Depuis A1.4, `security.yaml` exige `IS_AUTHENTICATED_FULLY` sur `^/api` sauf exceptions explicites (`/api/auth/login`, `/api/auth/refresh`, `/api/doc`, `/api/health`). **Tout nouvel endpoint public** (Phase A2 : statistiques d'en-tête, recherche globale, etc. — cf. cahier des charges 5.2, « Accès public ») **doit être ajouté explicitement** à la liste `access_control` de `backend/config/packages/security.yaml`, sinon il renverra 401 par défaut.
 
