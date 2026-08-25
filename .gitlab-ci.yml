@@ -34,16 +34,29 @@ phpunit:
     - php bin/console doctrine:migrations:migrate --no-interaction
     - php bin/phpunit
 
+# Construit et publie l'image Docker sur le Container Registry GitLab.
+# Ce n'est PAS un déploiement : rien ne récupère ni ne fait tourner cette
+# image automatiquement. Le déploiement réel est la tâche A3.8.
 build_and_push_image:
   stage: build
   image: docker:27-cli
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "/certs/client"
   services:
     - docker:27-dind
+  # Ce needs suppose que le job phpunit n'a pas de "rules" qui l'exclurait
+  # d'un pipeline donné (il tourne sur toute branche, sans condition) — s'il
+  # en gagne une un jour, needs doit être revu en même temps, sinon la
+  # création du pipeline échoue sur les branches où phpunit est exclu.
   needs: ["phpunit"]
   rules:
     - if: '$CI_COMMIT_BRANCH == "developp"'
   script:
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - docker build -t "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE/backend:developp" -f docker/backend/Dockerfile .
+    - docker run --rm "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA" php -v
     - docker push "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA"
     - docker push "$CI_REGISTRY_IMAGE/backend:developp"
