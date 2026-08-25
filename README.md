@@ -1,6 +1,6 @@
 # NEV Climate Data
 
-Plateforme de collecte, structuration et diffusion de données climatiques et de financement (Volet A : application ; Volet B : pipeline de données). Ce dépôt contient actuellement les **fondations** du Volet A : environnement Docker, squelette de l'API backend Symfony, schéma de données TimescaleDB « pipeline-ready », et authentification JWT (Phase A1, tâches A1.1 à A1.4 du plan d'implémentation — voir « État d'avancement » en bas de ce document pour le détail et la suite).
+Plateforme de collecte, structuration et diffusion de données climatiques et de financement (Volet A : application ; Volet B : pipeline de données). Ce dépôt contient actuellement les **fondations** du Volet A : environnement Docker, squelette de l'API backend Symfony, schéma de données TimescaleDB « pipeline-ready », et authentification JWT (Phase A1, tâches A1.1 à A1.7 du plan d'implémentation — voir « État d'avancement » en bas de ce document pour le détail et la suite).
 
 ## Structure du dépôt
 
@@ -376,6 +376,12 @@ Pipeline GitLab CI (`.gitlab-ci.yml`), deux étapes :
 
 Aucun runner dédié n'est configuré pour ce projet — le pool de runners partagés gitlab.com (confirmé disponible : **Settings → CI/CD → Runners → Instance**) est utilisé.
 
+### Récupérer une image publiée
+
+```bash
+docker pull registry.gitlab.com/nev-consulting-group/nev-climate-data/backend:developp
+```
+
 Détails de conception complets : voir [`docs/superpowers/specs/2026-08-24-a17-cicd-pipeline-design.md`](docs/superpowers/specs/2026-08-24-a17-cicd-pipeline-design.md).
 
 ## Points d'attention (pièges déjà rencontrés — à ne pas réintroduire)
@@ -415,7 +421,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3/A1.4. Ils ne sont
 | A1.7 | Pipeline CI/CD (build, tests, publication d'image) | ✅ Fait — publie l'image sur le Container Registry, ne déploie pas (voir section CI/CD) |
 | A1.8 | Recette Auth → API → Base de données | ⬜ Reste à faire |
 
-**Reste à faire :** A1.7 et A1.8 (fin de Phase A1), puis Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
+**Reste à faire :** A1.8 (fin de Phase A1), puis Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
 
 **Documentation de conception disponible** pour tout ce qui est fait jusqu'ici (décisions prises, alternatives écartées, justifications) :
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)
