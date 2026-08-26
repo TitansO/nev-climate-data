@@ -12,6 +12,10 @@ services:
       APP_SECRET: ${APP_SECRET}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
+      # $ is doubled ($$) below: docker-compose interpolates single $ itself,
+      # and this default value is a regex whose literal $ end-anchors would
+      # otherwise be swallowed as (empty) variable references.
+      CORS_ALLOWED_ORIGIN_REGEX: ${CORS_ALLOWED_ORIGIN_REGEX:-^https?://localhost:8123$$|^https://[a-z0-9-]+-8123\.app\.github\.dev$$}
     depends_on:
       database:
         condition: service_healthy

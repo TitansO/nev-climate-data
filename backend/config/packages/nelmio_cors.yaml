@@ -1,0 +1,37 @@
+# A2.1 prerequisite for A2.2: the dev frontend and the backend run on
+# different origins, so a fetch() from the browser needs CORS. Scoped to
+# /api/ only; allow_credentials is deliberately omitted (false) - JWT
+# travels in an Authorization header and the API key in X-API-Key, neither
+# relies on cookies, so there's no reason to widen the credentials surface.
+# Never a wildcard origin - the allowed origin pattern comes from
+# CORS_ALLOWED_ORIGIN_REGEX (see .env.example), so production can set its
+# real origin without touching this file.
+#
+# origin_regex is on because this project is viewed from two different
+# origins depending on how the dev environment is reached: the local SSH
+# tunnel (http://localhost:8123) and a Codespace's forwarded HTTPS URL
+# (https://<codespace-name>-8123.app.github.dev, a different hostname per
+# Codespace). A single literal origin can't match both.
+nelmio_cors:
+    # allow_origin must be a literal YAML array containing the placeholder
+    # (['%env(...)%']), not a single placeholder resolving to the whole
+    # array (e.g. '%env(json:...)%'): this bundle's extension runs
+    # in_array('*', $config['allow_origin']) at container-compile time,
+    # before Symfony resolves env placeholders - an unresolved placeholder
+    # is still a plain string at that point, and in_array() over a string
+    # crashes ("Argument #2 must be of type array, string given"). Wrapped
+    # in a literal array, the array itself is real at compile time (its one
+    # element just happens to be a placeholder token resolved later, when a
+    # request actually needs the value) and the check passes cleanly.
+    defaults:
+        allow_origin: ['%env(CORS_ALLOWED_ORIGIN_REGEX)%']
+        origin_regex: true
+        allow_headers: ['Content-Type', 'Authorization', 'X-API-Key']
+        # GET (funding, api-keys list, auth/me), POST (auth login/refresh/
+        # logout, api-keys create), DELETE (api-keys revoke) - every method
+        # actually used by an existing endpoint the frontend calls (A2.2 +
+        # the frontend auth integration block). Nothing wider than that.
+        allow_methods: ['GET', 'POST', 'DELETE']
+        max_age: 3600
+    paths:
+        '^/api/': ~
