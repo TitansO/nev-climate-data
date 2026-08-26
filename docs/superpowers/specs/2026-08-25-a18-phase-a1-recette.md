@@ -1,6 +1,6 @@
 # A1.8 — Recette Phase A1 (Auth → API → Base de données)
 
-Status: Exécutée
+Status: Validé — Phase A1 recettée
 Author: Serge (with Claude)
 Date: 2026-08-25 / 2026-08-26
 Plan reference: A1.8 (Phase A1 — Fondations), `Plan_Implementation_NEV_Climate_Data.xlsx`
@@ -108,7 +108,7 @@ exactly the kind of gotcha that section exists to prevent from resurfacing.
 
 | Critère | Commande | Résultat obtenu | Statut |
 |---|---|---|---|
-| Le pipeline du dernier commit sur `developp` est vert | vérification GitLab par Serge | *(à remplir par Serge)* | *(à remplir)* |
+| Le pipeline du dernier commit sur `developp` est vert | vérification GitLab par Serge | Pipeline `#2790929229` pour le commit `24feeb8` (correctif Apache inclus) — `phpunit` et `build_and_push_image` tous deux Passed | ✅ |
 
 ### 8. Régression globale
 
@@ -123,6 +123,6 @@ En signant ci-dessous, le Product Owner valide que la Phase A1 (A1.1 à A1.8) es
 formellement recettée et que la Phase A2 peut démarrer, conformément à la règle de
 gouvernance du cahier des charges (section 10).
 
-- Signataire : *(à remplir)*
-- Date : *(à remplir)*
-- Décision : *(à remplir — validé / validé avec réserves / non validé)*
+- Signataire : Serge KOBI (Product Owner)
+- Date : 2026-08-26
+- Décision : **Validé** — toutes les catégories (1 à 8) sont vertes. Un bug bloquant a été trouvé pendant l'exécution (Apache ne transmettait pas l'en-tête `Authorization`, voir « Finding » ci-dessus), corrigé, et la non-régression a été vérifiée (suite PHPUnit 65/65 avant et après, sections 5-6 re-testées, pipeline CI/CD vert sur le commit du correctif). La Phase A1 (A1.1 à A1.8) est formellement recettée. La Phase A2 peut démarrer.
