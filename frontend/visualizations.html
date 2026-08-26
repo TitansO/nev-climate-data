@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="fr" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visualisations - NEV Climate Data</title>
+    <meta name="description" content="Tendances de financement, répartition sectorielle et indicateurs climatiques." />
+    <link rel="shortcut icon" href="assets/images/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./src/css/tailwind.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  </head>
+
+  <body class="bg-surface text-dark-3">
+    <!-- ====== Navbar ====== -->
+    <header class="ud-header absolute left-0 top-0 z-40 flex w-full items-center bg-transparent">
+      <div class="container mx-auto px-4">
+        <div class="relative -mx-4 flex items-center justify-between">
+          <div class="w-48 max-w-full px-4">
+            <a href="index.html" class="navbar-logo block w-full py-5">
+              <img src="assets/images/logo/logo-white.svg" alt="NEV Climate Data" class="header-logo h-8 w-auto" />
+            </a>
+          </div>
+          <div class="flex w-full items-center justify-between px-4">
+            <div>
+              <button id="navbarToggler" aria-label="Ouvrir le menu" class="absolute right-4 top-1/2 block -translate-y-1/2 rounded-lg px-3 py-[6px] ring-primary focus:ring-2 lg:hidden">
+                <span class="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
+                <span class="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
+                <span class="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
+              </button>
+              <nav id="navbarCollapse" class="absolute right-4 top-full hidden w-full max-w-[280px] rounded-lg bg-white py-5 shadow-lg lg:static lg:block lg:w-full lg:max-w-full lg:bg-transparent lg:px-4 lg:py-0 lg:shadow-none xl:px-6">
+                <ul class="block lg:flex lg:items-center">
+                  <li><a href="index.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Accueil</a></li>
+                  <li><a href="data.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Données</a></li>
+                  <li><a href="visualizations.html" class="nav-link-active mx-6 flex py-2 text-sm font-semibold text-white lg:mx-4 lg:inline-flex lg:py-6">Visualisations</a></li>
+                  <li><a href="reports.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Rapports</a></li>
+                  <li><a href="sources.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Sources</a></li>
+                  <li><a href="about.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">À propos</a></li>
+                  <li><a href="api-docs.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Documentation API</a></li>
+                </ul>
+              </nav>
+            </div>
+            <div class="hidden items-center gap-4 sm:flex">
+              <label class="relative">
+                <span class="sr-only">Rechercher (fonctionnalité à venir)</span>
+                <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dark-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M18 11a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input type="search" placeholder="Rechercher des données…" disabled aria-disabled="true" title="Recherche globale - bientôt disponible" class="w-56 cursor-not-allowed rounded-md border-0 bg-white/95 py-2 pl-9 pr-3 text-sm text-dark shadow-input placeholder:text-dark-5 focus:outline-none" />
+              </label>
+              <a href="login.html" id="auth-nav-slot" class="loginBtn signUpBtn rounded-md bg-white/15 px-5 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark">Connexion</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <!-- ====== /Navbar ====== -->
+
+    <!-- ====== Page header ====== -->
+    <section class="bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-16 pt-[140px] text-center text-white lg:pt-[160px]">
+      <div class="container mx-auto px-4">
+        <h1 class="mb-3 text-3xl font-bold sm:text-4xl">Visualisations et tendances</h1>
+        <p class="mx-auto max-w-[640px] text-white/80">Analysez l'évolution du financement climatique et sa répartition par secteur et par région.</p>
+      </div>
+    </section>
+    <!-- ====== /Page header ====== -->
+
+    <div class="container mx-auto px-4">
+      <section class="relative z-20 -mt-10 mb-16">
+        <div class="mb-4 flex justify-end">
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-status-demo-bg px-3 py-1 text-xs font-semibold text-status-demo shadow-1">
+            <span class="h-1.5 w-1.5 rounded-full bg-status-demo"></span> Données de démonstration
+          </span>
+        </div>
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div class="rounded-2xl border border-stroke bg-white p-6 shadow-2 sm:p-8">
+            <h3 class="mb-6 text-lg font-bold text-dark">Financement par année (M USD)</h3>
+            <canvas id="financingChart" height="260"></canvas>
+          </div>
+          <div class="rounded-2xl border border-stroke bg-white p-6 shadow-2 sm:p-8">
+            <h3 class="mb-6 text-lg font-bold text-dark">Répartition par secteur (%)</h3>
+            <canvas id="sectorChart" height="260"></canvas>
+          </div>
+        </div>
+        <div class="mt-6 rounded-2xl border border-stroke bg-white p-6 shadow-2 sm:p-8">
+          <h3 class="mb-6 text-lg font-bold text-dark">Répartition par région (M USD)</h3>
+          <canvas id="regionChart" height="220"></canvas>
+        </div>
+      </section>
+
+      <section class="pb-20">
+        <h2 class="mb-6 text-xl font-bold text-dark">Autres indicateurs climatiques</h2>
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
+          <div class="rounded-2xl border border-stroke bg-white p-6 text-center shadow-1">
+            <div class="mb-1 text-2xl font-extrabold text-deep-3">-</div>
+            <div class="text-sm font-medium text-dark-4">Réduction CO2 (M tonnes/an)</div>
+            <div class="mt-2 text-xs text-dark-5">Indicateur à venir (Volet B)</div>
+          </div>
+          <div class="rounded-2xl border border-stroke bg-white p-6 text-center shadow-1">
+            <div class="mb-1 text-2xl font-extrabold text-deep-3">-</div>
+            <div class="text-sm font-medium text-dark-4">Projets actifs</div>
+            <div class="mt-2 text-xs text-dark-5">Indicateur à venir (Volet B)</div>
+          </div>
+          <div class="rounded-2xl border border-stroke bg-white p-6 text-center shadow-1">
+            <div class="mb-1 text-2xl font-extrabold text-deep-3">-</div>
+            <div class="text-sm font-medium text-dark-4">Pays avec données validées</div>
+            <div class="mt-2 text-xs text-dark-5">Indicateur à venir (Volet B)</div>
+          </div>
+        </div>
+        <p class="mt-6 text-xs text-dark-5">
+          Graphiques alimentés par des données de démonstration statiques. Les endpoints d'agrégation (A2.5) et la connexion réelle des graphiques (A2.6) seront réalisés ultérieurement.
+        </p>
+      </section>
+    </div>
+
+    <!-- ====== Footer ====== -->
+    <footer class="bg-deep pt-16 text-gray-7">
+      <div class="container mx-auto px-4">
+        <div class="grid grid-cols-1 gap-10 pb-12 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <a href="index.html" class="mb-4 inline-block"><img src="assets/images/logo/logo-white.svg" alt="NEV Climate Data" class="h-8 w-auto" /></a>
+            <p class="max-w-[260px] text-sm leading-relaxed">Plateforme de collecte, structuration et diffusion des données climatiques et de financement.</p>
+          </div>
+          <div>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Navigation</h4>
+            <ul class="space-y-3 text-sm">
+              <li><a href="data.html" class="hover:text-white">Données</a></li>
+              <li><a href="visualizations.html" class="hover:text-white">Visualisations</a></li>
+              <li><a href="reports.html" class="hover:text-white">Rapports</a></li>
+              <li><a href="sources.html" class="hover:text-white">Sources</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Documentation</h4>
+            <ul class="space-y-3 text-sm">
+              <li><a href="api-docs.html" class="hover:text-white">Documentation API</a></li>
+              <li><a href="about.html" class="hover:text-white">À propos</a></li>
+              <li><a href="login.html" class="hover:text-white">Connexion</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Contact</h4>
+            <ul class="space-y-3 text-sm">
+              <li>contact@nev-climate-data.org</li>
+              <li>Dakar, Sénégal</li>
+            </ul>
+          </div>
+        </div>
+        <div class="border-t border-white/10 py-6 text-center text-xs">&copy; 2026 NEV Climate Data. Tous droits réservés.</div>
+      </div>
+    </footer>
+    <!-- ====== /Footer ====== -->
+
+    <script src="assets/js/main.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script>
+      Chart.defaults.font.family = "Inter, sans-serif";
+      Chart.defaults.color = "#52616a";
+
+      new Chart(document.getElementById("financingChart"), {
+        type: "line",
+        data: {
+          labels: ["2022", "2023", "2024", "2025"],
+          datasets: [
+            { label: "Public", data: [58, 65, 72, 80], borderColor: "#16a34a", backgroundColor: "rgba(22,163,74,0.12)", fill: true, tension: 0.4, borderWidth: 3 },
+            { label: "Privé", data: [40, 46, 53, 60], borderColor: "#052e1c", backgroundColor: "rgba(5,46,28,0.08)", fill: true, tension: 0.4, borderWidth: 3 },
+            { label: "Multilatéral", data: [45, 50, 58, 66], borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.08)", fill: true, tension: 0.4, borderWidth: 3 },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: "bottom" } },
+          scales: { y: { beginAtZero: true, grid: { color: "rgba(5,46,28,0.06)" } }, x: { grid: { display: false } } },
+        },
+      });
+
+      new Chart(document.getElementById("sectorChart"), {
+        type: "doughnut",
+        data: {
+          labels: ["Énergies renouvelables", "Transport durable", "Agriculture", "Foresterie", "Adaptation"],
+          datasets: [{ data: [33, 20, 22, 13, 12], backgroundColor: ["#16a34a", "#22c55e", "#86efac", "#14532d", "#0b3d24"], borderWidth: 0 }],
+        },
+        options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+      });
+
+      new Chart(document.getElementById("regionChart"), {
+        type: "bar",
+        data: {
+          labels: ["Afrique de l'Ouest", "Afrique centrale", "Afrique de l'Est", "Afrique australe", "Afrique du Nord"],
+          datasets: [{ label: "Financement (M USD)", data: [420, 260, 380, 190, 310], backgroundColor: "#16a34a", borderRadius: 6 }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, grid: { color: "rgba(5,46,28,0.06)" } }, x: { grid: { display: false } } },
+        },
+      });
+    </script>
+  </body>
+</html>

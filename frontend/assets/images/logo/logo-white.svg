@@ -1,0 +1,6 @@
+<svg width="180" height="32" viewBox="0 0 180 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="NEV Climate Data">
+  <rect width="32" height="32" rx="8" fill="white" fill-opacity="0.15"/>
+  <path d="M16 6C11 8 8 12 8 16.5C8 21.5 11.5 25 16 25.5C15.2 22 15.5 18.5 17.5 15.5C15 17.5 13.7 19.8 13.4 22C12.3 20.3 11.8 18.2 12.2 16C12.9 12.2 15.7 8.7 20 6.7C18.9 9.6 19 12.5 20.3 14.8C21.2 12.2 21.3 9.3 20.5 6.3C19.1 6 17.5 5.9 16 6Z" fill="white"/>
+  <text x="40" y="21" font-family="Inter, sans-serif" font-size="15" font-weight="800" fill="white">NEV</text>
+  <text x="72" y="21" font-family="Inter, sans-serif" font-size="15" font-weight="500" fill="white" fill-opacity="0.85">Climate Data</text>
+</svg>

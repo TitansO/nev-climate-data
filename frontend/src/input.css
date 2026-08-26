@@ -1,0 +1,121 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap")
+layer(base);
+@import "tailwindcss";
+
+/*
+  NEV Climate Data - theme Tailwind v4 (identité verte).
+  Base adaptée du template "Play" (TailGrids, MIT) : mêmes tokens
+  (breakpoints, ombres) mais palette entièrement recomposée autour du vert
+  (climat / environnement / durabilité), + tons neutres pour le texte
+  (lisibilité/contraste) et 3 couleurs de statut (badges qualité de donnée).
+*/
+
+@theme {
+  /* Screen Breakpoints (repris de Play) */
+  --breakpoint-sm: 540px;
+  --breakpoint-md: 720px;
+  --breakpoint-lg: 960px;
+  --breakpoint-xl: 1140px;
+  --breakpoint-2xl: 1320px;
+
+  --container-padding: 16px;
+
+  /* --- Identité verte NEV Climate Data --- */
+  /* Vert principal : boutons, liens actifs, éléments interactifs */
+  --color-primary: #16a34a;
+  --color-primary-dark: #15803d;
+  --color-primary-light: #22c55e;
+
+  /* Vert profond : hero, footer, sections institutionnelles */
+  --color-deep: #052e1c;
+  --color-deep-2: #0b3d24;
+  --color-deep-3: #14532d;
+
+  /* Surfaces très légèrement verdâtres (cartes, sections alternées) */
+  --color-surface: #f3faf5;
+  --color-surface-alt: #eafaf0;
+  --color-accent: #86efac;
+
+  /* Neutres pour le texte - priorité à la lisibilité/contraste */
+  --color-dark: #0f1913;
+  --color-dark-2: #1c2b22;
+  --color-dark-3: #374151;
+  --color-dark-4: #4b5563;
+  --color-dark-5: #6b7280;
+  --color-dark-6: #9ca3af;
+  --color-dark-7: #d1d5db;
+  --color-dark-8: #e5e7eb;
+  --color-body-color: #52616a;
+  --color-stroke: #dbe6df;
+  --color-gray-1: #f9fbfa;
+  --color-gray-2: #f0f5f2;
+  --color-gray-7: #ced9d3;
+
+  /* Statuts qualité de donnée (badges) - volontairement hors palette verte
+     pour rester distinguables d'un simple bouton/lien vert */
+  --color-status-demo: #d97706;
+  --color-status-demo-bg: #fef3c7;
+  --color-status-validated: #15803d;
+  --color-status-validated-bg: #dcfce7;
+  --color-status-review: #2563eb;
+  --color-status-review-bg: #dbeafe;
+
+  /* Box Shadows (repris de Play) */
+  --shadow-input: 0px 7px 20px rgba(0, 0, 0, 0.03);
+  --shadow-form: 0px 1px 55px -11px rgba(0, 0, 0, 0.01);
+  --shadow-testimonial: 0px 10px 20px 0px rgba(15, 61, 36, 0.08);
+  --shadow-1: 0px 1px 3px 0px rgba(15, 61, 36, 0.12);
+  --shadow-2: 0px 5px 12px 0px rgba(15, 61, 36, 0.1);
+  --shadow-card: 0px 4px 16px 0px rgba(15, 61, 36, 0.08);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-stroke, currentColor);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  body {
+    font-family: "Inter", sans-serif;
+    background-color: var(--color-surface);
+  }
+}
+
+/* Sticky header on scroll (assets/js/main.js toggles this class) */
+.sticky {
+  @apply fixed transition z-9999 bg-white/90;
+  backdrop-filter: blur(6px);
+  box-shadow: inset 0 -1px 0 0 rgba(15, 61, 36, 0.1);
+}
+.sticky .navbar-logo {
+  @apply py-2;
+}
+.sticky #navbarToggler span {
+  @apply bg-dark;
+}
+.sticky #navbarCollapse li > a {
+  @apply text-dark hover:text-primary hover:opacity-100;
+}
+.sticky .loginBtn {
+  @apply text-dark hover:text-primary hover:opacity-100;
+}
+.sticky .signUpBtn {
+  @apply text-white bg-primary hover:bg-primary-dark;
+}
+
+/* Mobile hamburger -> close icon animation */
+.navbarTogglerActive > span:nth-child(1) {
+  @apply top-[7px] rotate-45 transform;
+}
+.navbarTogglerActive > span:nth-child(2) {
+  @apply opacity-0;
+}
+.navbarTogglerActive > span:nth-child(3) {
+  @apply top-[-8px] rotate-[135deg];
+}
