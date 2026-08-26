@@ -1,0 +1,14 @@
+{
+  "name": "nev-climate-data-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NEV Climate Data — frontend statique (HTML + Tailwind CSS v4). Base visuelle préparée pour A2.1/A2.2 (voir README.md).",
+  "scripts": {
+    "dev": "npx @tailwindcss/cli -i ./src/input.css -o ./src/css/tailwind.css --watch",
+    "build": "npx @tailwindcss/cli -i ./src/input.css -o ./src/css/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.0.9",
+    "tailwindcss": "^4.0.9"
+  }
+}
