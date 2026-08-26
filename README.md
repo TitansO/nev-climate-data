@@ -1,6 +1,6 @@
 # NEV Climate Data
 
-Plateforme de collecte, structuration et diffusion de données climatiques et de financement (Volet A : application ; Volet B : pipeline de données). Ce dépôt contient actuellement les **fondations** du Volet A : environnement Docker, squelette de l'API backend Symfony, schéma de données TimescaleDB « pipeline-ready », et authentification JWT (Phase A1, tâches A1.1 à A1.7 du plan d'implémentation — voir « État d'avancement » en bas de ce document pour le détail et la suite).
+Plateforme de collecte, structuration et diffusion de données climatiques et de financement (Volet A : application ; Volet B : pipeline de données). La Phase A1 (fondations : environnement Docker, API Symfony, schéma TimescaleDB « pipeline-ready », authentification JWT, clés API, fixtures, CI/CD) est close. La Phase A2 est en cours : le frontend (HTML + Tailwind CSS v4) existe désormais et consomme les vraies données du backend (`GET /api/funding`, A2.1/A2.2), avec une authentification complète côté client (connexion, session JWT, profil, gestion des clés API) - voir « État d'avancement » en bas de ce document pour le détail.
 
 ## Structure du dépôt
 
@@ -12,11 +12,15 @@ nev-climate-data/
 │   │   ├── Entity/          Entités Doctrine (Country, Sector, Source, User, Funding, Report, ApiKey, Notification)
 │   │   └── Repository/      Repositories Doctrine
 │   ├── config/               Configuration Symfony (routes, packages, bundles)
-│   ├── migrations/           Migrations Doctrine (3 : schéma couche 1, couche 2, table refresh_token — voir « Schéma de données »)
+│   ├── migrations/           Migrations Doctrine (3 : schéma couche 1, couche 2, table refresh_token - voir « Schéma de données »)
 │   ├── tests/                Tests automatisés (PHPUnit)
 │   ├── public/                Point d'entrée HTTP (index.php)
 │   └── composer.json
-├── frontend/                 Réservé au frontend (Phase A2 et suivantes — vide pour l'instant)
+├── frontend/                 Application statique (HTML + Tailwind CSS v4, sans framework/bundler)
+│   ├── *.html                 9 pages (accueil, données, visualisations, rapports, sources, à propos,
+│   │                          doc API, connexion, 404) + profil et clés API (voir frontend/README.md)
+│   ├── assets/js/              api.js (GET /api/funding), auth.js (session JWT, clés API), main.js (UI)
+│   └── src/                    Thème Tailwind (input.css) + CSS compilé
 ├── docker/
 │   └── backend/               Dockerfile et configuration Apache du backend
 ├── docker-compose.yml         Orchestration des services (backend + base de données)
@@ -24,7 +28,7 @@ nev-climate-data/
 └── README.md
 ```
 
-> Le dossier `frontend/` est volontairement vide à ce stade : il sera peuplé lors de la Phase A2.
+> Détail complet du frontend (structure, identité visuelle, comment le lancer) : [`frontend/README.md`](frontend/README.md).
 
 ## Prérequis
 
@@ -50,6 +54,7 @@ cp .env.example .env
 | `POSTGRES_PASSWORD` | Mot de passe PostgreSQL |
 | `POSTGRES_PORT` | Port PostgreSQL exposé sur l'hôte (défaut : `5432`) |
 | `BACKEND_PORT` | Port de l'API exposé sur l'hôte (défaut : `8080`) |
+| `CORS_ALLOWED_ORIGIN_REGEX` | Motif regex des origines autorisées à appeler `/api/*` depuis un navigateur (A2.1). Défaut : couvre à la fois `http://localhost:8123` (tunnel SSH local) et n'importe quelle URL forwardée de Codespace (`https://<nom>-8123.app.github.dev`) - voir `backend/config/packages/nelmio_cors.yaml`. |
 
 Le fichier `.env` réel n'est **jamais** versionné (voir `.gitignore`). Aucun secret n'est codé en dur dans les fichiers Docker.
 
@@ -59,8 +64,8 @@ Le fichier `.env` réel n'est **jamais** versionné (voir `.gitignore`). Aucun s
 
 Si tu avais déjà un environnement local avant ce commit, ces étapes nécessitent une action :
 
-1. **Nouvelle variable d'environnement** : ajoute `JWT_PASSPHRASE=<valeur aléatoire>` à ton `.env` local (voir `.env.example` — génère une valeur avec `openssl rand -hex 16`).
-2. **Reconstruire l'image backend** (nouvelles dépendances Composer — JWT, refresh token, rate limiter, fixtures) :
+1. **Nouvelle variable d'environnement** : ajoute `JWT_PASSPHRASE=<valeur aléatoire>` à ton `.env` local (voir `.env.example` - génère une valeur avec `openssl rand -hex 16`).
+2. **Reconstruire l'image backend** (nouvelles dépendances Composer - JWT, refresh token, rate limiter, fixtures) :
    ```bash
    docker compose up -d --build backend
    ```
@@ -73,7 +78,7 @@ Si tu avais déjà un environnement local avant ce commit, ces étapes nécessit
    ```bash
    docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
    ```
-5. **(Optionnel) Charger un jeu de données de démonstration** — voir « Scripts de seed / fixtures (A1.6) » ci-dessous ; sans cette étape la base est vide mais parfaitement fonctionnelle (schéma en place, aucune erreur).
+5. **(Optionnel) Charger un jeu de données de démonstration** - voir « Scripts de seed / fixtures (A1.6) » ci-dessous ; sans cette étape la base est vide mais parfaitement fonctionnelle (schéma en place, aucune erreur).
 6. **Vérifier que tout est sain** :
    ```bash
    docker compose exec backend php bin/console doctrine:schema:validate
@@ -81,7 +86,7 @@ Si tu avais déjà un environnement local avant ce commit, ces étapes nécessit
    docker compose exec -e APP_ENV=test backend php bin/console doctrine:migrations:migrate --no-interaction
    docker compose exec -e APP_ENV=test backend php bin/phpunit
    ```
-   Attendu : `doctrine:schema:validate` → deux `[OK]` ; la suite de tests → 65 tests au vert.
+   Attendu : `doctrine:schema:validate` → deux `[OK]` ; la suite de tests → 83 tests au vert.
 
 ## Démarrer le projet
 
@@ -164,11 +169,11 @@ http://localhost:8080/api/doc.json
 
 Le schéma métier (section 5.3 du cahier des charges) est réparti en deux migrations Doctrine, correspondant à deux couches de dépendances, plus une troisième migration technique pour l'authentification (A1.4) :
 
-**Couche 1 — sans clé étrangère** (`Version20260824005839`) : `Country`, `Sector`, `Source`, `User` (table `users`, car `user` est un mot réservé en PostgreSQL).
+**Couche 1 - sans clé étrangère** (`Version20260824005839`) : `Country`, `Sector`, `Source`, `User` (table `users`, car `user` est un mot réservé en PostgreSQL).
 
-**Couche 2 — dépend de la couche 1** (`Version20260824013715`) : `Funding` (clés étrangères vers `Country`, `Sector`, `Source`), `Report` (clé étrangère optionnelle vers `Country`), `ApiKey` et `Notification` (clé étrangère vers `User`).
+**Couche 2 - dépend de la couche 1** (`Version20260824013715`) : `Funding` (clés étrangères vers `Country`, `Sector`, `Source`), `Report` (clé étrangère optionnelle vers `Country`), `ApiKey` et `Notification` (clé étrangère vers `User`).
 
-**`refresh_token`** (`Version20260824020255`, A1.4) : table technique du bundle d'authentification (Gesdinet), pas une entité métier du cahier des charges — stocke les jetons de rafraîchissement JWT (voir section « Authentification »).
+**`refresh_token`** (`Version20260824020255`, A1.4) : table technique du bundle d'authentification (Gesdinet), pas une entité métier du cahier des charges - stocke les jetons de rafraîchissement JWT (voir section « Authentification »).
 
 Toutes les valeurs à faible cardinalité et stables (rôle utilisateur, type de financement, statut de validation, statut de rapport, statut de clé API, type/fiabilité de source, type de notification) sont des enums PHP natifs mappés via Doctrine, pas des tables de référence.
 
@@ -179,7 +184,7 @@ Toutes les valeurs à faible cardinalité et stables (rôle utilisateur, type de
 Détails complets du modèle de données et des décisions de conception : voir
 [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md).
 
-> **Note technique — TimescaleDB et `doctrine:migrations:diff`** : `backend/config/packages/doctrine.yaml` définit un `schema_filter` qui exclut les schémas/séquences internes de l'extension TimescaleDB (`_timescaledb_catalog`, `_timescaledb_internal`, etc.) de la comparaison de schéma Doctrine. Sans ce filtre, `doctrine:migrations:diff` et `doctrine:schema:validate` tentent de gérer (voire supprimer) ces objets internes à l'extension. Si une future migration générée contient malgré tout des `CREATE SCHEMA`/`DROP SEQUENCE` sur des objets `timescaledb*`/`_timescaledb*`, les retirer manuellement avant d'appliquer la migration.
+> **Note technique - TimescaleDB et `doctrine:migrations:diff`** : `backend/config/packages/doctrine.yaml` définit un `schema_filter` qui exclut les schémas/séquences internes de l'extension TimescaleDB (`_timescaledb_catalog`, `_timescaledb_internal`, etc.) de la comparaison de schéma Doctrine. Sans ce filtre, `doctrine:migrations:diff` et `doctrine:schema:validate` tentent de gérer (voire supprimer) ces objets internes à l'extension. Si une future migration générée contient malgré tout des `CREATE SCHEMA`/`DROP SEQUENCE` sur des objets `timescaledb*`/`_timescaledb*`, les retirer manuellement avant d'appliquer la migration.
 
 ### Appliquer les migrations
 
@@ -237,7 +242,7 @@ Nécessite `JWT_PASSPHRASE` déjà défini dans `.env` (voir `.env.example`). Le
 | `POST /api/auth/login` | Non | `{email, password}` → `{token, refresh_token}` |
 | `POST /api/auth/refresh` | Non | `{refresh_token}` → nouvelle paire (rotation à usage unique) |
 | `GET /api/auth/me` | Oui (Bearer token) | `{email, role}` de l'utilisateur authentifié |
-| `POST /api/auth/logout` | Oui (Bearer token) | Révoque le refresh token de l'utilisateur — 204 |
+| `POST /api/auth/logout` | Oui (Bearer token) | Révoque le refresh token de l'utilisateur - 204 |
 
 ### Durées de vie
 
@@ -250,7 +255,7 @@ Nécessite `JWT_PASSPHRASE` déjà défini dans `.env` (voir `.env.example`). Le
 
 ### Rôles
 
-`User.role` (`Admin` / `InternalAnalyst` / `ExternalPartner`) est mappé vers `ROLE_ADMIN` / `ROLE_INTERNAL_ANALYST` / `ROLE_EXTERNAL_PARTNER` (+ `ROLE_USER` pour tout utilisateur authentifié). Le "Visiteur" du cahier des charges correspond à l'absence de compte, donc à l'absence de jeton — pas à un rôle stocké en base.
+`User.role` (`Admin` / `InternalAnalyst` / `ExternalPartner`) est mappé vers `ROLE_ADMIN` / `ROLE_INTERNAL_ANALYST` / `ROLE_EXTERNAL_PARTNER` (+ `ROLE_USER` pour tout utilisateur authentifié). Le "Visiteur" du cahier des charges correspond à l'absence de compte, donc à l'absence de jeton - pas à un rôle stocké en base.
 
 ## Gestion des clés API (A1.5)
 
@@ -261,12 +266,12 @@ Chaque utilisateur authentifié peut générer, lister et révoquer ses propres 
 - La clé brute (`nev_<64 caractères hex>`, 256 bits d'entropie via `random_bytes`) n'est **retournée qu'une seule fois**, à la création. Elle n'est jamais stockée : seul son hash SHA-256 l'est (colonne `key_hash`), et aucun endpoint ne le renvoie jamais.
 - Une clé révoquée est immédiatement refusée par la validation, mais reste en base (traçabilité) avec `status = revoked` et `revoked_at` renseigné.
 
-### Endpoints (authentification JWT requise — voir « Limites actuelles » ci-dessous)
+### Endpoints (authentification JWT requise - voir « Limites actuelles » ci-dessous)
 
 | Endpoint | Description |
 |---|---|
 | `POST /api/api-keys` | Génère une nouvelle clé pour l'utilisateur connecté. Réponse `201` avec `key` (clé brute, à sauvegarder immédiatement). |
-| `GET /api/api-keys` | Liste les clés de l'utilisateur connecté (métadonnées seulement — jamais `key` ni le hash). |
+| `GET /api/api-keys` | Liste les clés de l'utilisateur connecté (métadonnées seulement - jamais `key` ni le hash). |
 | `DELETE /api/api-keys/{id}` | Révoque une clé appartenant à l'utilisateur connecté. `404` si la clé n'existe pas ou appartient à quelqu'un d'autre (pas de `403`, pour ne pas révéler l'existence de la clé d'un tiers). |
 
 ### Utiliser une clé API
@@ -277,9 +282,9 @@ Envoyer la clé dans l'en-tête `X-API-Key` sur n'importe quelle route `/api/*` 
 curl -H "X-API-Key: nev_<votre_clé>" http://localhost:8080/api/auth/me
 ```
 
-L'authentification par clé API (`App\Security\ApiKeyAuthenticator`) est enregistrée sur le firewall `api` aux côtés de JWT (`security.yaml`) — les deux mécanismes coexistent, chacun ne réagissant qu'à son propre en-tête (`Authorization: Bearer` vs `X-API-Key`).
+L'authentification par clé API (`App\Security\ApiKeyAuthenticator`) est enregistrée sur le firewall `api` aux côtés de JWT (`security.yaml`) - les deux mécanismes coexistent, chacun ne réagissant qu'à son propre en-tête (`Authorization: Bearer` vs `X-API-Key`).
 
-**Important — les endpoints `/api/api-keys` eux-mêmes exigent une authentification JWT et refusent une clé API** (`403`) : une clé API compromise ne doit pas pouvoir en générer d'autres. C'est une politique volontairement plus stricte que le reste de l'API, documentée dans `App\Controller\ApiKeyController::assertJwtAuthenticated()`.
+**Important - les endpoints `/api/api-keys` eux-mêmes exigent une authentification JWT et refusent une clé API** (`403`) : une clé API compromise ne doit pas pouvoir en générer d'autres. C'est une politique volontairement plus stricte que le reste de l'API, documentée dans `App\Controller\ApiKeyController::assertJwtAuthenticated()`.
 
 ### Quotas par rôle
 
@@ -289,21 +294,58 @@ L'authentification par clé API (`App\Security\ApiKeyAuthenticator`) est enregis
 | Analyste interne | 20 000 |
 | Partenaire externe | 5 000 |
 
-⚠️ **Ces valeurs sont provisoires** : ni le cahier des charges ni le plan d'implémentation ne fixent de chiffres officiels (la spec A1.3 précise seulement que `quota` est "a daily request quota"). Elles sont centralisées dans `App\Security\ApiKeyQuotaPolicy` — à ajuster dès que le client valide des valeurs définitives.
+⚠️ **Ces valeurs sont provisoires** : ni le cahier des charges ni le plan d'implémentation ne fixent de chiffres officiels (la spec A1.3 précise seulement que `quota` est "a daily request quota"). Elles sont centralisées dans `App\Security\ApiKeyQuotaPolicy` - à ajuster dès que le client valide des valeurs définitives.
 
 ### Limites actuelles
 
-- **Le quota n'est pas encore appliqué en usage réel** : la colonne `ApiKey.quota` porte la limite attribuée à la création, mais rien ne compte ni ne décrémente les requêtes consommées à ce stade — le schéma actuel ne porte aucun compteur d'usage ni fenêtre temporelle. L'attribution du quota par rôle est fonctionnelle ; son application (rejet au-delà du quota) reste à concevoir, probablement en A2 ou A3, avec une réflexion sur le stockage (compteur en base vs. Redis avec fenêtre glissante).
+- **Le quota n'est pas encore appliqué en usage réel** : la colonne `ApiKey.quota` porte la limite attribuée à la création, mais rien ne compte ni ne décrémente les requêtes consommées à ce stade - le schéma actuel ne porte aucun compteur d'usage ni fenêtre temporelle. L'attribution du quota par rôle est fonctionnelle ; son application (rejet au-delà du quota) reste à concevoir, probablement en A2 ou A3, avec une réflexion sur le stockage (compteur en base vs. Redis avec fenêtre glissante).
 - **Aucune gestion des clés d'un autre utilisateur par un admin** n'est implémentée : le cahier des charges ne définit pas encore cette politique: seule la gestion de ses propres clés est disponible.
-- **Aucune route métier n'accepte encore la clé API** au-delà de l'infrastructure elle-même : le firewall accepte `X-API-Key` sur tout `/api/*`, validé par les tests contre `/api/auth/me`, mais aucun endpoint de données (Phase A2) n'existe encore pour en tirer parti.
+- **Aucune route métier n'accepte encore la clé API** au-delà de l'infrastructure elle-même : le firewall accepte `X-API-Key` sur tout `/api/*`, validé par les tests contre `/api/auth/me`. `GET /api/funding` (A2.1, ci-dessous) est public et ne nécessite donc aucune authentification, JWT ou clé API - le premier endpoint de données à accepter effectivement une clé API reste à venir.
+
+## Données de financement (A2.1)
+
+`GET /api/funding` - liste paginée et filtrable des financements climatiques, **en accès public** (aucune authentification requise, conforme à la section 5.2 du cahier des charges).
+
+### Filtres (tous optionnels, combinables)
+
+| Paramètre | Format | Effet |
+|---|---|---|
+| `country` | code ISO (ex: `SEN`) | Filtre par pays |
+| `sector` | id numérique | Filtre par secteur |
+| `year` | année (ex: `2025`) | Filtre par année |
+| `fundingType` | `public` \| `private` \| `multilateral` | Filtre par type de financement |
+| `periodStart` / `periodEnd` | `YYYY-MM-DD` | Filtre par date de collecte (bornes incluses) |
+| `page` | entier positif | Page demandée (défaut : `1`) |
+| `limit` | entier positif | Taille de page (défaut : `20`, plafonné à `100`) |
+
+Toute valeur invalide (enum inconnu, date mal formée, `periodStart` postérieur à `periodEnd`, `page`/`limit` non positifs) renvoie `400` avec un message explicite, au format JSON uniforme (`{"code": ..., "message": ...}`) sur toute erreur `/api/*` (`App\EventListener\ApiExceptionListener`).
+
+### Exemple
+
+```bash
+curl "http://localhost:8080/api/funding?country=SEN&year=2025&page=1&limit=10"
+```
+
+```json
+{
+  "data": [
+    { "id": 1, "country": {"name": "Senegal", "isoCode": "SEN"}, "sector": {"id": 3, "name": "Agriculture"}, "year": 2025, "amount": "125000.00", "fundingType": "public", "source": {"id": 1, "name": "..."}, "collectionDate": "2025-03-15", "validationStatus": "demo" }
+  ],
+  "meta": { "page": 1, "limit": 10, "total": 1080, "totalPages": 108 }
+}
+```
+
+### CORS
+
+Le frontend (autre origine que le backend) appelle cette API depuis le navigateur : `nelmio/cors-bundle` autorise `/api/*` pour les origines couvertes par `CORS_ALLOWED_ORIGIN_REGEX` (voir tableau des variables d'environnement plus haut) - jamais `*`.
 
 ## Scripts de seed / fixtures (A1.6)
 
-Un jeu de données de démonstration cohérent et reproductible, chargé via `doctrine/doctrine-fixtures-bundle` (dépendance `dev`/`test` uniquement — jamais chargée en `prod`).
+Un jeu de données de démonstration cohérent et reproductible, chargé via `doctrine/doctrine-fixtures-bundle` (dépendance `dev`/`test` uniquement - jamais chargée en `prod`).
 
 ### Prérequis
 
-Aucune installation supplémentaire : `doctrine/doctrine-fixtures-bundle` est déjà dans `composer.json` (`require-dev`). Après un `git pull`, reconstruire l'image backend si ce n'est pas déjà fait (voir la checklist de reprise plus haut) — `composer install` s'exécute automatiquement au build.
+Aucune installation supplémentaire : `doctrine/doctrine-fixtures-bundle` est déjà dans `composer.json` (`require-dev`). Après un `git pull`, reconstruire l'image backend si ce n'est pas déjà fait (voir la checklist de reprise plus haut) - `composer install` s'exécute automatiquement au build.
 
 ### Charger les fixtures
 
@@ -311,34 +353,34 @@ Aucune installation supplémentaire : `doctrine/doctrine-fixtures-bundle` est d�
 docker compose exec backend php bin/console doctrine:fixtures:load --no-interaction
 ```
 
-**Purge et recharge** : la commande ci-dessus **purge déjà** la base avant de recharger (comportement par défaut de `doctrine:fixtures:load`) — pas de commande séparée nécessaire. Rejouable autant de fois que nécessaire : toutes les valeurs sont calculées par des formules déterministes (aucun `rand()`/Faker), donc chaque rechargement reproduit exactement les mêmes lignes.
+**Purge et recharge** : la commande ci-dessus **purge déjà** la base avant de recharger (comportement par défaut de `doctrine:fixtures:load`) - pas de commande séparée nécessaire. Rejouable autant de fois que nécessaire : toutes les valeurs sont calculées par des formules déterministes (aucun `rand()`/Faker), donc chaque rechargement reproduit exactement les mêmes lignes.
 
 ### Contenu du jeu de données
 
 | Entité | Nombre | Détail |
 |---|---|---|
-| `Country` | **54** | Les 54 pays membres de l'ONU en Afrique, classés en 5 régions (Afrique du Nord, de l'Ouest, centrale, de l'Est, australe) — liste explicite dans `CountryFixtures.php`, pas générée |
-| `Sector` | **5** | Renewable Energy, Sustainable Transport, Agriculture, Forestry, Adaptation — repris tels quels des exemples déjà présents dans `docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md` |
+| `Country` | **54** | Les 54 pays membres de l'ONU en Afrique, classés en 5 régions (Afrique du Nord, de l'Ouest, centrale, de l'Est, australe) - liste explicite dans `CountryFixtures.php`, pas générée |
+| `Sector` | **5** | Renewable Energy, Sustainable Transport, Agriculture, Forestry, Adaptation - repris tels quels des exemples déjà présents dans `docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md` |
 | `Source` | 4 | Une par valeur de `SourceType` (API officielle, rapport PDF, évènement GreenAccess, démonstration interne) |
 | `User` | 3 | Un par rôle (`Admin`, `InternalAnalyst`, `ExternalPartner`) |
-| `Funding` | **1 080** | 54 pays × 5 secteurs × 4 années (2022-2025) — voir « Volume et répartition » |
+| `Funding` | **1 080** | 54 pays × 5 secteurs × 4 années (2022-2025) - voir « Volume et répartition » |
 | `Report` | 6 | Mélange rapports globaux / régionaux / par pays, statuts `Draft`/`Published` |
 | `Notification` | 7 | Réparties sur les 3 utilisateurs, mélange lu/non lu |
-| `ApiKey` | 2 | Une active, une révoquée — juste de quoi tester la relation avec `User` |
+| `ApiKey` | 2 | Une active, une révoquée - juste de quoi tester la relation avec `User` |
 
 ### Volume et répartition des données Funding
 
-**Toutes les données `Funding` de ces fixtures utilisent `ValidationStatus::Demo`** — jamais `ValidationStatus::Validated` (règle 5.7 du cahier des charges : jeu de démonstration marqué comme tel).
+**Toutes les données `Funding` de ces fixtures utilisent `ValidationStatus::Demo`** - jamais `ValidationStatus::Validated` (règle 5.7 du cahier des charges : jeu de démonstration marqué comme tel).
 
 - **Plage d'années** : 2022-2025 (4 années). Aucune plage officielle n'étant définie dans le cahier des charges ni le plan, ce choix est documenté ici comme provisoire.
-- **Volume** : 1 080 lignes = 54 pays × 5 secteurs × 4 années, en couverture complète (pas d'échantillonnage) — choisi plutôt qu'une plage d'années plus longue précisément pour garder ce produit croisé rapide à charger tout en couvrant chaque pays/secteur sur une série temporelle complète (utile pour les futurs graphiques de tendance).
+- **Volume** : 1 080 lignes = 54 pays × 5 secteurs × 4 années, en couverture complète (pas d'échantillonnage) - choisi plutôt qu'une plage d'années plus longue précisément pour garder ce produit croisé rapide à charger tout en couvrant chaque pays/secteur sur une série temporelle complète (utile pour les futurs graphiques de tendance).
 - **Répartition par type** : exactement 360 `Public` / 360 `Private` / 360 `Multilateral` (rotation déterministe selon pays × secteur × année).
-- **Montants** : formule déterministe (base par secteur × facteur pays × croissance annuelle × multiplicateur de type), jamais de `float` PHP — toujours une chaîne formatée à 2 décimales, conforme au typage `DECIMAL` de la colonne. Ce sont des montants illustratifs, pas des données financières réelles.
+- **Montants** : formule déterministe (base par secteur × facteur pays × croissance annuelle × multiplicateur de type), jamais de `float` PHP - toujours une chaîne formatée à 2 décimales, conforme au typage `DECIMAL` de la colonne. Ce sont des montants illustratifs, pas des données financières réelles.
 - **Conversion de devise** : `originalAmount`/`originalCurrency`/`exchangeRate` renseignés uniquement sur les financements `Multilateral` (EUR, taux fixe illustratif 1,08) pour exercer ces champs réservés au Volet B, sans prétendre représenter un vrai taux de change.
 
 ### Utilisateurs de démonstration
 
-⚠️ **Environnement local/développement uniquement — jamais de secret réel.**
+⚠️ **Environnement local/développement uniquement - jamais de secret réel.**
 
 | Rôle | Email | Mot de passe |
 |---|---|---|
@@ -346,13 +388,35 @@ docker compose exec backend php bin/console doctrine:fixtures:load --no-interact
 | Analyste interne | `analyste@nev-climate-data.demo` | `ClimateDemo2026!` |
 | Partenaire externe | `partenaire@nev-climate-data.demo` | `ClimateDemo2026!` |
 
-Mot de passe hashé via `password_hash()` (jamais stocké en clair). Les clés API de démonstration (`ApiKeyFixtures.php`) sont générées à partir de valeurs brutes fixes et non secrètes, hashées avec `ApiKeyService::hashKey()` (le même algorithme qu'en production) — **ces clés brutes ne sont pas exploitables** (non documentées, non fonctionnelles pour un usage réel) et ne sont volontairement pas reproduites ici ; pour obtenir une clé utilisable, générer la vôtre via `POST /api/api-keys` après connexion.
+Mot de passe hashé via `password_hash()` (jamais stocké en clair). Les clés API de démonstration (`ApiKeyFixtures.php`) sont générées à partir de valeurs brutes fixes et non secrètes, hashées avec `ApiKeyService::hashKey()` (le même algorithme qu'en production) - **ces clés brutes ne sont pas exploitables** (non documentées, non fonctionnelles pour un usage réel) et ne sont volontairement pas reproduites ici ; pour obtenir une clé utilisable, générer la vôtre via `POST /api/api-keys` après connexion.
 
 ### Limites actuelles
 
-- Le volume de `Funding` (1 080 lignes) est pensé pour la démonstration et le développement des dashboards — pas pour un test de charge.
+- Le volume de `Funding` (1 080 lignes) est pensé pour la démonstration et le développement des dashboards - pas pour un test de charge.
 - Les montants et taux de change sont illustratifs, générés par formule, pas des données réelles.
-- Pas de fixtures pour `RefreshToken` (entité technique, générée uniquement par le mécanisme d'authentification — jamais de faux token créé pour remplir la base).
+- Pas de fixtures pour `RefreshToken` (entité technique, générée uniquement par le mécanisme d'authentification - jamais de faux token créé pour remplir la base).
+
+## Frontend (A2.2 + intégration de l'authentification)
+
+Application statique HTML + Tailwind CSS v4 (pas de framework/bundler), dans `frontend/`. Détail complet (structure, identité visuelle, comment lancer/compiler) : [`frontend/README.md`](frontend/README.md).
+
+### Données réelles (A2.2)
+
+La page `data.html` consomme `GET /api/funding` (A2.1, ci-dessus) : filtres (pays, secteur, année, type de financement, période), pagination, et 4 états d'interface (chargement, erreur, vide, données) - plus aucune donnée simulée dans le tableau.
+
+### Authentification côté client
+
+Ajoutée en marge du plan d'implémentation, entre A2.2 et A2.3 (justification : A2.3 - export par rôle - et le futur A2.10 - notifications par utilisateur - en ont besoin ; autant la construire une fois plutôt que la retrofitter plus tard) :
+
+- **`login.html`** - formulaire réel branché sur `POST /api/auth/login`.
+- **`assets/js/auth.js`** - session JWT/refresh en `localStorage`, rafraîchissement automatique sérialisé (protège le refresh token à usage unique d'une race condition si deux requêtes expirent en même temps), `authorizedFetch()` (retry automatique une fois après un 401).
+- **`account-profile.html`** (« Mon profil ») - via `GET /api/auth/me`.
+- **`account-api-keys.html`** (« Mes clés API ») - CRUD complet contre `POST/GET/DELETE /api/api-keys` (A1.5), qui n'avait jamais eu d'interface avant.
+- Navbar dynamique sur les 9 pages existantes (Connexion ↔ email + Déconnexion).
+
+### Base de l'URL de l'API
+
+`assets/js/api.js` et `assets/js/auth.js` déduisent l'origine du backend de celle de la page elle-même (`window.location.hostname`), plutôt qu'une valeur codée en dur - nécessaire car ce projet est vu depuis deux environnements différents avec des origines différentes : le tunnel SSH local (`http://localhost:8123` → backend `http://localhost:8080`) et l'URL forwardée d'un Codespace (`https://<nom>-8123.app.github.dev` → backend déduit en `https://<nom>-8080.app.github.dev`). Aucun mécanisme de build/injection de variables d'environnement n'existe côté frontend (HTML statique, pas de bundler), donc cette déduction dynamique est la seule solution qui fonctionne sans édition manuelle par environnement.
 
 ## CI/CD
 
@@ -363,7 +427,7 @@ Pipeline GitLab CI (`.gitlab-ci.yml`), deux étapes :
 | `test` | `phpunit` | Tout push, toute branche | Installe PHP 8.4 + extensions, lance la suite PHPUnit contre un service TimescaleDB éphémère |
 | `build` | `build_and_push_image` | Uniquement `developp`, et seulement si `phpunit` a réussi | Construit l'image Docker backend, la publie sur le Container Registry GitLab (tags : SHA du commit + `developp`) |
 
-**Important — ceci n'est pas un déploiement.** L'image est publiée dans le Container Registry du projet ; rien ne la récupère ni ne la fait tourner automatiquement quelque part. Le déploiement d'un environnement de production réel est la tâche A3.8, plus tard dans le plan.
+**Important - ceci n'est pas un déploiement.** L'image est publiée dans le Container Registry du projet ; rien ne la récupère ni ne la fait tourner automatiquement quelque part. Le déploiement d'un environnement de production réel est la tâche A3.8, plus tard dans le plan.
 
 ### Suivre l'état d'un pipeline
 
@@ -375,7 +439,7 @@ Pipeline GitLab CI (`.gitlab-ci.yml`), deux étapes :
 
 ### Runners
 
-Aucun runner dédié n'est configuré pour ce projet — le pool de runners partagés gitlab.com (confirmé disponible : **Settings → CI/CD → Runners → Instance**) est utilisé.
+Aucun runner dédié n'est configuré pour ce projet - le pool de runners partagés gitlab.com (confirmé disponible : **Settings → CI/CD → Runners → Instance**) est utilisé.
 
 ### Récupérer une image publiée
 
@@ -385,33 +449,37 @@ docker pull registry.gitlab.com/nev-consulting-group/nev-climate-data/backend:de
 
 Détails de conception complets : voir [`docs/superpowers/specs/2026-08-24-a17-cicd-pipeline-design.md`](docs/superpowers/specs/2026-08-24-a17-cicd-pipeline-design.md).
 
-## Points d'attention (pièges déjà rencontrés — à ne pas réintroduire)
+## Points d'attention (pièges déjà rencontrés - à ne pas réintroduire)
 
 Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne sont pas évidents et peuvent facilement revenir si on n'y fait pas attention en continuant le projet :
 
-1. **`access_control` protège désormais tout `/api/*` par défaut.** Depuis A1.4, `security.yaml` exige `IS_AUTHENTICATED_FULLY` sur `^/api` sauf exceptions explicites (`/api/auth/login`, `/api/auth/refresh`, `/api/doc`, `/api/health`). **Tout nouvel endpoint public** (Phase A2 : statistiques d'en-tête, recherche globale, etc. — cf. cahier des charges 5.2, « Accès public ») **doit être ajouté explicitement** à la liste `access_control` de `backend/config/packages/security.yaml`, sinon il renverra 401 par défaut.
+1. **`access_control` protège désormais tout `/api/*` par défaut.** Depuis A1.4, `security.yaml` exige `IS_AUTHENTICATED_FULLY` sur `^/api` sauf exceptions explicites (`/api/auth/login`, `/api/auth/refresh`, `/api/doc`, `/api/health`). **Tout nouvel endpoint public** (Phase A2 : statistiques d'en-tête, recherche globale, etc. - cf. cahier des charges 5.2, « Accès public ») **doit être ajouté explicitement** à la liste `access_control` de `backend/config/packages/security.yaml`, sinon il renverra 401 par défaut.
 
 2. **Un authenticator basé sur `check_path` (`json_login`, `refresh-jwt`) exige une route réelle**, même sans contrôleur. Le routeur Symfony s'exécute *avant* le firewall ; sans route correspondante, il renvoie 404 avant même que l'authenticator ait une chance de répondre. Voir `backend/config/routes.yaml` (`api_auth_login`, `api_auth_refresh`) pour le modèle à suivre si un futur endpoint d'auth est ajouté.
 
-3. **TimescaleDB pollue `doctrine:migrations:diff`.** L'extension crée ses propres schémas/séquences internes (`_timescaledb_catalog`, `_timescaledb_internal`, etc.). Un `schema_filter` dans `backend/config/packages/doctrine.yaml` les exclut de la comparaison Doctrine — sans lui, `doctrine:migrations:diff` génère des `DROP SEQUENCE`/`CREATE SCHEMA` dangereux sur ces objets internes. **Toujours relire une migration générée** avant de l'appliquer ; si des instructions sur des objets `timescaledb*`/`_timescaledb*` apparaissent malgré le filtre, les retirer manuellement (voir les migrations existantes pour l'exemple).
+3. **TimescaleDB pollue `doctrine:migrations:diff`.** L'extension crée ses propres schémas/séquences internes (`_timescaledb_catalog`, `_timescaledb_internal`, etc.). Un `schema_filter` dans `backend/config/packages/doctrine.yaml` les exclut de la comparaison Doctrine - sans lui, `doctrine:migrations:diff` génère des `DROP SEQUENCE`/`CREATE SCHEMA` dangereux sur ces objets internes. **Toujours relire une migration générée** avant de l'appliquer ; si des instructions sur des objets `timescaledb*`/`_timescaledb*` apparaissent malgré le filtre, les retirer manuellement (voir les migrations existantes pour l'exemple).
 
 4. **Les tests d'intégration/fonctionnels qui écrivent en base doivent être ré-exécutables.** Pattern à reprendre (voir `tests/Integration/SchemaLayer1Test.php`, `SchemaLayer2Test.php`, `tests/Controller/AuthenticationControllerTest.php`) : ouvrir une transaction dans `setUp()`, la annuler (`rollBack()`) dans `tearDown()`. Sans ça, une donnée insérée par un test (ex. un email unique) fait échouer toute ré-exécution ultérieure de la suite.
 
 5. **`KernelBrowser` redémarre le kernel (nouvelle connexion DB) à partir de la 2ᵉ requête d'un même test.** Un test qui enchaîne plusieurs requêtes HTTP (ex. login puis refresh) doit appeler `$client->disableReboot()` avant la première requête, sinon la transaction ouverte pour les données de test devient invisible à la 2ᵉ requête (échec « Not Found » trompeur, qui ressemble à un bug métier mais n'en est pas un).
 
-6. **Le rate limiter de throttling (`login_throttling`) est stocké en cache filesystem, pas en base.** Il n'est donc *pas* nettoyé par le pattern de transaction du point 4. Un test de throttling qui réutilise toujours le même identifiant peut échouer de façon aléatoire selon l'historique des exécutions précédentes — utiliser un identifiant unique par exécution (voir `testSixthFailedLoginAttemptIsThrottled`).
+6. **Le rate limiter de throttling (`login_throttling`) est stocké en cache filesystem, pas en base.** Il n'est donc *pas* nettoyé par le pattern de transaction du point 4. Un test de throttling qui réutilise toujours le même identifiant peut échouer de façon aléatoire selon l'historique des exécutions précédentes - utiliser un identifiant unique par exécution (voir `testSixthFailedLoginAttemptIsThrottled`).
 
-7. **Ne jamais committer de vrai secret dans `backend/.env`.** Ce fichier est suivi par git (contrairement au `.env` racine) et ne doit contenir que des placeholders (`ChangeMe`, comme `APP_SECRET`/`JWT_PASSPHRASE`) — les vraies valeurs passent uniquement par `docker-compose.yml` → `.env` racine (gitignoré). Un recipe Symfony Flex a généré une vraie passphrase en clair dans `backend/.env` lors de l'installation du bundle JWT ; elle a été retirée avant tout commit. Vérifier ce point après toute installation de nouveau bundle via `composer require`.
+7. **Ne jamais committer de vrai secret dans `backend/.env`.** Ce fichier est suivi par git (contrairement au `.env` racine) et ne doit contenir que des placeholders (`ChangeMe`, comme `APP_SECRET`/`JWT_PASSPHRASE`) - les vraies valeurs passent uniquement par `docker-compose.yml` → `.env` racine (gitignoré). Un recipe Symfony Flex a généré une vraie passphrase en clair dans `backend/.env` lors de l'installation du bundle JWT ; elle a été retirée avant tout commit. Vérifier ce point après toute installation de nouveau bundle via `composer require`.
 
 8. **Un `AuthenticationFailureHandlerInterface` référencé par `security.yaml` ne peut pas être décoré (`decorates:`) de façon fiable.** Les factories `json_login`/`form_login` clonent la définition du service en un service anonyme lors de la compilation du conteneur, ce qui contourne le mécanisme de décoration Symfony. Pour personnaliser un handler, créer un service dédié référencé directement dans `security.yaml`, pas un décorateur (voir `App\Security\LoginFailureHandler`).
 
-9. **La liste d'extensions PHP du job `phpunit` (`.gitlab-ci.yml`) est dupliquée depuis `docker/backend/Dockerfile`, pas partagée.** Le job de test tourne dans une image PHP générique, pas dans l'image Docker du projet (choix documenté dans le spec A1.7, pour garder le pipeline rapide sur chaque push). Si une extension PHP est ajoutée/retirée du `Dockerfile`, il faut penser à répercuter le changement dans `.gitlab-ci.yml` — rien ne le fait automatiquement, et un oubli ne casse rien immédiatement (juste une divergence silencieuse entre l'environnement testé et l'environnement réel).
+9. **La liste d'extensions PHP du job `phpunit` (`.gitlab-ci.yml`) est dupliquée depuis `docker/backend/Dockerfile`, pas partagée.** Le job de test tourne dans une image PHP générique, pas dans l'image Docker du projet (choix documenté dans le spec A1.7, pour garder le pipeline rapide sur chaque push). Si une extension PHP est ajoutée/retirée du `Dockerfile`, il faut penser à répercuter le changement dans `.gitlab-ci.yml` - rien ne le fait automatiquement, et un oubli ne casse rien immédiatement (juste une divergence silencieuse entre l'environnement testé et l'environnement réel).
 
-10. **Apache ne transmet pas l'en-tête `Authorization` à PHP par défaut.** Sans `CGIPassAuth On` (présent dans `docker/backend/vhost.conf` depuis A1.8), toute requête JWT (`Authorization: Bearer ...`) ou clé API (`X-API-Key`) échoue avec un faux `401 "JWT Token not found"` — **contre le vrai serveur Apache qui tourne**, alors que la suite PHPUnit (`WebTestCase`/`KernelBrowser`) passe quand même au vert, puisqu'elle appelle le noyau Symfony directement sans jamais passer par Apache. Bug trouvé pendant la recette A1.8 (invisible dans 65 tests automatisés), corrigé, non-régression vérifiée. Si un jour le `Dockerfile`/`vhost.conf` est réécrit (ex. passage à php-fpm + nginx), s'assurer que l'équivalent (`fastcgi_pass_header Authorization` pour nginx, ou configuration native pour php-fpm) est bien présent.
+10. **Un port de Codespace en visibilité "private" fait échouer un `fetch()` cross-origin avec un faux message CORS.** Ouvrir la page dans le navigateur (navigation complète) fonctionne car GitHub complète la redirection d'authentification (`https://<nom>-<port>.app.github.dev` → `github.dev/pf-signin` → retour), mais un `fetch()` JS depuis une autre origine ne peut pas suivre cette redirection interactive : GitHub répond `302` sans aucun en-tête CORS, et le navigateur l'affiche comme "No 'Access-Control-Allow-Origin' header is present" - alors que la config CORS du backend est correcte. Diagnostic : `curl -i <url-forwardée>/api/health` sans authentification renvoie `302` vers `github.dev/pf-signin` si le port est privé. Fix : `gh codespace ports visibility <port>:public -c <nom-du-codespace>` (ou depuis VS Code : onglet Ports → clic droit → Port Visibility → Public).
+
+11. **`docker-compose.yml` interpole `$` avant que Docker Compose ne lise la valeur.** Une valeur par défaut (`${VAR:-...}`) contenant un `$` littéral (ex. une regex avec ancres `^...$`) doit doubler ce `$` en `$$`, sinon Compose tente de le résoudre comme une référence de variable (vide) et le tronque silencieusement. Voir `CORS_ALLOWED_ORIGIN_REGEX` dans `docker-compose.yml` pour l'exemple.
+
+12. **Apache ne transmet pas l'en-tête `Authorization` à PHP par défaut.** Sans `CGIPassAuth On` (présent dans `docker/backend/vhost.conf` depuis A1.8), toute requête JWT (`Authorization: Bearer ...`) ou clé API (`X-API-Key`) échoue avec un faux `401 "JWT Token not found"` - **contre le vrai serveur Apache qui tourne**, alors que la suite PHPUnit (`WebTestCase`/`KernelBrowser`) passe quand même au vert, puisqu'elle appelle le noyau Symfony directement sans jamais passer par Apache. Bug trouvé pendant la recette A1.8 (invisible dans 65 tests automatisés), corrigé, non-régression vérifiée. Si un jour le `Dockerfile`/`vhost.conf` est réécrit (ex. passage à php-fpm + nginx), s'assurer que l'équivalent (`fastcgi_pass_header Authorization` pour nginx, ou configuration native pour php-fpm) est bien présent.
 
 ## État d'avancement
 
-**Fait (Phase A1 — Fondations, ~13 tâches sur le plan) :**
+**Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
 
 | Tâche | Contenu | Statut |
 |---|---|---|
@@ -419,12 +487,28 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 | A1.2 | Squelette API Symfony | ✅ Fait (Oumar) |
 | A1.3 | Schéma TimescaleDB « pipeline-ready » (8 entités + enums, 2 migrations) | ✅ Fait |
 | A1.4 | Authentification JWT (login/refresh/logout/me, rôles, anti-brute-force) | ✅ Fait |
-| A1.5 | Gestion des clés API (génération, quotas, révocation) | ✅ Fait — application du quota (compteur d'usage) non encore implémentée, voir « Limites actuelles » |
+| A1.5 | Gestion des clés API (génération, quotas, révocation) | ✅ Fait - application du quota (compteur d'usage) non encore implémentée, voir « Limites actuelles » |
 | A1.6 | Scripts de seed/fixtures (jeu de données de démonstration) | ✅ Fait |
-| A1.7 | Pipeline CI/CD (build, tests, publication d'image) | ✅ Fait — publie l'image sur le Container Registry, ne déploie pas (voir section CI/CD) |
-| A1.8 | Recette Auth → API → Base de données | ✅ Fait — **Validé**, Phase A1 formellement recettée (voir [`docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md`](docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md)) ; un bug bloquant trouvé pendant la recette (Apache ne transmettait pas `Authorization` à PHP) a été corrigé et re-vérifié |
+| A1.7 | Pipeline CI/CD (build, tests, publication d'image) | ✅ Fait - publie l'image sur le Container Registry, ne déploie pas (voir section CI/CD) |
+| A1.8 | Recette Auth → API → Base de données | ✅ Fait - **Validé**, Phase A1 formellement recettée (voir [`docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md`](docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md)) ; un bug bloquant trouvé pendant la recette (Apache ne transmettait pas `Authorization` à PHP) a été corrigé et re-vérifié |
 
-**Phase A1 close.** Prochaine étape : Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), puis Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
+**Phase A1 close.**
+
+**Fait (Phase A2 - en cours) :**
+
+| Tâche | Contenu | Statut |
+|---|---|---|
+| A2.1 | `GET /api/funding` : filtres, pagination, accès public, CORS, erreurs JSON uniformes | ✅ Fait |
+| A2.2 | `data.html` connecté aux vraies données (`GET /api/funding`) - plus aucune donnée simulée | ✅ Fait |
+
+**Travaux supplémentaires réalisés hors plan officiel** (prérequis non couverts par une tâche dédiée) :
+
+| Bloc | Contenu | Dans le plan ? |
+|---|---|---|
+| Préparation frontend | Fusion du HTML NEV existant avec le template Tailwind "Play" - 9 pages, thème vert, pipeline de build (voir [`frontend/README.md`](frontend/README.md)) | Non |
+| Intégration frontend de l'authentification | Connexion réelle, session JWT/refresh, « Mon profil », « Mes clés API » (branche enfin A1.5 à une interface) | Non |
+
+Prochaine étape : A2.3 (export CSV/Excel par rôle) et le reste de la Phase A2 (dashboards, recherche, notifications, i18n, menu mobile, section Rapports), puis Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
 
 **Documentation de conception disponible** pour tout ce qui est fait jusqu'ici (décisions prises, alternatives écartées, justifications) :
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)
