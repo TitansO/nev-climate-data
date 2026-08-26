@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Dto\FundingExportFormat;
 use App\Dto\FundingSearchCriteria;
 use App\Entity\Funding;
 use App\Repository\FundingRepository;
@@ -11,6 +12,7 @@ use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -20,6 +22,12 @@ use Symfony\Component\Routing\Attribute\Route;
  * security.yaml's access_control, added ahead of the general `^/api`
  * rule) — a visitor with no account can browse the dataset without a JWT
  * or an API key.
+ *
+ * export() (A2.3) is the one exception: it requires an authenticated user
+ * (JWT or API key - either satisfies the firewall's default
+ * IS_AUTHENTICATED_FULLY, which security.yaml applies to it explicitly
+ * ahead of the /api/funding PUBLIC_ACCESS rule, since that rule matches by
+ * prefix and would otherwise also cover /api/funding/export).
  */
 final class FundingController extends AbstractController
 {
@@ -112,6 +120,86 @@ final class FundingController extends AbstractController
                 'totalPages' => $total > 0 ? (int) ceil($total / $criteria->limit) : 0,
             ],
         ]);
+    }
+
+    #[Route('/api/funding/export', name: 'api_funding_export', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Exporte les données de financement correspondant aux filtres, au format CSV',
+        description: 'Réservé aux utilisateurs authentifiés (JWT ou clé API). Accepte exactement les mêmes filtres que `GET /api/funding` (`country`, `sector`, `year`, `fundingType`, `periodStart`, `periodEnd`) - sans pagination : le fichier contient toutes les lignes correspondantes, pas une seule page. `format` ne supporte actuellement que `csv`.',
+        tags: ['Funding'],
+        security: [['bearerAuth' => []], ['apiKeyAuth' => []]],
+        parameters: [
+            new OA\Parameter(name: 'country', in: 'query', required: false, description: "Code ISO alpha-3 du pays (Country.isoCode)", schema: new OA\Schema(type: 'string'), example: 'SEN'),
+            new OA\Parameter(name: 'sector', in: 'query', required: false, description: 'Identifiant du secteur (Sector.id)', schema: new OA\Schema(type: 'integer'), example: 1),
+            new OA\Parameter(name: 'year', in: 'query', required: false, description: "Année du financement", schema: new OA\Schema(type: 'integer'), example: 2025),
+            new OA\Parameter(name: 'fundingType', in: 'query', required: false, description: 'public, private ou multilateral', schema: new OA\Schema(type: 'string', enum: ['public', 'private', 'multilateral']), example: 'public'),
+            new OA\Parameter(name: 'periodStart', in: 'query', required: false, description: 'Date de collecte minimale (incluse), format YYYY-MM-DD', schema: new OA\Schema(type: 'string', format: 'date'), example: '2022-01-01'),
+            new OA\Parameter(name: 'periodEnd', in: 'query', required: false, description: 'Date de collecte maximale (incluse), format YYYY-MM-DD', schema: new OA\Schema(type: 'string', format: 'date'), example: '2025-12-31'),
+            new OA\Parameter(name: 'format', in: 'query', required: false, description: 'Format du fichier exporté (seul "csv" est supporté)', schema: new OA\Schema(type: 'string', enum: ['csv'], default: 'csv'), example: 'csv'),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Fichier CSV en pièce jointe', content: new OA\MediaType(mediaType: 'text/csv')),
+            new OA\Response(response: 400, description: 'Paramètre de filtre ou de format invalide'),
+            new OA\Response(response: 401, description: 'Authentification requise (JWT ou clé API)'),
+        ]
+    )]
+    public function export(Request $request): Response
+    {
+        $format = FundingExportFormat::fromQuery($request->query);
+        $criteria = FundingSearchCriteria::fromQuery($request->query);
+        $items = $this->fundingRepository->streamByCriteria($criteria);
+
+        // Built in memory (php://memory), not streamed straight to the HTTP
+        // response: at the project's current scale (low thousands of rows)
+        // this is simpler and fully testable via Response::getContent() -
+        // StreamedResponse::getContent() always returns false by design,
+        // which functional tests can't assert against. toIterable() on the
+        // repository side still avoids hydrating the whole result set as
+        // Doctrine entities in memory at once.
+        $handle = fopen('php://memory', 'r+');
+        // UTF-8 BOM: without it, Excel (the realistic consumer of a CSV
+        // export of French-language content) misreads accented characters
+        // as a different encoding on open. escape: '' (RFC 4180 - quotes
+        // doubled, no backslash-escaping) rather than PHP's legacy default,
+        // which PHP 8.4 deprecates leaving implicit.
+        fwrite($handle, "\xEF\xBB\xBF");
+        fputcsv($handle, ['id', 'country_name', 'country_iso_code', 'sector_id', 'sector_name', 'year', 'amount', 'funding_type', 'source_id', 'source_name', 'collection_date', 'validation_status'], escape: '');
+        foreach ($items as $funding) {
+            fputcsv($handle, self::toCsvRow($funding), escape: '');
+        }
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        $response = new Response($csv);
+        $response->headers->set('Content-Type', 'text/csv; charset=utf-8');
+        $response->headers->set('Content-Disposition', $response->headers->makeDisposition(
+            'attachment',
+            \sprintf('funding-export-%s.%s', (new \DateTimeImmutable())->format('Y-m-d-His'), $format->value)
+        ));
+
+        return $response;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function toCsvRow(Funding $funding): array
+    {
+        return [
+            (string) $funding->getId(),
+            $funding->getCountry()->getName(),
+            $funding->getCountry()->getIsoCode(),
+            (string) $funding->getSector()->getId(),
+            $funding->getSector()->getName(),
+            (string) $funding->getYear(),
+            $funding->getAmount(),
+            $funding->getFundingType()->value,
+            (string) $funding->getSource()->getId(),
+            $funding->getSource()->getName(),
+            $funding->getCollectionDate()->format('Y-m-d'),
+            $funding->getValidationStatus()->value,
+        ];
     }
 
     /**
