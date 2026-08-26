@@ -422,9 +422,9 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 | A1.5 | Gestion des clés API (génération, quotas, révocation) | ✅ Fait — application du quota (compteur d'usage) non encore implémentée, voir « Limites actuelles » |
 | A1.6 | Scripts de seed/fixtures (jeu de données de démonstration) | ✅ Fait |
 | A1.7 | Pipeline CI/CD (build, tests, publication d'image) | ✅ Fait — publie l'image sur le Container Registry, ne déploie pas (voir section CI/CD) |
-| A1.8 | Recette Auth → API → Base de données | ⬜ Reste à faire |
+| A1.8 | Recette Auth → API → Base de données | ✅ Fait — **Validé**, Phase A1 formellement recettée (voir [`docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md`](docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md)) ; un bug bloquant trouvé pendant la recette (Apache ne transmettait pas `Authorization` à PHP) a été corrigé et re-vérifié |
 
-**Reste à faire :** A1.8 (fin de Phase A1), puis Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
+**Phase A1 close.** Prochaine étape : Phase A2 (extraction de données, export, dashboards, recherche, notifications, i18n, menu mobile, section Rapports), puis Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
 
 **Documentation de conception disponible** pour tout ce qui est fait jusqu'ici (décisions prises, alternatives écartées, justifications) :
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)
