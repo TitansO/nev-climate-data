@@ -60,6 +60,9 @@
     paginationPrev: document.getElementById("pagination-prev"),
     paginationNext: document.getElementById("pagination-next"),
     paginationInfo: document.getElementById("pagination-info"),
+    exportButton: document.getElementById("export-csv-btn"),
+    exportButtonLabel: document.getElementById("export-csv-btn-label"),
+    exportErrorMessage: document.getElementById("export-error-message"),
   };
 
   function setVisibleState(name) {
@@ -244,6 +247,73 @@
       loadFunding(state.page + 1);
     }
   });
+
+  /**
+   * GET /api/funding/export (A2.3) - reuses currentFilters(), the exact
+   * same filter values loadFunding() sends, so what gets exported always
+   * matches what's currently on screen. Requires a session (the endpoint is
+   * authenticated, unlike GET /api/funding): the button stays hidden for an
+   * anonymous visitor rather than surfacing a 401 on click.
+   */
+  function exportFilenameFromResponse(response, fallback) {
+    const header = response.headers.get("Content-Disposition") || "";
+    const match = header.match(/filename="?([^";]+)"?/);
+    return match ? match[1] : fallback;
+  }
+
+  async function exportCsv() {
+    els.exportErrorMessage.classList.add("hidden");
+    els.exportButton.disabled = true;
+    els.exportButtonLabel.textContent = "Export en cours…";
+
+    try {
+      const filters = currentFilters();
+      const url = new URL(NevApi.API_BASE_URL + "/api/funding/export");
+      Object.entries(filters).forEach(function ([key, value]) {
+        if (value) {
+          url.searchParams.set(key, value);
+        }
+      });
+
+      const response = await NevAuth.authorizedFetch(url.toString(), {
+        headers: { Accept: "text/csv" },
+      });
+
+      if (!response.ok) {
+        let message = "Une erreur est survenue (" + response.status + ").";
+        try {
+          const body = await response.json();
+          message = body.message || message;
+        } catch (parseError) {
+          // Falls through to the generic message above.
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = exportFilenameFromResponse(response, "funding-export.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      els.exportErrorMessage.textContent = error.message;
+      els.exportErrorMessage.classList.remove("hidden");
+    } finally {
+      els.exportButton.disabled = false;
+      els.exportButtonLabel.textContent = "Exporter (CSV)";
+    }
+  }
+
+  els.exportButton.addEventListener("click", exportCsv);
+
+  if (NevAuth.isAuthenticated()) {
+    els.exportButton.classList.remove("hidden");
+    els.exportButton.classList.add("inline-flex");
+  }
 
   loadFunding(1);
 })();
