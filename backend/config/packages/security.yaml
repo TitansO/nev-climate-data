@@ -48,6 +48,9 @@ security:
         - { path: ^/api/auth/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
+        # A2.1: GET /api/funding is public read — a visitor with no account
+        # can browse the dataset without a JWT or an API key.
+        - { path: ^/api/funding, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
