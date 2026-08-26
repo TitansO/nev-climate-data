@@ -407,6 +407,8 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 9. **La liste d'extensions PHP du job `phpunit` (`.gitlab-ci.yml`) est dupliquée depuis `docker/backend/Dockerfile`, pas partagée.** Le job de test tourne dans une image PHP générique, pas dans l'image Docker du projet (choix documenté dans le spec A1.7, pour garder le pipeline rapide sur chaque push). Si une extension PHP est ajoutée/retirée du `Dockerfile`, il faut penser à répercuter le changement dans `.gitlab-ci.yml` — rien ne le fait automatiquement, et un oubli ne casse rien immédiatement (juste une divergence silencieuse entre l'environnement testé et l'environnement réel).
 
+10. **Apache ne transmet pas l'en-tête `Authorization` à PHP par défaut.** Sans `CGIPassAuth On` (présent dans `docker/backend/vhost.conf` depuis A1.8), toute requête JWT (`Authorization: Bearer ...`) ou clé API (`X-API-Key`) échoue avec un faux `401 "JWT Token not found"` — **contre le vrai serveur Apache qui tourne**, alors que la suite PHPUnit (`WebTestCase`/`KernelBrowser`) passe quand même au vert, puisqu'elle appelle le noyau Symfony directement sans jamais passer par Apache. Bug trouvé pendant la recette A1.8 (invisible dans 65 tests automatisés), corrigé, non-régression vérifiée. Si un jour le `Dockerfile`/`vhost.conf` est réécrit (ex. passage à php-fpm + nginx), s'assurer que l'équivalent (`fastcgi_pass_header Authorization` pour nginx, ou configuration native pour php-fpm) est bien présent.
+
 ## État d'avancement
 
 **Fait (Phase A1 — Fondations, ~13 tâches sur le plan) :**
