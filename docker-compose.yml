@@ -16,8 +16,11 @@ services:
       # and this default value is a regex whose literal $ end-anchors would
       # otherwise be swallowed as (empty) variable references.
       CORS_ALLOWED_ORIGIN_REGEX: ${CORS_ALLOWED_ORIGIN_REGEX:-^https?://localhost:8123$$|^https://[a-z0-9-]+-8123\.app\.github\.dev$$}
+      REDIS_DSN: ${REDIS_DSN:-redis://redis:6379}
     depends_on:
       database:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./backend:/var/www/html
@@ -45,6 +48,24 @@ services:
     networks:
       - nev-network
 
+  # A2.5: dedicated cache backend for the analytics aggregates (see
+  # backend/config/packages/cache.yaml, pool "cache.analytics"). Not used
+  # for anything else in the project - the login-throttling rate limiter
+  # (A1.4) keeps using the default filesystem-backed cache pool.
+  redis:
+    image: redis:7-alpine
+    container_name: nev-climate-data-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nev-network
+
 networks:
   nev-network:
     driver: bridge
@@ -52,3 +73,4 @@ networks:
 volumes:
   postgres_data:
   backend_vendor:
+  redis_data:

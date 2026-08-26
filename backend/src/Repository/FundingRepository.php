@@ -46,6 +46,74 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * Every row matching the same filters as findByCriteria(), ignoring
+     * $criteria->page/limit (A2.3 exports the whole filtered result set, not
+     * one page of it) - everything else is shared with findByCriteria() via
+     * criteriaQueryBuilder() so export and listing can never apply a
+     * different filter for the same query string. toIterable() rather than
+     * getResult(): a CSV export streams rows out one at a time, so there is
+     * no reason to hold the full result set as hydrated entities in memory
+     * at once.
+     *
+     * @return iterable<Funding>
+     */
+    public function streamByCriteria(FundingSearchCriteria $criteria): iterable
+    {
+        return $this->criteriaQueryBuilder($criteria)
+            ->addSelect('country')
+            ->join('funding.sector', 'sector')->addSelect('sector')
+            ->join('funding.source', 'source')->addSelect('source')
+            ->orderBy('funding.collectionDate', 'DESC')
+            ->addOrderBy('funding.id', 'DESC')
+            ->getQuery()
+            ->toIterable();
+    }
+
+    /**
+     * A2.5 (financing-trends aggregate). One row per (year, fundingType)
+     * combination, summed in SQL (not in PHP) - never loads Funding rows
+     * individually. Ordered by year then fundingType purely so the SQL
+     * output is stable/reproducible for a given dataset; the actual
+     * per-year reshaping into {public, private, multilateral, total} is
+     * App\Service\AnalyticsService's job, not this repository's.
+     *
+     * @return list<array{year: int, fundingType: string, total: string}>
+     */
+    public function findFinancingTrendsAggregate(): array
+    {
+        return $this->createQueryBuilder('funding')
+            ->select('funding.year AS year', 'funding.fundingType AS fundingType', 'SUM(funding.amount) AS total')
+            ->groupBy('funding.year')
+            ->addGroupBy('funding.fundingType')
+            ->orderBy('funding.year', 'ASC')
+            ->addOrderBy('funding.fundingType', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * A2.5 (sector-distribution aggregate). One row per sector, summed in
+     * SQL. Ordered by total DESC (largest sector first, the natural reading
+     * order for a distribution chart), with sector.id ASC as a tiebreaker
+     * so the order stays fully deterministic even if two sectors tie
+     * exactly on amount.
+     *
+     * @return list<array{sectorId: int, sectorName: string, total: string}>
+     */
+    public function findSectorDistributionAggregate(): array
+    {
+        return $this->createQueryBuilder('funding')
+            ->select('sector.id AS sectorId', 'sector.name AS sectorName', 'SUM(funding.amount) AS total')
+            ->join('funding.sector', 'sector')
+            ->groupBy('sector.id')
+            ->addGroupBy('sector.name')
+            ->orderBy('total', 'DESC')
+            ->addOrderBy('sector.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Shared WHERE-clause builder for findByCriteria()/countByCriteria(), so
      * the two queries can never apply a different set of filters. `country`
      * is always joined (needed to filter on Country.isoCode, and it's a

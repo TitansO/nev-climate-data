@@ -48,9 +48,17 @@ security:
         - { path: ^/api/auth/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
+        # A2.3: must come before the /api/funding PUBLIC_ACCESS rule below -
+        # access_control matches by prefix regex, so /api/funding/export
+        # would otherwise also match ^/api/funding and inherit public access
+        # instead of requiring authentication.
+        - { path: ^/api/funding/export, roles: IS_AUTHENTICATED_FULLY }
         # A2.1: GET /api/funding is public read — a visitor with no account
         # can browse the dataset without a JWT or an API key.
         - { path: ^/api/funding, roles: PUBLIC_ACCESS }
+        # A2.5: the analytics aggregates feed visualizations.html, which
+        # itself has no login requirement - same reasoning as /api/funding.
+        - { path: ^/api/analytics, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:

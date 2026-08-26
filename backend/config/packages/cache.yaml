@@ -3,7 +3,9 @@ framework:
         # Unique name of your app: used to compute stable namespaces for cache keys.
         #prefix_seed: your_vendor_name/app_name
 
-        # The "app" cache stores to the filesystem by default.
+        # The "app" cache stores to the filesystem by default (unchanged -
+        # symfony/rate-limiter's login throttling (A1.4) uses this pool, so
+        # its storage backend is deliberately left as-is here).
         # The data in this cache should persist between deploys.
         # Other options include:
 
@@ -14,6 +16,14 @@ framework:
         # APCu (not recommended with heavy random-write workloads as memory fragmentation can cause perf issues)
         #app: cache.adapter.apcu
 
-        # Namespaced pools use the above "app" backend by default
-        #pools:
-            #my.dedicated.cache: null
+        # A2.5: dedicated Redis-backed pool for the analytics aggregates
+        # (App\Service\AnalyticsService) - not the default "app" pool above,
+        # so this cache is fully separate from the rate limiter's storage.
+        # provider/REDIS_DSN: see .env.example. default_lifetime here is a
+        # fallback only; AnalyticsService sets the real 900s TTL explicitly
+        # per item via $item->expiresAfter().
+        pools:
+            cache.analytics:
+                adapter: cache.adapter.redis
+                provider: '%env(REDIS_DSN)%'
+                default_lifetime: 900
