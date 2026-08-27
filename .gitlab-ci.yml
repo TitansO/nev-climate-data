@@ -22,6 +22,15 @@ phpunit:
     POSTGRES_PASSWORD: nev_ci_password
     DATABASE_URL: "postgresql://nev_ci:nev_ci_password@database:5432/nev_climate_data_ci?serverVersion=16&charset=utf8"
     REDIS_DSN: "redis://redis:6379"
+    # A2.1: nelmio_cors.yaml resolves this at container-compile time
+    # (allow_origin: ['%env(CORS_ALLOWED_ORIGIN_REGEX)%']), so it must exist
+    # even though no browser ever calls the API in this job - an undefined
+    # value throws EnvNotFoundException on every request, not just CORS
+    # preflights. This was missing from the very first pipeline that
+    # introduced nelmio/cors-bundle and broke every job since (found via
+    # the GitLab API: last green pipeline predates it, HealthControllerTest
+    # itself was failing with 500s).
+    CORS_ALLOWED_ORIGIN_REGEX: "^http://localhost:8123$"
     APP_ENV: test
     JWT_PASSPHRASE: ci_ephemeral_passphrase
   cache:
