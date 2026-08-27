@@ -88,7 +88,7 @@ only add `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`):
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9 requests==2.32.3"
+      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9 requests==2.32.3 pycountry==24.6.1"
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
     volumes:
       - ./pipeline:/opt/airflow/pipeline
@@ -114,7 +114,27 @@ only add `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`):
       - minio_data:/data
     networks:
       - nev-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: nev-climate-data-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nev-climate-data
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8083:8080"
+    networks:
+      - nev-network
 ```
+
+`kafka-ui` is a read-only visual browser for Kafka (topics, partitions, live message
+content) — not part of the pipeline's own architecture (nothing in the architecture or B1.1
+spec references it), added purely so Serge can see what's flowing through Kafka in a browser
+instead of only via CLI, per his explicit request when this plan was reviewed. Port `8083`
+(not `8080`, taken by `backend`, nor `8081`, taken by `airflow`).
 
 Add the two new named volumes to the `volumes:` top-level block:
 
@@ -142,7 +162,7 @@ Add the same two lines with real values to the local `.env` (gitignored).
 
 Run:
 ```bash
-docker compose up -d zookeeper kafka postgres-airflow airflow minio
+docker compose up -d zookeeper kafka postgres-airflow airflow minio kafka-ui
 ```
 
 Wait roughly a minute for Airflow's `standalone` mode to finish initializing its database and
@@ -152,7 +172,7 @@ boot), then check:
 ```bash
 docker compose ps
 ```
-Expected: `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio` all show `Up`.
+Expected: `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`, `kafka-ui` all show `Up`.
 
 ```bash
 docker compose logs airflow | grep -i "Login with username"
@@ -171,11 +191,15 @@ docker compose exec minio mc --version
 (Or simply open `http://localhost:9001` in a browser and confirm the MinIO console login page
 loads with the credentials from `.env`.)
 
+Open `http://localhost:8083` in a browser. Expected: the Kafka UI dashboard loads and shows
+the `nev-climate-data` cluster as online (0 topics at this point — Task 2 creates the first
+ones).
+
 - [ ] **Step 4: Commit**
 
 ```bash
 git add docker-compose.yml .env.example
-git commit -m "feat(b1.1): provision shared Volet B infrastructure (Kafka, Airflow, MinIO)"
+git commit -m "feat(b1.1): provision shared Volet B infrastructure (Kafka, Airflow, MinIO, Kafka UI)"
 ```
 
 ---
@@ -1330,20 +1354,19 @@ volume-mounted to `/opt/airflow/pipeline` inside the `airflow` container, and
 `_PIP_ADDITIONAL_REQUIREMENTS` already installs `kafka-python`/`psycopg2-binary`/`requests`
 there — this file needs no separate packaging step.
 
-- [ ] **Step 2: Point Airflow at the DAGs folder and restart**
+- [ ] **Step 2: Point Airflow at the DAGs folder (already done in Task 1 — verify, don't re-add)**
 
-Airflow's default `AIRFLOW__CORE__DAGS_FOLDER` is `/opt/airflow/dags`, but this plan mounted
-the whole `pipeline/` tree at `/opt/airflow/pipeline`. Add one more environment variable to
-the `airflow` service in `docker-compose.yml` (alongside the ones from Task 1):
+Airflow's default `AIRFLOW__CORE__DAGS_FOLDER` is `/opt/airflow/dags`, but this plan mounts
+the whole `pipeline/` tree at `/opt/airflow/pipeline`. This was anticipated and already added
+to the `airflow` service's environment during Task 1 (`AIRFLOW__CORE__DAGS_FOLDER:
+/opt/airflow/pipeline/dags`), so there is nothing to add here — confirm it's present:
 
-```yaml
-      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/pipeline/dags
-```
-
-Run:
 ```bash
-docker compose up -d --force-recreate airflow
+docker compose exec airflow printenv AIRFLOW__CORE__DAGS_FOLDER
 ```
+Expected: `/opt/airflow/pipeline/dags`. If it's missing (e.g. Task 1 was done before this
+note existed), add the line to the `airflow` service in `docker-compose.yml` now and run
+`docker compose up -d --force-recreate airflow`.
 
 - [ ] **Step 3: Verify the DAG is recognized**
 

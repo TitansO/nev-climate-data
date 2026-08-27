@@ -66,6 +66,104 @@ services:
     networks:
       - nev-network
 
+  # --- Volet B (B1.1) : infrastructure du pipeline de données réelles ------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: nev-climate-data-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - nev-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: nev-climate-data-kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    networks:
+      - nev-network
+
+  postgres-airflow:
+    image: postgres:16
+    container_name: nev-climate-data-airflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    networks:
+      - nev-network
+
+  airflow:
+    image: apache/airflow:2.9.0
+    container_name: nev-climate-data-airflow
+    restart: unless-stopped
+    depends_on:
+      - postgres-airflow
+      - kafka
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/pipeline/dags
+      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9 requests==2.32.3 pycountry==24.6.1"
+      PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
+    volumes:
+      - ./pipeline:/opt/airflow/pipeline
+      - airflow_logs:/opt/airflow/logs
+    ports:
+      - "8081:8080"
+    command: standalone
+    networks:
+      - nev-network
+
+  minio:
+    image: minio/minio
+    container_name: nev-climate-data-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_change_me}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - nev-network
+
+  # Visual browser for Kafka topics/messages (not part of the pipeline
+  # architecture itself - added for local observability, per Serge's
+  # explicit request while reviewing the B1.1 plan).
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: nev-climate-data-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nev-climate-data
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      # 8082 is taken on this machine by an unrelated, already-running
+      # Observatoire CIMA container (cima_flink_jobmanager) - confirmed via
+      # `docker ps` during B1.1 Task 1. Using 8083 instead.
+      - "8083:8080"
+    networks:
+      - nev-network
+
 networks:
   nev-network:
     driver: bridge
@@ -74,3 +172,6 @@ volumes:
   postgres_data:
   backend_vendor:
   redis_data:
+  airflow_postgres_data:
+  airflow_logs:
+  minio_data:
