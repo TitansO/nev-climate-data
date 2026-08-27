@@ -71,12 +71,13 @@
                 </svg>
                 <input
                   type="search"
+                  id="global-search-input"
                   placeholder="Rechercher des données…"
-                  disabled
-                  aria-disabled="true"
-                  title="Recherche globale - bientôt disponible"
-                  class="w-56 cursor-not-allowed rounded-md border-0 bg-white/95 py-2 pl-9 pr-3 text-sm text-dark shadow-input placeholder:text-dark-5 focus:outline-none"
+                  autocomplete="off"
+                  title="Recherche globale"
+                  class="w-56 rounded-md border-0 bg-white/95 py-2 pl-9 pr-3 text-sm text-dark shadow-input placeholder:text-dark-5 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                <div id="global-search-results" class="absolute left-0 right-0 top-full z-50 mt-2 hidden max-h-96 w-80 overflow-y-auto rounded-md border border-stroke bg-white p-2 text-left shadow-2"></div>
               </label>
               <button type="button" id="notif-bell-btn" class="relative hidden rounded-md p-2 text-white/90 transition hover:bg-white/10 hover:text-white" aria-label="Notifications"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg><span id="notif-bell-badge" class="hidden absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-demo px-1 text-[10px] font-bold leading-none text-white"></span></button><a href="login.html" id="auth-nav-slot" class="loginBtn signUpBtn rounded-md bg-white/15 px-5 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark">
                 Connexion
@@ -125,25 +126,23 @@
       <div class="container mx-auto rounded-2xl bg-white p-6 shadow-2 sm:p-8">
         <div class="grid grid-cols-2 gap-6 lg:grid-cols-4">
           <div class="rounded-xl bg-surface p-6 text-center transition hover:-translate-y-1 hover:shadow-card">
-            <div class="mb-1 text-3xl font-extrabold text-deep-3">54</div>
+            <div id="hero-stat-countries" class="mb-1 text-3xl font-extrabold text-deep-3" aria-live="polite">…</div>
             <div class="text-sm font-medium text-dark-4">Pays couverts</div>
           </div>
           <div class="rounded-xl bg-surface p-6 text-center transition hover:-translate-y-1 hover:shadow-card">
-            <div class="mb-1 text-3xl font-extrabold text-deep-3">5</div>
+            <div id="hero-stat-sectors" class="mb-1 text-3xl font-extrabold text-deep-3" aria-live="polite">…</div>
             <div class="text-sm font-medium text-dark-4">Secteurs suivis</div>
           </div>
           <div class="rounded-xl bg-surface p-6 text-center transition hover:-translate-y-1 hover:shadow-card">
-            <div class="mb-1 text-3xl font-extrabold text-deep-3">1 080+</div>
+            <div id="hero-stat-funding" class="mb-1 text-3xl font-extrabold text-deep-3" aria-live="polite">…</div>
             <div class="text-sm font-medium text-dark-4">Données de financement</div>
           </div>
           <div class="rounded-xl bg-surface p-6 text-center transition hover:-translate-y-1 hover:shadow-card">
-            <div class="mb-1 text-3xl font-extrabold text-deep-3">4</div>
+            <div id="hero-stat-sources" class="mb-1 text-3xl font-extrabold text-deep-3" aria-live="polite">…</div>
             <div class="text-sm font-medium text-dark-4">Sources actives</div>
           </div>
         </div>
-        <p class="mt-4 text-center text-xs text-dark-5">
-          Chiffres illustratifs à ce stade (démonstration interne) - connectés aux statistiques réelles lors des tâches A2.5/A2.7.
-        </p>
+        <p id="hero-stats-note" class="mt-4 text-center text-xs text-dark-5">Chargement…</p>
       </div>
     </section>
     <!-- ====== /Stats ====== -->
@@ -343,5 +342,7 @@
     <script src="assets/js/main.js"></script>
     <script src="assets/js/auth.js"></script>
     <script src="assets/js/notifications.js"></script>
+    <script src="assets/js/search.js"></script>
+    <script src="assets/js/hero-stats.js"></script>
   </body>
 </html>
