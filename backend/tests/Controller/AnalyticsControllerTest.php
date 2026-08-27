@@ -220,10 +220,66 @@ final class AnalyticsControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $spec = json_decode($client->getResponse()->getContent(), true);
-        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/co2-reduction'] as $path) {
+        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats'] as $path) {
             self::assertArrayHasKey($path, $spec['paths']);
             self::assertArrayHasKey('get', $spec['paths'][$path]);
         }
+    }
+
+    public function testHeroStatsIsPubliclyAccessible(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/hero-stats');
+
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testHeroStatsMatchesTheSeededDataset(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/hero-stats');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame(['countriesCovered', 'sectorsTracked', 'fundingRecords', 'activeSources'], array_keys($data));
+        self::assertSame(1, $data['countriesCovered']); // only Senegal
+        self::assertSame(2, $data['sectorsTracked']); // Renewable Energy + Agriculture
+        self::assertSame(6, $data['fundingRecords']); // 3 + 2 + 1
+        self::assertSame(1, $data['activeSources']); // only "Test Source"
+    }
+
+    public function testHeroStatsWithNoDataReturnsZeroesNotAnError(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $container = static::getContainer();
+        $this->entityManager = $container->get(EntityManagerInterface::class);
+        $this->entityManager->getConnection()->beginTransaction();
+        $container->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/hero-stats');
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame(0, $data['countriesCovered']);
+        self::assertSame(0, $data['sectorsTracked']);
+        self::assertSame(0, $data['fundingRecords']);
+        self::assertSame(0, $data['activeSources']);
+    }
+
+    public function testHeroStatsIsServedFromRedisCacheOnSecondCall(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $redis = $this->redisClient();
+
+        $client->request('GET', '/api/analytics/hero-stats');
+        self::assertResponseIsSuccessful();
+
+        self::assertNotNull($this->findCacheKey($redis, 'analytics_hero_stats'), 'first request must populate Redis');
     }
 
     public function testFirstRequestPopulatesTheRedisCacheWithA900SecondTtl(): void

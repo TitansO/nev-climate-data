@@ -159,4 +159,31 @@ class FundingRepository extends ServiceEntityRepository
 
         return $qb;
     }
+
+    /**
+     * A2.7 (Hero "Pays couverts"): countries actually appearing in at least
+     * one Funding record, not Country's total row count - a country known
+     * to the system but with no funding data yet shouldn't read as
+     * "covered".
+     */
+    public function countDistinctCountries(): int
+    {
+        return (int) $this->createQueryBuilder('funding')
+            ->select('COUNT(DISTINCT funding.country)')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * A2.7 (Hero "Sources actives"): same reasoning as
+     * countDistinctCountries() - Source has no active/inactive flag, so
+     * "active" is read as "currently contributing data", not "registered".
+     */
+    public function countDistinctSources(): int
+    {
+        return (int) $this->createQueryBuilder('funding')
+            ->select('COUNT(DISTINCT funding.source)')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }
