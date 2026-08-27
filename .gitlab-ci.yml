@@ -40,8 +40,13 @@ phpunit:
     paths:
       - backend/vendor/
   before_script:
-    - apt-get update && apt-get install -y --no-install-recommends git unzip libpq-dev libicu-dev libzip-dev zip
-    - docker-php-ext-install pdo pdo_pgsql intl opcache zip
+    # libpng/libjpeg/libfreetype + gd: phpoffice/phpspreadsheet (A2.3, XLSX
+    # export) hard-requires ext-gd - kept in sync with docker/backend/Dockerfile
+    # by hand (see README pitfall #9: this job's image is generic php:8.4-cli,
+    # nothing here is inherited from the Dockerfile automatically).
+    - apt-get update && apt-get install -y --no-install-recommends git unzip libpq-dev libicu-dev libzip-dev zip libpng-dev libjpeg-dev libfreetype6-dev
+    - docker-php-ext-configure gd --with-freetype --with-jpeg
+    - docker-php-ext-install pdo pdo_pgsql intl opcache zip gd
     - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
   script:
     - cd backend

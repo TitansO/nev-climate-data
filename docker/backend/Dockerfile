@@ -8,10 +8,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libicu-dev \
         libzip-dev \
         zip \
+        libpng-dev \
+        libjpeg-dev \
+        libfreetype6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # --- Extensions PHP --------------------------------------------------------
-RUN docker-php-ext-install pdo pdo_pgsql intl opcache zip
+# gd: hard requirement of phpoffice/phpspreadsheet (A2.3, XLSX export) -
+# not otherwise used by this app.
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_pgsql intl opcache zip gd
 
 # --- Apache : mod_rewrite + vhost pointant vers public/ --------------------
 RUN a2enmod rewrite

@@ -8,16 +8,16 @@ use Symfony\Component\HttpFoundation\InputBag;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 /**
- * File format accepted by GET /api/funding/export (A2.3). Only `csv` is
- * implemented - nothing in the project's plan/docs confirms an XLSX or PDF
- * requirement (see the A2.3/A2.4 implementation report), so this stays a
- * single-case enum rather than guessing at formats to support. Modeled as
- * an enum (not a raw string check) so adding a format later is a one-case
- * addition here, not a new parsing path.
+ * File format accepted by GET /api/funding/export (A2.3). The plan
+ * (row A2.3: "module d'export (CSV, Excel...)") confirms both formats are
+ * required - CSV was implemented first without plan access, XLSX added
+ * once the plan text was available (see the A2.9/A2.10 report's follow-up
+ * note on this gap). PDF is not listed anywhere and stays unimplemented.
  */
 enum FundingExportFormat: string
 {
     case Csv = 'csv';
+    case Xlsx = 'xlsx';
 
     public static function fromQuery(InputBag $query): self
     {
@@ -30,5 +30,13 @@ enum FundingExportFormat: string
         }
 
         return $format;
+    }
+
+    public function contentType(): string
+    {
+        return match ($this) {
+            self::Csv => 'text/csv; charset=utf-8',
+            self::Xlsx => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        };
     }
 }
