@@ -23,15 +23,16 @@ class ReportRepository extends ServiceEntityRepository
     /**
      * A2.8. Published only - a Draft report isn't meant to be publicly
      * visible yet (App\Controller\SearchController is PUBLIC_ACCESS, same
-     * reasoning as GET /api/funding). Ordered by title for a deterministic
-     * result order.
+     * reasoning as GET /api/funding). Case- and accent-insensitive
+     * (UNACCENT() on both sides - see App\Doctrine\DQL\UnaccentFunction).
+     * Ordered by title for a deterministic result order.
      *
      * @return list<Report>
      */
     public function searchPublishedByTitle(SearchQuery $searchQuery, int $limit): array
     {
         return $this->createQueryBuilder('report')
-            ->andWhere('LOWER(report.title) LIKE :pattern')
+            ->andWhere('UNACCENT(LOWER(report.title)) LIKE UNACCENT(:pattern)')
             ->andWhere('report.status = :status')
             ->setParameter('pattern', $searchQuery->likePattern())
             ->setParameter('status', ReportStatus::Published)
