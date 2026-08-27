@@ -1,0 +1,624 @@
+<title>Feuille de Route Volet B</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root {
+    --ground: #f6f4ee;
+    --ground-raised: #ffffff;
+    --ink: #1b2430;
+    --ink-soft: #565f6e;
+    --ink-faint: #8a92a0;
+    --line: #dcd7cb;
+    --accent: #1f4b4a;
+    --accent-soft: #e4ece9;
+    --status-done: #2f7d5a;
+    --status-done-bg: #e5f1ea;
+    --status-progress: #b0720f;
+    --status-progress-bg: #faf0dc;
+    --status-todo: #7c8494;
+    --status-todo-bg: #eceef2;
+    --shadow: 0 1px 2px rgba(27, 36, 48, 0.06), 0 8px 24px rgba(27, 36, 48, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #12181c;
+      --ground-raised: #1a2226;
+      --ink: #eceae3;
+      --ink-soft: #a8b0ba;
+      --ink-faint: #6c7580;
+      --line: #2c363b;
+      --accent: #6fb3a8;
+      --accent-soft: #1e3230;
+      --status-done: #6fbf94;
+      --status-done-bg: #1b3327;
+      --status-progress: #e0ab52;
+      --status-progress-bg: #3a2e14;
+      --status-todo: #96a0ad;
+      --status-todo-bg: #232b31;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #12181c;
+    --ground-raised: #1a2226;
+    --ink: #eceae3;
+    --ink-soft: #a8b0ba;
+    --ink-faint: #6c7580;
+    --line: #2c363b;
+    --accent: #6fb3a8;
+    --accent-soft: #1e3230;
+    --status-done: #6fbf94;
+    --status-done-bg: #1b3327;
+    --status-progress: #e0ab52;
+    --status-progress-bg: #3a2e14;
+    --status-todo: #96a0ad;
+    --status-todo-bg: #232b31;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: 'Source Serif 4', Georgia, serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 4rem 1.75rem 6rem;
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-family: 'Archivo', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    line-height: 1.08;
+    margin: 0.5rem 0 0.75rem;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  .lede {
+    font-size: 1.05rem;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0 0 2.5rem;
+  }
+
+  .meta-row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 0.85rem 0;
+    margin-bottom: 3rem;
+  }
+  .meta-row strong { color: var(--ink-soft); font-weight: 600; }
+
+  /* --- Dashboard --- */
+  .dashboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 3.5rem;
+  }
+  .dash-card {
+    background: var(--ground-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.25rem 1.4rem;
+    box-shadow: var(--shadow);
+  }
+  .dash-card h3 {
+    font-family: 'Archivo', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0 0 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .dash-card h3 .count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    font-weight: 500;
+  }
+  .bar-track {
+    display: flex;
+    height: 10px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--status-todo-bg);
+  }
+  .bar-seg.done { background: var(--status-done); }
+  .bar-seg.progress { background: var(--status-progress); }
+  .legend {
+    display: flex;
+    gap: 1.1rem;
+    margin-top: 0.7rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+    flex-wrap: wrap;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.done { background: var(--status-done); }
+  .dot.progress { background: var(--status-progress); }
+  .dot.todo { background: var(--status-todo); }
+
+  /* --- Phase sections --- */
+  .phase {
+    position: relative;
+    margin-bottom: 3.5rem;
+  }
+  .phase-head {
+    margin-bottom: 1.75rem;
+  }
+  .phase-head .eyebrow { display: block; margin-bottom: 0.3rem; }
+  .phase-head h2 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800;
+    font-size: 1.7rem;
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.01em;
+  }
+  .phase-head p {
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+    max-width: 64ch;
+    margin: 0;
+  }
+
+  .spine {
+    position: relative;
+    padding-left: 2rem;
+  }
+  .spine::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 0.6rem;
+    bottom: 0.6rem;
+    width: 2px;
+    background: linear-gradient(var(--accent), var(--line));
+    opacity: 0.55;
+  }
+
+  .task {
+    position: relative;
+    background: var(--ground-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.35rem 1.5rem 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow);
+    break-inside: avoid;
+  }
+  .task::before {
+    content: "";
+    position: absolute;
+    left: -2.02rem;
+    top: 1.55rem;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid var(--ground);
+    background: var(--status-todo);
+  }
+  .task[data-status="fait"]::before { background: var(--status-done); }
+  .task[data-status="en-cours"]::before { background: var(--status-progress); }
+
+  .task-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.6rem;
+  }
+  .task-id {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .task-title {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 700;
+    font-size: 1.08rem;
+    margin: 0.2rem 0 0;
+    line-height: 1.3;
+  }
+  .status-pill {
+    flex: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.6rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .status-pill.fait { background: var(--status-done-bg); color: var(--status-done); }
+  .status-pill.en-cours { background: var(--status-progress-bg); color: var(--status-progress); }
+  .status-pill.pas-commence { background: var(--status-todo-bg); color: var(--status-todo); }
+
+  .field { margin-top: 0.85rem; }
+  .field-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+  .field-body {
+    font-size: 0.94rem;
+    color: var(--ink);
+    max-width: 68ch;
+  }
+  .deliverable {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 0.6rem 0.85rem;
+    border-radius: 0 6px 6px 0;
+    font-style: italic;
+  }
+  .remaining { color: var(--ink-soft); }
+  .remaining ul { margin: 0.3rem 0 0; padding-left: 1.15rem; }
+  .remaining li { margin-bottom: 0.2rem; }
+
+  .tag-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.9rem;
+  }
+  .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+    background: var(--ground);
+    border: 1px solid var(--line);
+    padding: 0.2rem 0.55rem;
+    border-radius: 5px;
+  }
+  .tag.dep::before { content: "\2192  "; color: var(--ink-faint); }
+  .tag.gap {
+    color: var(--status-progress);
+    border-color: var(--status-progress-bg);
+    background: var(--status-progress-bg);
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+  }
+
+  @media print {
+    body { background: #fff; }
+    .page { max-width: 100%; padding: 0.5in; }
+    .task { box-shadow: none; border: 1px solid #ccc; }
+    .dash-card { box-shadow: none; }
+  }
+
+  @media (max-width: 560px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .task-top { flex-direction: column; }
+  }
+</style>
+
+<div class="page">
+
+  <span class="eyebrow">NEV Climate Data — Volet B</span>
+  <h1>Feuille de route : Connecteurs sources officielles &amp; GreenAccess</h1>
+  <p class="lede">
+    État d'avancement détaillé des 18 tâches assignées à Serge, de B1.1 à B2.8, tel que défini
+    dans <em>Plan_Implementation_NEV_Climate_Data.xlsx</em>. Objectifs, livrables attendus et
+    dépendances repris mot pour mot du plan ; statuts et travail restant établis à partir de
+    l'état réel du dépôt.
+  </p>
+
+  <div class="meta-row">
+    <span><strong>Responsable</strong> Serge KOBI</span>
+    <span><strong>Périmètre</strong> B1.1 → B2.8</span>
+    <span><strong>Verrou de gouvernance</strong> B1.1–B1.9, B2.2 dépendent d'A3.10 (recette Volet A)</span>
+    <span><strong>Généré</strong> 26 août 2026</span>
+  </div>
+
+  <div class="dashboard">
+    <div class="dash-card">
+      <h3>Phase B1 — Connecteurs sources officielles <span class="count">0 fait · 1 en cours · 9 à faire</span></h3>
+      <div class="bar-track">
+        <div class="bar-seg progress" style="width:5%"></div>
+      </div>
+      <div class="legend">
+        <span><span class="dot done"></span>Fait</span>
+        <span><span class="dot progress"></span>En cours</span>
+        <span><span class="dot todo"></span>Pas commencé</span>
+      </div>
+    </div>
+    <div class="dash-card">
+      <h3>Phase B2 — Connecteur GreenAccess <span class="count">1 fait · 0 en cours · 7 à faire</span></h3>
+      <div class="bar-track">
+        <div class="bar-seg done" style="width:12.5%"></div>
+      </div>
+      <div class="legend">
+        <span><span class="dot done"></span>Fait</span>
+        <span><span class="dot progress"></span>En cours</span>
+        <span><span class="dot todo"></span>Pas commencé</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PHASE B1 ==================== -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="eyebrow">Phase B1</span>
+      <h2>Connecteurs sources officielles</h2>
+      <p>Collecte Banque Mondiale, Fonds Vert, BAD, PNUE et rapports PDF → validation/normalisation → stockage Bronze/Silver/Gold. Toutes les tâches sauf B2.1 sont verrouillées par la recette finale du Volet A (A3.10) selon le cahier des charges — travail de conception autorisé en avance, exécution réelle en attente de ce jalon.</p>
+    </div>
+
+    <div class="spine">
+
+      <article class="task" data-status="en-cours">
+        <div class="task-top">
+          <div><span class="task-id">B1.1</span><h3 class="task-title">Connecteur Banque Mondiale (World Bank Data API)</h3></div>
+          <span class="status-pill en-cours">En cours</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Collecter automatiquement les indicateurs économiques et le financement public par pays (cahier des charges 6.2).</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">DAG Airflow trimestriel publiant vers le topic Kafka dédié.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Spec et plan d'implémentation validés (10 tâches TDD) ; exécution pas encore démarrée : <ul>
+          <li>Provisionner Kafka, Airflow, MinIO, Redis dans <code>docker-compose.yml</code></li>
+          <li>Créer les topics <code>nev.funding.raw/valides/rejets</code></li>
+          <li>Contraintes uniques en base (dédup <code>funding</code>, <code>source.name</code>)</li>
+          <li>Squelette <code>pipeline/</code>, mapping sectoriel, collecteur, processor d'upsert, DAG, vérification bout-en-bout</li>
+        </ul></div></div>
+        <div class="tag-row">
+          <span class="tag dep">A3.10</span>
+          <span class="tag">Plan : docs/superpowers/plans/2026-08-26-b11-world-bank-connector.md</span>
+        </div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B1.2</span><h3 class="task-title">Connecteur Fonds Vert pour le Climat (GCF)</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Collecter les projets et montants financés par pays/secteur.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">DAG Airflow mensuel publiant vers le topic Kafka dédié.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — spec de connecteur à écrire (même méthode qu'B1.1 : identifier la vraie API/dataset GCF Open Data, vérifier les champs de montant réels avant de coder).</div></div>
+        <div class="tag-row"><span class="tag dep">A3.10</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B1.3</span><h3 class="task-title">Connecteur BAD (Banque Africaine de Développement)</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Collecter les financements multilatéraux.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">DAG Airflow trimestriel publiant vers le topic Kafka dédié.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — vérifier l'accès réel à l'API MapAfrica / portail Open Data BAD avant de concevoir le connecteur.</div></div>
+        <div class="tag-row"><span class="tag dep">A3.10</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B1.4</span><h3 class="task-title">Connecteur PNUE</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Collecter les données d'impact environnemental (réduction CO2). API si disponible, sinon extraction de rapports.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">DAG Airflow annuel publiant vers le topic Kafka dédié.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — à déterminer en premier lieu si une API PNUE exploitable existe (sinon cette tâche se rabat sur B1.5, l'extracteur PDF).</div></div>
+        <div class="tag-row"><span class="tag dep">A3.10</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B1.5</span><h3 class="task-title">Extracteur de rapports PDF assisté par IA (Claude)</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Extraire les données non disponibles via API depuis les rapports PDF nationaux et des bailleurs.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Extracteur opérationnel avec cache (hash du PDF déjà traité).</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — le pattern (pdfplumber + API Claude, cache SHA-256) est déjà documenté dans le pipeline CIMA de référence, réutilisable comme modèle.</div></div>
+        <div class="tag-row"><span class="tag dep">A3.10</span></div>
+      </article>
+
+      <article class="task" data-status="en-cours">
+        <div class="task-top">
+          <div><span class="task-id">B1.6</span><h3 class="task-title">Processor de validation et normalisation</h3></div>
+          <span class="status-pill en-cours">En cours (via B1.1)</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Appliquer les règles de gouvernance de la donnée (devise pivot, upsert, valeurs manquantes — cahier des charges 6.4).</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Processor de validation opérationnel, consumer Kafka → TimescaleDB.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">La logique générique (upsert cumulatif, devise pivot, quarantaine) est conçue et sur le point d'être codée dans le plan B1.1 (tâche 7) — elle ne dépend pas d'une source en particulier. Une fois B1.1 livrée, il restera surtout à <strong>vérifier qu'elle fonctionne aussi pour GCF/BAD/PNUE</strong> une fois ces connecteurs ajoutés, pas à la reconcevoir.</div></div>
+        <div class="tag-row"><span class="tag dep">B1.1</span><span class="tag dep">B1.2</span><span class="tag dep">B1.3</span><span class="tag dep">B1.4</span></div>
+      </article>
+
+      <article class="task" data-status="en-cours">
+        <div class="task-top">
+          <div><span class="task-id">B1.7</span><h3 class="task-title">Gestion des conflits entre sources et historisation</h3></div>
+          <span class="status-pill en-cours">En cours (via B1.1)</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Garantir qu'aucune donnée n'est écrasée et que les valeurs divergentes entre sources restent traçables (règle 6.4).</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Mécanisme d'historisation horodaté opérationnel.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Le mécanisme (<code>valid_from</code>/<code>valid_to</code>/<code>is_current</code>, une nouvelle version à chaque changement) est déjà dans la conception du processor B1.1. Reste à valider avec de vraies données multi-sources une fois B1.2/B1.3 en place.</div></div>
+        <div class="tag-row"><span class="tag dep">B1.6</span></div>
+      </article>
+
+      <article class="task" data-status="en-cours">
+        <div class="task-top">
+          <div><span class="task-id">B1.8</span><h3 class="task-title">Topics Kafka NEV &amp; architecture Bronze/Silver/Gold</h3></div>
+          <span class="status-pill en-cours">Partiel</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Isoler strictement les données NEV Climate Data de celles du projet Observatoire CIMA (règle 6.5).</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Topics Kafka et buckets MinIO NEV dédiés, cloisonnés de CIMA.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Les topics Kafka (<code>nev.funding.*</code>) sont prévus dans le plan B1.1 (tâche 2), isolés par construction (infra propre à NEV, jamais celle de CIMA). <strong>Écart réel non encore comblé</strong> : MinIO est provisionné en infra mais aucun code n'écrit encore les couches Bronze/Silver/Gold — à ajouter, probablement en tâche complémentaire au plan B1.1 ou en tâche dédiée.</div></div>
+        <div class="tag-row"><span class="tag dep">A3.10</span><span class="tag gap">Écart : écriture MinIO à concevoir</span></div>
+      </article>
+
+      <article class="task" data-status="en-cours">
+        <div class="task-top">
+          <div><span class="task-id">B1.9</span><h3 class="task-title">Orchestration Airflow (DAGs, retries, alerting)</h3></div>
+          <span class="status-pill en-cours">Partiel</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Fiabiliser la collecte automatisée et détecter rapidement les échecs (source indisponible, changement de structure).</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">DAGs robustes avec retries, alerting actif.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Retries de base (3 tentatives, 5 min) déjà dans le DAG B1.1. <strong>Manque</strong> : alerting réel (email/Slack sur échec), à concevoir une fois B1.1–B1.5 tous en place pour couvrir l'ensemble des connecteurs d'un coup plutôt que DAG par DAG.</div></div>
+        <div class="tag-row"><span class="tag dep">B1.1</span><span class="tag dep">B1.2</span><span class="tag dep">B1.3</span><span class="tag dep">B1.4</span><span class="tag dep">B1.5</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B1.10</span><h3 class="task-title">Recette Phase B1</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Valider que les données réelles des sources officielles sont correctement collectées, validées et stockées.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Rapport de recette Phase B1 signé.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — ne peut logiquement démarrer qu'une fois B1.6 à B1.9 achevées. Même méthode qu'A1.8 : checklist critère par critère, exécutée contre le système réel.</div></div>
+        <div class="tag-row"><span class="tag dep">B1.6</span><span class="tag dep">B1.7</span><span class="tag dep">B1.8</span><span class="tag dep">B1.9</span></div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ==================== PHASE B2 ==================== -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="eyebrow">Phase B2</span>
+      <h2>Connecteur GreenAccess</h2>
+      <p>Flux événementiel (Firestore → Cloud Functions → Kafka) avec synchronisation batch de secours, anonymisation stricte avant tout stockage côté NEV.</p>
+    </div>
+
+    <div class="spine">
+
+      <article class="task" data-status="fait">
+        <div class="task-top">
+          <div><span class="task-id">B2.1</span><h3 class="task-title">Note de cadrage GreenAccess (périmètre &amp; accès Firebase)</h3></div>
+          <span class="status-pill fait">Fait</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Sécuriser juridiquement et techniquement l'accès aux collections Firestore concernées avant tout développement (règle 9.2).</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Note de cadrage signée : périmètre de données autorisées, droits d'accès Firebase en lecture seule.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Document rédigé et committé (<code>docs/note-de-cadrage-greenaccess-b2.1.md</code>) : 3 collections autorisées, exclusions PII, modalités d'accès. <strong>Encore en attente</strong> : signature effective par l'équipe GreenAccess (destinataire encore à déterminer) — B2.2 ne peut pas démarrer sans elle, même si le document lui-même est prêt.</div></div>
+        <div class="tag-row"><span class="tag">Aucune dépendance</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B2.2</span><h3 class="task-title">Cloud Functions GreenAccess (déclencheurs onWrite)</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Détecter en temps quasi réel les écritures sur <code>scores_climat</code>, <code>demandes_financement</code> et <code>contrats_assurance</code>.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Cloud Functions étendues et déployées côté GreenAccess.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — développement côté GreenAccess (hors de ce dépôt), ne peut commencer qu'après signature de B2.1.</div></div>
+        <div class="tag-row"><span class="tag dep">B2.1</span><span class="tag dep">A3.10</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B2.3</span><h3 class="task-title">Service producteur Cloud Function → Kafka</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Publier les évènements GreenAccess vers des topics Kafka isolés (<code>greenaccess.*.raw</code>).</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Service producteur opérationnel, topics Kafka créés.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — noms de topics déjà fixés par le cahier des charges (<code>greenaccess.scores.raw</code>, <code>.financements.raw</code>, <code>.assurance.raw</code>), infra Kafka déjà provisionnée par B1.1.</div></div>
+        <div class="tag-row"><span class="tag dep">B2.2</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B2.4</span><h3 class="task-title">Processor de validation et d'anonymisation GreenAccess</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Agréger par pays/secteur/période et supprimer tout identifiant personnel avant stockage côté NEV.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Processor d'anonymisation opérationnel, aucune donnée individuelle transmise.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — logique d'anonymisation spécifique à concevoir (différente du processor B1.6, qui ne traite pas de données personnelles).</div></div>
+        <div class="tag-row"><span class="tag dep">B2.3</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B2.5</span><h3 class="task-title">DAG Airflow quotidien de synchronisation de secours</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Garantir la complétude des données en cas d'évènement manqué (panne réseau, redéploiement).</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">DAG Airflow quotidien opérationnel, idempotent (lecture Firestore REST seule).</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — peut démarrer dès que B2.1 est signée, sans attendre B2.2/B2.3 (dépendance directe uniquement sur B2.1).</div></div>
+        <div class="tag-row"><span class="tag dep">B2.1</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B2.6</span><h3 class="task-title">KPIs GreenAccess en TimescaleDB (Gold) et cache Redis</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Exposer les KPIs GreenAccess (score climat, financements, assurance) à l'API.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Données GreenAccess disponibles en couche Gold et en cache.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — Redis déjà disponible (provisionné en Phase A2 pour les analytics du backend), à réutiliser plutôt que redéployer.</div></div>
+        <div class="tag-row"><span class="tag dep">B2.4</span><span class="tag dep">B2.5</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B2.7</span><h3 class="task-title">Audit de conformité GreenAccess</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Vérifier qu'aucune donnée individuelle (nom, e-mail, téléphone, géolocalisation) n'est présente côté NEV Climate Data.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Rapport d'audit de conformité GreenAccess.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — audit des topics Kafka, tables TimescaleDB et réponses API dédiées GreenAccess, une fois B2.6 livrée.</div></div>
+        <div class="tag-row"><span class="tag dep">B2.6</span></div>
+      </article>
+
+      <article class="task" data-status="pas-commence">
+        <div class="task-top">
+          <div><span class="task-id">B2.8</span><h3 class="task-title">Recette Phase B2</h3></div>
+          <span class="status-pill pas-commence">Pas commencé</span>
+        </div>
+        <div class="field"><span class="field-label">Objectif</span><div class="field-body">Valider que le connecteur GreenAccess fonctionne de bout en bout sans fuite de donnée individuelle.</div></div>
+        <div class="field"><span class="field-label">Livrable attendu</span><div class="field-body deliverable">Rapport de recette Phase B2 signé.</div></div>
+        <div class="field"><span class="field-label">Reste à faire</span><div class="field-body remaining">Tout — dernière tâche du périmètre B2, clôture la Phase B2 avant B3.1 (tâche d'Oumar, exposition des agrégats réels via l'API).</div></div>
+        <div class="tag-row"><span class="tag dep">B2.7</span></div>
+      </article>
+
+    </div>
+  </section>
+
+  <footer>
+    Source : Plan_Implementation_NEV_Climate_Data.xlsx (onglet « Plan d'implémentation »),
+    docs/superpowers/specs/2026-08-26-volet-b-pipeline-architecture-design.md,
+    docs/superpowers/specs/2026-08-26-b11-world-bank-connector-design.md,
+    docs/superpowers/plans/2026-08-26-b11-world-bank-connector.md,
+    docs/note-de-cadrage-greenaccess-b2.1.md. Document généré à partir de l'état réel du dépôt
+    au 26 août 2026 — à régénérer après chaque jalon significatif.
+  </footer>
+
+</div>
