@@ -220,12 +220,16 @@
               ? ""
               : '<button type="button" data-mark-read-id="' + item.id + '" class="mark-read-btn shrink-0 rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-white">Marquer comme lue</button>';
 
+            // The whole content block is a link to item.destination (A2.10)
+            // - the real frontend page the event is actually about - kept
+            // separate from "Marquer comme lue" so clicking to navigate
+            // never silently marks the notification read as a side effect.
             li.innerHTML =
-              '<div>' +
+              '<a href="' + item.destination + '" class="block flex-1 hover:opacity-80">' +
               '<span class="mb-1 inline-block rounded-full bg-status-review-bg px-2.5 py-0.5 text-xs font-semibold text-status-review">' + (EVENT_TYPE_LABELS[item.eventType] || item.eventType) + '</span>' +
               '<p class="text-sm text-dark">' + item.content + '</p>' +
               '<p class="mt-1 text-xs text-dark-6">' + formatDate(item.createdAt) + '</p>' +
-              '</div>' +
+              '</a>' +
               readBtn;
 
             els.list.appendChild(li);

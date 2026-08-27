@@ -22,6 +22,12 @@ doctrine:
         identity_generation_preferences:
             Doctrine\DBAL\Platforms\PostgreSQLPlatform: identity
         auto_mapping: true
+        # A2.8: UNACCENT(expr) DQL function -> PostgreSQL's unaccent()
+        # extension (see migration Version20260827160000), used by the
+        # global search repositories for accent-insensitive matching.
+        dql:
+            string_functions:
+                UNACCENT: App\Doctrine\DQL\UnaccentFunction
         mappings:
             App:
                 type: attribute

@@ -20,14 +20,16 @@ class SectorRepository extends ServiceEntityRepository
     }
 
     /**
-     * A2.8. Ordered by name for a deterministic result order.
+     * A2.8. Case- and accent-insensitive (UNACCENT() on both sides - see
+     * App\Doctrine\DQL\UnaccentFunction). Ordered by name for a
+     * deterministic result order.
      *
      * @return list<Sector>
      */
     public function searchByName(SearchQuery $searchQuery, int $limit): array
     {
         return $this->createQueryBuilder('sector')
-            ->andWhere('LOWER(sector.name) LIKE :pattern')
+            ->andWhere('UNACCENT(LOWER(sector.name)) LIKE UNACCENT(:pattern)')
             ->setParameter('pattern', $searchQuery->likePattern())
             ->orderBy('sector.name', 'ASC')
             ->setMaxResults($limit)

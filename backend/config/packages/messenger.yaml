@@ -1,0 +1,14 @@
+framework:
+    messenger:
+        # A2.3 (async export beyond a row-count threshold). Doctrine
+        # transport (a "messenger_messages" table in the same TimescaleDB
+        # database) rather than a separate broker (RabbitMQ, Redis Streams):
+        # this project's Redis pool is a cache (cache.analytics, A2.5), not
+        # provisioned as a durable queue, and a second broker would be
+        # infrastructure this app's actual scale doesn't justify yet - see
+        # the A2.9/A2.10 report's export-gap analysis for the full reasoning.
+        transports:
+            async: '%env(MESSENGER_TRANSPORT_DSN)%'
+
+        routing:
+            App\Message\GenerateExportMessage: async

@@ -28,6 +28,37 @@ services:
     networks:
       - nev-network
 
+  # A2.3: consumes the async export queue (Symfony Messenger, Doctrine
+  # transport - see backend/config/packages/messenger.yaml). Same image as
+  # "backend" (build layers are shared/cached), only the command differs:
+  # no Apache, no exposed port, just a long-running console worker.
+  # --time-limit lets the process recycle periodically; restart:
+  # unless-stopped keeps it effectively continuous.
+  backend-worker:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: nev-climate-data-backend-worker
+    restart: unless-stopped
+    command: php bin/console messenger:consume async -vv --time-limit=3600 --memory-limit=256M
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      APP_SECRET: ${APP_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE}
+      CORS_ALLOWED_ORIGIN_REGEX: ${CORS_ALLOWED_ORIGIN_REGEX:-^https?://localhost:8123$$|^https://[a-z0-9-]+-8123\.app\.github\.dev$$}
+      REDIS_DSN: ${REDIS_DSN:-redis://redis:6379}
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+    networks:
+      - nev-network
+
   database:
     image: timescale/timescaledb:latest-pg16
     container_name: nev-climate-data-db
