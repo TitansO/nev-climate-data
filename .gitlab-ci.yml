@@ -8,11 +8,20 @@ phpunit:
   services:
     - name: timescale/timescaledb:latest-pg16
       alias: database
+    # A2.5: the "cache.analytics" pool (config/packages/cache.yaml) and
+    # AnalyticsControllerTest both need a real Redis - added here for the
+    # same reason as the PHP extensions below (see the README's pitfall
+    # list, point 9): this job runs in a generic php:8.4-cli image, not the
+    # project's own docker-compose stack, so nothing here is inherited
+    # automatically from docker-compose.yml.
+    - name: redis:7-alpine
+      alias: redis
   variables:
     POSTGRES_DB: nev_climate_data_ci
     POSTGRES_USER: nev_ci
     POSTGRES_PASSWORD: nev_ci_password
     DATABASE_URL: "postgresql://nev_ci:nev_ci_password@database:5432/nev_climate_data_ci?serverVersion=16&charset=utf8"
+    REDIS_DSN: "redis://redis:6379"
     APP_ENV: test
     JWT_PASSPHRASE: ci_ephemeral_passphrase
   cache:
