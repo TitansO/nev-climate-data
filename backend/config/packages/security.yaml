@@ -59,6 +59,9 @@ security:
         # A2.5: the analytics aggregates feed visualizations.html, which
         # itself has no login requirement - same reasoning as /api/funding.
         - { path: ^/api/analytics, roles: PUBLIC_ACCESS }
+        # A2.8: every searched entity is already public data (see
+        # App\Service\SearchService's docblock).
+        - { path: ^/api/search, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
