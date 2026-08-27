@@ -204,9 +204,146 @@ final class FundingExportTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $spec = json_decode($client->getResponse()->getContent(), true);
-        self::assertArrayHasKey('/api/funding/export', $spec['paths']);
-        self::assertArrayHasKey('get', $spec['paths']['/api/funding/export']);
+        foreach (['/api/funding/export', '/api/funding/exports/{id}', '/api/funding/exports/{id}/download'] as $path) {
+            self::assertArrayHasKey($path, $spec['paths']);
+            self::assertArrayHasKey('get', $spec['paths'][$path]);
+        }
     }
+
+    public function testXlsxFormatIsAcceptedAndReturnsTheRightContentType(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $tokens = $this->loginAndGetTokens($client);
+
+        $client->request('GET', '/api/funding/export?format=xlsx&country=SEN', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $client->getResponse()->headers->get('Content-Type'));
+        // A minimal structural check that this is a real XLSX (a zip archive: "PK" signature), not CSV bytes mislabeled.
+        self::assertStringStartsWith('PK', $client->getResponse()->getContent());
+    }
+
+    public function testExportBeyondTheThresholdReturns202WithAPendingJobInstead(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $this->seedManyMoreRecordsToExceedTheAsyncThreshold();
+        $tokens = $this->loginAndGetTokens($client);
+
+        $client->request('GET', '/api/funding/export', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+
+        self::assertSame(202, $client->getResponse()->getStatusCode());
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame('pending', $data['status']);
+        self::assertIsInt($data['exportId']);
+
+        $export = $this->entityManager->getRepository(\App\Entity\Export::class)->find($data['exportId']);
+        self::assertNotNull($export);
+        self::assertSame(\App\Entity\Enum\ExportStatus::Pending, $export->getStatus());
+    }
+
+    public function testAsyncExportProcessesToReadyAndCreatesANotification(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $this->seedManyMoreRecordsToExceedTheAsyncThreshold();
+        $tokens = $this->loginAndGetTokens($client);
+
+        $client->request('GET', '/api/funding/export', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+        $exportId = json_decode($client->getResponse()->getContent(), true)['exportId'];
+
+        // Runs the same code the worker container runs (App\MessageHandler\GenerateExportMessageHandler)
+        // synchronously, in-process - there is no running Messenger consumer in the test environment.
+        static::getContainer()->get(\App\Service\ExportService::class)->processAsyncExport($exportId);
+
+        $client->request('GET', '/api/funding/exports/'.$exportId, server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+        $status = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame('ready', $status['status']);
+        self::assertNotNull($status['rowCount']);
+        self::assertSame('/api/funding/exports/'.$exportId.'/download', $status['downloadUrl']);
+
+        $client->request('GET', $status['downloadUrl'], server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+        self::assertResponseIsSuccessful();
+        self::assertStringStartsWith('text/csv', $client->getResponse()->headers->get('Content-Type'));
+
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => 'export-user@example.com']);
+        $notifications = static::getContainer()->get(\App\Repository\NotificationRepository::class)->findByUser($user, 1, 20);
+        $eventTypes = array_map(static fn ($n) => $n->getEventType()->value, $notifications);
+        self::assertContains('export_ready', $eventTypes);
+    }
+
+    public function testExportStatusAndDownloadAreIsolatedByOwner(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $this->seedManyMoreRecordsToExceedTheAsyncThreshold();
+        $ownerTokens = $this->loginAndGetTokens($client);
+
+        $client->request('GET', '/api/funding/export', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$ownerTokens['token']]);
+        $exportId = json_decode($client->getResponse()->getContent(), true)['exportId'];
+
+        $intruder = new User('Kwame Mensah', 'export-intruder@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::ExternalPartner);
+        $this->entityManager->persist($intruder);
+        $this->entityManager->flush();
+        $intruderTokens = $this->loginAndGetTokens($client, 'export-intruder@example.com');
+
+        $client->request('GET', '/api/funding/exports/'.$exportId, server: ['HTTP_AUTHORIZATION' => 'Bearer '.$intruderTokens['token']]);
+        self::assertSame(404, $client->getResponse()->getStatusCode());
+
+        $client->request('GET', '/api/funding/exports/'.$exportId.'/download', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$intruderTokens['token']]);
+        self::assertSame(404, $client->getResponse()->getStatusCode());
+    }
+
+    public function testDownloadReturns404WhileTheExportIsNotYetReady(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $this->seedManyMoreRecordsToExceedTheAsyncThreshold();
+        $tokens = $this->loginAndGetTokens($client);
+
+        $client->request('GET', '/api/funding/export', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+        $exportId = json_decode($client->getResponse()->getContent(), true)['exportId'];
+
+        $client->request('GET', '/api/funding/exports/'.$exportId.'/download', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+
+        self::assertSame(404, $client->getResponse()->getStatusCode());
+    }
+
+    /**
+     * ExternalPartner's daily export quota is 5 (config/packages/rate_limiter.yaml) -
+     * verified live against the real limiter, not mocked.
+     */
+    public function testExportQuotaIsEnforcedByRole(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $tokens = $this->loginAndGetTokens($client);
+
+        for ($i = 0; $i < 5; ++$i) {
+            $client->request('GET', '/api/funding/export?country=SEN', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+            self::assertResponseIsSuccessful();
+        }
+
+        $client->request('GET', '/api/funding/export?country=SEN', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+
+        self::assertSame(429, $client->getResponse()->getStatusCode());
+    }
+
+    private function seedManyMoreRecordsToExceedTheAsyncThreshold(): void
+    {
+        $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
+        $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
+        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
+
+        // 25 already seeded by seedDataset(); this brings the total well past
+        // ExportService::ASYNC_THRESHOLD (500).
+        for ($i = 0; $i < 500; ++$i) {
+            $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '100.00', FundingType::Public, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Demo));
+        }
+        $this->entityManager->flush();
+    }
+
 
     /**
      * @return list<array<string, string>> one assoc row per CSV data line (header consumed as keys)

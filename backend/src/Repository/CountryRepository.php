@@ -21,14 +21,16 @@ class CountryRepository extends ServiceEntityRepository
 
     /**
      * A2.8: matches on name only, not isoCode - "senegal" is what a user
-     * types, not "sen". Ordered by name for a deterministic result order.
+     * types, not "sen". Case- and accent-insensitive (UNACCENT() on both
+     * sides - see App\Doctrine\DQL\UnaccentFunction), so "senegal" also
+     * finds "Sénégal". Ordered by name for a deterministic result order.
      *
      * @return list<Country>
      */
     public function searchByName(SearchQuery $searchQuery, int $limit): array
     {
         return $this->createQueryBuilder('country')
-            ->andWhere('LOWER(country.name) LIKE :pattern')
+            ->andWhere('UNACCENT(LOWER(country.name)) LIKE UNACCENT(:pattern)')
             ->setParameter('pattern', $searchQuery->likePattern())
             ->orderBy('country.name', 'ASC')
             ->setMaxResults($limit)

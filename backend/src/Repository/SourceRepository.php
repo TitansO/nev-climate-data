@@ -20,14 +20,16 @@ class SourceRepository extends ServiceEntityRepository
     }
 
     /**
-     * A2.8. Ordered by name for a deterministic result order.
+     * A2.8. Case- and accent-insensitive (UNACCENT() on both sides - see
+     * App\Doctrine\DQL\UnaccentFunction). Ordered by name for a
+     * deterministic result order.
      *
      * @return list<Source>
      */
     public function searchByName(SearchQuery $searchQuery, int $limit): array
     {
         return $this->createQueryBuilder('source')
-            ->andWhere('LOWER(source.name) LIKE :pattern')
+            ->andWhere('UNACCENT(LOWER(source.name)) LIKE UNACCENT(:pattern)')
             ->setParameter('pattern', $searchQuery->likePattern())
             ->orderBy('source.name', 'ASC')
             ->setMaxResults($limit)

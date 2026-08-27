@@ -6,33 +6,42 @@ namespace App\Controller;
 
 use App\Dto\FundingExportFormat;
 use App\Dto\FundingSearchCriteria;
+use App\Entity\Enum\ExportStatus;
 use App\Entity\Funding;
+use App\Repository\ExportRepository;
 use App\Repository\FundingRepository;
+use App\Security\ExportQuotaPolicy;
+use App\Service\ExportService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Public read-only data extraction (A2.1 — cahier des charges 5.2.c):
+ * Public read-only data extraction (A2.1 - cahier des charges 5.2.c):
  * filters are optional and cumulable, pagination is enforced server-side
  * with a hard cap on page size. Deliberately PUBLIC_ACCESS (see
  * security.yaml's access_control, added ahead of the general `^/api`
- * rule) — a visitor with no account can browse the dataset without a JWT
+ * rule) - a visitor with no account can browse the dataset without a JWT
  * or an API key.
  *
- * export() (A2.3) is the one exception: it requires an authenticated user
- * (JWT or API key - either satisfies the firewall's default
- * IS_AUTHENTICATED_FULLY, which security.yaml applies to it explicitly
- * ahead of the /api/funding PUBLIC_ACCESS rule, since that rule matches by
- * prefix and would otherwise also cover /api/funding/export).
+ * export()/exportStatus()/downloadExport() (A2.3) are the exception: they
+ * require an authenticated user (JWT or API key - either satisfies the
+ * firewall's default IS_AUTHENTICATED_FULLY, which security.yaml applies
+ * to `^/api/funding/export` explicitly ahead of the /api/funding
+ * PUBLIC_ACCESS rule - that prefix also covers /api/funding/exports/{id},
+ * since access_control matches by prefix regex).
  */
 final class FundingController extends AbstractController
 {
     public function __construct(
         private readonly FundingRepository $fundingRepository,
+        private readonly ExportService $exportService,
+        private readonly ExportRepository $exportRepository,
+        private readonly ExportQuotaPolicy $exportQuotaPolicy,
     ) {
     }
 
@@ -124,8 +133,8 @@ final class FundingController extends AbstractController
 
     #[Route('/api/funding/export', name: 'api_funding_export', methods: ['GET'])]
     #[OA\Get(
-        summary: 'Exporte les données de financement correspondant aux filtres, au format CSV',
-        description: 'Réservé aux utilisateurs authentifiés (JWT ou clé API). Accepte exactement les mêmes filtres que `GET /api/funding` (`country`, `sector`, `year`, `fundingType`, `periodStart`, `periodEnd`) - sans pagination : le fichier contient toutes les lignes correspondantes, pas une seule page. `format` ne supporte actuellement que `csv`.',
+        summary: 'Exporte les données de financement correspondant aux filtres (CSV ou XLSX)',
+        description: 'Réservé aux utilisateurs authentifiés (JWT ou clé API), soumis à un quota quotidien par rôle (A2.3, "règle 5.2.d"). Accepte exactement les mêmes filtres que `GET /api/funding` - sans pagination : toutes les lignes correspondantes, pas une seule page. En dessous de '.ExportService::ASYNC_THRESHOLD.' lignes, le fichier est retourné immédiatement (200). Au-delà, la génération est asynchrone (règle 5.2.d) : la réponse est `202 Accepted` avec un identifiant à suivre via `GET /api/funding/exports/{id}`, et une notification est créée une fois le fichier prêt.',
         tags: ['Funding'],
         security: [['bearerAuth' => []], ['apiKeyAuth' => []]],
         parameters: [
@@ -135,44 +144,49 @@ final class FundingController extends AbstractController
             new OA\Parameter(name: 'fundingType', in: 'query', required: false, description: 'public, private ou multilateral', schema: new OA\Schema(type: 'string', enum: ['public', 'private', 'multilateral']), example: 'public'),
             new OA\Parameter(name: 'periodStart', in: 'query', required: false, description: 'Date de collecte minimale (incluse), format YYYY-MM-DD', schema: new OA\Schema(type: 'string', format: 'date'), example: '2022-01-01'),
             new OA\Parameter(name: 'periodEnd', in: 'query', required: false, description: 'Date de collecte maximale (incluse), format YYYY-MM-DD', schema: new OA\Schema(type: 'string', format: 'date'), example: '2025-12-31'),
-            new OA\Parameter(name: 'format', in: 'query', required: false, description: 'Format du fichier exporté (seul "csv" est supporté)', schema: new OA\Schema(type: 'string', enum: ['csv'], default: 'csv'), example: 'csv'),
+            new OA\Parameter(name: 'format', in: 'query', required: false, description: 'Format du fichier exporté', schema: new OA\Schema(type: 'string', enum: ['csv', 'xlsx'], default: 'csv'), example: 'csv'),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'Fichier CSV en pièce jointe', content: new OA\MediaType(mediaType: 'text/csv')),
+            new OA\Response(response: 200, description: 'Fichier en pièce jointe (sous le seuil asynchrone)', content: new OA\MediaType(mediaType: 'text/csv')),
+            new OA\Response(
+                response: 202,
+                description: 'Volume au-delà du seuil : génération asynchrone démarrée',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'status', type: 'string', example: 'pending'),
+                        new OA\Property(property: 'exportId', type: 'integer', example: 12),
+                        new OA\Property(property: 'message', type: 'string', example: 'Export volumineux (1080 lignes) : génération en cours, vous recevrez une notification.'),
+                    ]
+                )
+            ),
             new OA\Response(response: 400, description: 'Paramètre de filtre ou de format invalide'),
             new OA\Response(response: 401, description: 'Authentification requise (JWT ou clé API)'),
+            new OA\Response(response: 429, description: 'Quota d\'export quotidien dépassé pour votre rôle'),
         ]
     )]
     public function export(Request $request): Response
     {
         $format = FundingExportFormat::fromQuery($request->query);
         $criteria = FundingSearchCriteria::fromQuery($request->query);
-        $items = $this->fundingRepository->streamByCriteria($criteria);
 
-        // Built in memory (php://memory), not streamed straight to the HTTP
-        // response: at the project's current scale (low thousands of rows)
-        // this is simpler and fully testable via Response::getContent() -
-        // StreamedResponse::getContent() always returns false by design,
-        // which functional tests can't assert against. toIterable() on the
-        // repository side still avoids hydrating the whole result set as
-        // Doctrine entities in memory at once.
-        $handle = fopen('php://memory', 'r+');
-        // UTF-8 BOM: without it, Excel (the realistic consumer of a CSV
-        // export of French-language content) misreads accented characters
-        // as a different encoding on open. escape: '' (RFC 4180 - quotes
-        // doubled, no backslash-escaping) rather than PHP's legacy default,
-        // which PHP 8.4 deprecates leaving implicit.
-        fwrite($handle, "\xEF\xBB\xBF");
-        fputcsv($handle, ['id', 'country_name', 'country_iso_code', 'sector_id', 'sector_name', 'year', 'amount', 'funding_type', 'source_id', 'source_name', 'collection_date', 'validation_status'], escape: '');
-        foreach ($items as $funding) {
-            fputcsv($handle, self::toCsvRow($funding), escape: '');
+        $this->exportQuotaPolicy->consume($this->currentUser());
+
+        $count = $this->exportService->countMatching($criteria);
+
+        if ($count > ExportService::ASYNC_THRESHOLD) {
+            $export = $this->exportService->requestAsyncExport($this->currentUser(), $format, (string) $request->getQueryString());
+
+            return $this->json([
+                'status' => $export->getStatus()->value,
+                'exportId' => $export->getId(),
+                'message' => \sprintf('Export volumineux (%d lignes) : génération en cours, vous recevrez une notification.', $count),
+            ], Response::HTTP_ACCEPTED);
         }
-        rewind($handle);
-        $csv = stream_get_contents($handle);
-        fclose($handle);
 
-        $response = new Response($csv);
-        $response->headers->set('Content-Type', 'text/csv; charset=utf-8');
+        $content = $this->exportService->generateContent($criteria, $format);
+
+        $response = new Response($content);
+        $response->headers->set('Content-Type', $format->contentType());
         $response->headers->set('Content-Disposition', $response->headers->makeDisposition(
             'attachment',
             \sprintf('funding-export-%s.%s', (new \DateTimeImmutable())->format('Y-m-d-His'), $format->value)
@@ -181,25 +195,94 @@ final class FundingController extends AbstractController
         return $response;
     }
 
-    /**
-     * @return list<string>
-     */
-    private static function toCsvRow(Funding $funding): array
+    #[Route('/api/funding/exports/{id}', name: 'api_funding_export_status', methods: ['GET'], requirements: ['id' => '\d+'])]
+    #[OA\Get(
+        summary: 'Statut d\'un export asynchrone',
+        description: 'Réservé au propriétaire de l\'export (JWT ou clé API).',
+        tags: ['Funding'],
+        security: [['bearerAuth' => []], ['apiKeyAuth' => []]],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'État de l\'export',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'id', type: 'integer', example: 12),
+                        new OA\Property(property: 'status', type: 'string', enum: ['pending', 'processing', 'ready', 'failed'], example: 'ready'),
+                        new OA\Property(property: 'format', type: 'string', example: 'csv'),
+                        new OA\Property(property: 'rowCount', type: 'integer', nullable: true, example: 1080),
+                        new OA\Property(property: 'createdAt', type: 'string', format: 'date-time'),
+                        new OA\Property(property: 'completedAt', type: 'string', format: 'date-time', nullable: true),
+                        new OA\Property(property: 'downloadUrl', type: 'string', nullable: true, example: '/api/funding/exports/12/download'),
+                        new OA\Property(property: 'errorMessage', type: 'string', nullable: true),
+                    ]
+                )
+            ),
+            new OA\Response(response: 401, description: 'Authentification requise'),
+            new OA\Response(response: 404, description: 'Export introuvable (inexistant ou appartenant à un autre utilisateur)'),
+        ]
+    )]
+    public function exportStatus(int $id): JsonResponse
     {
-        return [
-            (string) $funding->getId(),
-            $funding->getCountry()->getName(),
-            $funding->getCountry()->getIsoCode(),
-            (string) $funding->getSector()->getId(),
-            $funding->getSector()->getName(),
-            (string) $funding->getYear(),
-            $funding->getAmount(),
-            $funding->getFundingType()->value,
-            (string) $funding->getSource()->getId(),
-            $funding->getSource()->getName(),
-            $funding->getCollectionDate()->format('Y-m-d'),
-            $funding->getValidationStatus()->value,
-        ];
+        $export = $this->exportRepository->findOneForUser($id, $this->currentUser());
+        if (null === $export) {
+            throw $this->createNotFoundException('Export not found.');
+        }
+
+        return $this->json([
+            'id' => $export->getId(),
+            'status' => $export->getStatus()->value,
+            'format' => $export->getFormat()->value,
+            'rowCount' => $export->getRowCount(),
+            'createdAt' => $export->getCreatedAt()->format(\DATE_ATOM),
+            'completedAt' => $export->getCompletedAt()?->format(\DATE_ATOM),
+            'downloadUrl' => ExportStatus::Ready === $export->getStatus() ? '/api/funding/exports/'.$export->getId().'/download' : null,
+            'errorMessage' => $export->getErrorMessage(),
+        ]);
+    }
+
+    #[Route('/api/funding/exports/{id}/download', name: 'api_funding_export_download', methods: ['GET'], requirements: ['id' => '\d+'])]
+    #[OA\Get(
+        summary: 'Télécharge le fichier d\'un export asynchrone terminé',
+        description: 'Réservé au propriétaire de l\'export. 404 tant que le statut n\'est pas "ready".',
+        tags: ['Funding'],
+        security: [['bearerAuth' => []], ['apiKeyAuth' => []]],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Fichier en pièce jointe'),
+            new OA\Response(response: 401, description: 'Authentification requise'),
+            new OA\Response(response: 404, description: 'Export introuvable, appartenant à un autre utilisateur, ou pas encore prêt'),
+        ]
+    )]
+    public function downloadExport(int $id): BinaryFileResponse
+    {
+        $export = $this->exportRepository->findOneForUser($id, $this->currentUser());
+        if (null === $export || ExportStatus::Ready !== $export->getStatus()) {
+            throw $this->createNotFoundException('Export not found or not ready.');
+        }
+
+        $path = $this->exportService->absolutePathFor($export);
+        if (null === $path || !is_file($path)) {
+            throw $this->createNotFoundException('Export file is missing.');
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->headers->set('Content-Type', $export->getFormat()->contentType());
+        $response->setContentDisposition(
+            'attachment',
+            \sprintf('funding-export-%s.%s', $export->getCreatedAt()->format('Y-m-d-His'), $export->getFormat()->value)
+        );
+
+        return $response;
+    }
+
+    private function currentUser(): \App\Entity\User
+    {
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+
+        return $user;
     }
 
     /**

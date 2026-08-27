@@ -16,11 +16,17 @@
   const MIN_LENGTH = 2; // matches backend/src/Dto/SearchQuery.php
   const DEBOUNCE_MS = 300;
 
-  const TYPE_LABELS = {
+  // A2.9: the display order for grouped categories - matches the order
+  // App\Service\SearchService already returns results in (country, sector,
+  // source, report), so this doesn't reorder anything the backend sends,
+  // it only decides which categories get a heading and in what sequence.
+  const CATEGORY_ORDER = ["country", "sector", "source", "report"];
+
+  const CATEGORY_LABELS = {
     country: "🌍 Pays",
-    sector: "⚡ Secteur",
-    source: "🔗 Source",
-    report: "📄 Rapport",
+    sector: "⚡ Secteurs",
+    source: "🔗 Sources",
+    report: "📄 Rapports",
   };
 
   function resolveApiBaseUrl() {
@@ -65,6 +71,26 @@
       showPanel();
     }
 
+    /**
+     * A2.9: groups the flat `results` array (as returned by the API) into
+     * sections by `type`, one heading per non-empty category, in
+     * CATEGORY_ORDER - a category with zero matches simply never gets a
+     * section (nothing to hide, nothing rendered). Only the type actually
+     * present in the response drives what's shown - never a hard-coded
+     * assumption that all 4 always have results.
+     */
+    function groupByType(results) {
+      const byType = {};
+      results.forEach(function (result) {
+        (byType[result.type] = byType[result.type] || []).push(result);
+      });
+      return CATEGORY_ORDER.filter(function (type) {
+        return byType[type] && byType[type].length > 0;
+      }).map(function (type) {
+        return { type: type, items: byType[type] };
+      });
+    }
+
     function renderResults(results) {
       panel.innerHTML = "";
 
@@ -73,33 +99,43 @@
         return;
       }
 
-      const list = document.createElement("ul");
-      list.className = "divide-y divide-stroke";
-      results.forEach(function (result) {
-        const li = document.createElement("li");
-        const link = document.createElement("a");
-        link.href = result.destination;
-        link.className = "block rounded-md px-3 py-2.5 hover:bg-surface";
+      const container = document.createElement("div");
+      container.className = "divide-y divide-stroke";
 
-        const typeLabel = document.createElement("span");
-        typeLabel.className = "mb-0.5 block text-xs font-medium text-primary-dark";
-        typeLabel.textContent = TYPE_LABELS[result.type] || result.type;
+      groupByType(results).forEach(function (group) {
+        const section = document.createElement("div");
+        section.className = "py-1.5";
 
-        const title = document.createElement("span");
-        title.className = "block text-sm font-semibold text-dark";
-        title.textContent = result.title;
+        const heading = document.createElement("p");
+        heading.className = "px-3 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wide text-dark-5";
+        heading.textContent = CATEGORY_LABELS[group.type] || group.type;
+        section.appendChild(heading);
 
-        const description = document.createElement("span");
-        description.className = "block text-xs text-body-color";
-        description.textContent = result.description;
+        const list = document.createElement("ul");
+        group.items.forEach(function (result) {
+          const li = document.createElement("li");
+          const link = document.createElement("a");
+          link.href = result.destination;
+          link.className = "block rounded-md px-3 py-2 hover:bg-surface";
 
-        link.appendChild(typeLabel);
-        link.appendChild(title);
-        link.appendChild(description);
-        li.appendChild(link);
-        list.appendChild(li);
+          const title = document.createElement("span");
+          title.className = "block text-sm font-semibold text-dark";
+          title.textContent = result.title;
+
+          const description = document.createElement("span");
+          description.className = "block text-xs text-body-color";
+          description.textContent = result.description;
+
+          link.appendChild(title);
+          link.appendChild(description);
+          li.appendChild(link);
+          list.appendChild(li);
+        });
+        section.appendChild(list);
+        container.appendChild(section);
       });
-      panel.appendChild(list);
+
+      panel.appendChild(container);
       showPanel();
     }
 

@@ -21,7 +21,13 @@ use App\Repository\SourceRepository;
  * match against and a real destination page to send the user to.
  * Funding has neither (it's a data row, not a named thing); User/ApiKey/
  * Notification are personal-account data with no public search
- * justification.
+ * justification. "Source" is what the plan's "jeux de données" refers to
+ * (World Bank, UNFCCC, etc. - named data providers), confirmed with the
+ * product owner rather than assumed.
+ *
+ * Matching is case- and accent-insensitive in every repository query below
+ * (UNACCENT() on both sides - see App\Doctrine\DQL\UnaccentFunction), so
+ * "senegal" also finds "Sénégal".
  *
  * No caching (unlike App\Service\AnalyticsService): every table searched
  * here is tiny (tens of rows), so a query costs nothing worth caching, and
