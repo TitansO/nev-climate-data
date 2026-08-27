@@ -101,8 +101,33 @@ final class NotificationControllerTest extends WebTestCase
         self::assertCount(2, $data['data']);
         self::assertSame('Un nouveau rapport est publié.', $data['data'][0]['content']); // most recent first
         foreach ($data['data'] as $item) {
-            self::assertSame(['id', 'eventType', 'content', 'isRead', 'createdAt'], array_keys($item));
+            self::assertSame(['id', 'eventType', 'content', 'isRead', 'createdAt', 'destination'], array_keys($item));
         }
+    }
+
+    /**
+     * A2.10: a notification must be navigable, not merely informational -
+     * each eventType maps to the real frontend page it's actually about.
+     */
+    public function testEachNotificationCarriesARealNavigableDestination(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $me = $this->createUser('notif-destination@example.com');
+        $tokens = $this->loginAndGetTokens($client, 'notif-destination@example.com');
+
+        $this->createNotification($me, NotificationType::NewData, 'Nouvelles données');
+        $this->createNotification($me, NotificationType::NewReport, 'Nouveau rapport');
+
+        $client->request('GET', '/api/notifications', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $byType = [];
+        foreach ($data['data'] as $item) {
+            $byType[$item['eventType']] = $item['destination'];
+        }
+        self::assertSame('data.html', $byType['new_data']);
+        self::assertSame('reports.html', $byType['new_report']);
     }
 
     public function testListPagination(): void
