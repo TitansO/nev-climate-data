@@ -6,16 +6,18 @@ namespace App\Service;
 
 use App\Entity\Enum\FundingType;
 use App\Repository\FundingRepository;
+use App\Repository\SectorRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
 /**
  * Server-side aggregates for the 3 analytics charts on visualizations.html
- * (A2.5). Controllers stay thin (App\Controller\AnalyticsController just
- * calls these three methods) and every aggregate is computed in SQL via
- * App\Repository\FundingRepository (SUM/GROUP BY), never by loading Funding
- * rows into PHP and summing them in a loop.
+ * (A2.5) and the Hero stats strip on index.html (A2.7). Controllers stay
+ * thin (App\Controller\AnalyticsController just calls these methods) and
+ * every aggregate is computed in SQL via App\Repository\FundingRepository
+ * (SUM/GROUP BY/COUNT), never by loading Funding rows into PHP and summing
+ * them in a loop.
  *
  * Each method is wrapped in the "cache.analytics" pool (a dedicated Redis
  * pool - see config/packages/cache.yaml - kept separate from the default
@@ -39,9 +41,11 @@ final class AnalyticsService
     private const CACHE_KEY_FINANCING_TRENDS = 'analytics_financing_trends';
     private const CACHE_KEY_SECTOR_DISTRIBUTION = 'analytics_sector_distribution';
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
+    private const CACHE_KEY_HERO_STATS = 'analytics_hero_stats';
 
     public function __construct(
         private readonly FundingRepository $fundingRepository,
+        private readonly SectorRepository $sectorRepository,
         #[Autowire(service: 'cache.analytics')]
         private readonly CacheInterface $cache,
     ) {
@@ -91,6 +95,30 @@ final class AnalyticsService
                 'available' => false,
                 'data' => null,
                 'reason' => 'Aucune donnée d\'émissions ni facteur de conversion CO2 n\'existe dans le schéma actuel (Funding/Sector/Source). Ce calcul est prévu au Volet B (pipeline de données réelles), pas au Volet A.',
+            ];
+        });
+    }
+
+    /**
+     * A2.7. The 4 figures shown in index.html's Hero stats strip:
+     * "Pays couverts", "Secteurs suivis", "Données de financement",
+     * "Sources actives" - see the A2.7/A2.8 report for why each is defined
+     * the way it is (some count Funding coverage, one counts the fixed
+     * sector taxonomy). Every count runs in SQL (COUNT/COUNT DISTINCT),
+     * never by loading rows into PHP.
+     *
+     * @return array{countriesCovered: int, sectorsTracked: int, fundingRecords: int, activeSources: int}
+     */
+    public function getHeroStats(): array
+    {
+        return $this->cache->get(self::CACHE_KEY_HERO_STATS, function (ItemInterface $item): array {
+            $item->expiresAfter(self::CACHE_TTL_SECONDS);
+
+            return [
+                'countriesCovered' => $this->fundingRepository->countDistinctCountries(),
+                'sectorsTracked' => $this->sectorRepository->count([]),
+                'fundingRecords' => $this->fundingRepository->count([]),
+                'activeSources' => $this->fundingRepository->countDistinctSources(),
             ];
         });
     }

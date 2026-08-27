@@ -12,18 +12,44 @@ use Symfony\Component\Routing\Attribute\Route;
 
 /**
  * Server-side aggregates for the 3 analytics charts on the frontend's
- * visualizations page (A2.5). Deliberately PUBLIC_ACCESS, like
- * GET /api/funding (see security.yaml): visualizations.html itself has no
- * login requirement, so there is no reason for the data feeding its charts
- * to require one either. No query parameters - the page has no filter UI
- * to drive them (see the A2.5/A2.6 implementation report). Every response
- * is served through a 15-minute Redis cache (App\Service\AnalyticsService).
+ * visualizations page (A2.5) and the Hero stats strip on index.html (A2.7).
+ * Deliberately PUBLIC_ACCESS, like GET /api/funding (see security.yaml):
+ * neither page has a login requirement, so there is no reason for the data
+ * feeding them to require one either. No query parameters - neither page
+ * has a filter UI to drive them (see the A2.5/A2.6 implementation report).
+ * Every response is served through a 15-minute Redis cache
+ * (App\Service\AnalyticsService).
  */
 final class AnalyticsController extends AbstractController
 {
     public function __construct(
         private readonly AnalyticsService $analyticsService,
     ) {
+    }
+
+    #[Route('/api/analytics/hero-stats', name: 'api_analytics_hero_stats', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Statistiques agrégées affichées dans le Hero de la page d\'accueil (mis en cache 15 min)',
+        description: 'countriesCovered/activeSources comptent les pays/sources ayant au moins un enregistrement Funding (pas le total des tables de référence) ; sectorsTracked est le nombre total de secteurs suivis par la plateforme ; fundingRecords est le nombre total d\'enregistrements Funding. Réponse servie depuis un cache Redis dédié, TTL 900 secondes (même pool que les autres agrégats A2.5).',
+        tags: ['Analytics'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Statistiques du Hero',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'countriesCovered', type: 'integer', example: 54),
+                        new OA\Property(property: 'sectorsTracked', type: 'integer', example: 5),
+                        new OA\Property(property: 'fundingRecords', type: 'integer', example: 1080),
+                        new OA\Property(property: 'activeSources', type: 'integer', example: 4),
+                    ]
+                )
+            ),
+        ]
+    )]
+    public function heroStats(): JsonResponse
+    {
+        return $this->json($this->analyticsService->getHeroStats());
     }
 
     #[Route('/api/analytics/financing-trends', name: 'api_analytics_financing_trends', methods: ['GET'])]
