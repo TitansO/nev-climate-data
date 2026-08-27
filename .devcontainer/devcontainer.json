@@ -1,0 +1,30 @@
+{
+  "name": "NEV Climate Data",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "backend",
+  "workspaceFolder": "/var/www/html",
+
+  // Ports stay declared here specifically so their visibility is *fixed
+  // in code*, not in Codespaces' session state. Without this file, GitHub
+  // Codespaces defaults every newly-forwarded port to "private" and
+  // treats a port as "new" again after its listening process is fully
+  // torn down and recreated (e.g. a full "docker compose down" + "up") -
+  // that's why `gh codespace ports visibility 8080:public` kept reverting
+  // and had to be re-run by hand. Declared here, it survives that.
+  //
+  // 8080 (backend/API) and 8123 (frontend static server) are meant to be
+  // reachable directly from any browser (see frontend/README.md - "Base de
+  // l'URL de l'API"), so both are public. 5432 (Postgres) and 6379 (Redis)
+  // are internal-only and deliberately left off this list (Codespaces'
+  // private default is what we want there).
+  "portsAttributes": {
+    "8080": {
+      "label": "Backend API",
+      "visibility": "public"
+    },
+    "8123": {
+      "label": "Frontend",
+      "visibility": "public"
+    }
+  }
+}
