@@ -67,6 +67,7 @@ final class NotificationController extends AbstractController
                                 new OA\Property(property: 'content', type: 'string', example: 'De nouvelles données de financement sont disponibles.'),
                                 new OA\Property(property: 'isRead', type: 'boolean', example: false),
                                 new OA\Property(property: 'createdAt', type: 'string', format: 'date-time'),
+                                new OA\Property(property: 'destination', type: 'string', description: 'Page frontend réelle correspondant au type d\'événement (A2.10)', example: 'data.html'),
                             ]
                         )),
                         new OA\Property(property: 'meta', properties: [
@@ -211,7 +212,7 @@ final class NotificationController extends AbstractController
     }
 
     /**
-     * @return array{id: int|null, eventType: string, content: string, isRead: bool, createdAt: string}
+     * @return array{id: int|null, eventType: string, content: string, isRead: bool, createdAt: string, destination: string}
      */
     private static function toListItem(Notification $notification): array
     {
@@ -221,6 +222,9 @@ final class NotificationController extends AbstractController
             'content' => $notification->getContent(),
             'isRead' => $notification->isRead(),
             'createdAt' => $notification->getCreatedAt()->format(\DATE_ATOM),
+            // A2.10: makes each notification actually navigable, not just
+            // informational - see NotificationType::destination().
+            'destination' => $notification->getEventType()->destination(),
         ];
     }
 
