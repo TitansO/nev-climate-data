@@ -189,11 +189,21 @@
     els.paginationNext.disabled = meta.page >= meta.totalPages;
   }
 
-  async function loadFunding(page) {
+  /**
+   * `filterOverrides`, when given, is used instead of currentFilters() -
+   * only the very first call (page load, seeded from the URL - see
+   * filtersFromUrl()) needs this: filter-sector's <option>s don't exist
+   * yet at that point (learnSectorsFrom() only populates them from a real
+   * API response), so a country/global-search click on a Sector result
+   * (data.html?sector=<id>) can't be reflected by pre-setting the
+   * <select>'s value the way filter-country/-year/-type can. Every other
+   * caller (Apply, Reset, pagination) omits it and reads the DOM as before.
+   */
+  async function loadFunding(page, filterOverrides) {
     setVisibleState("loading");
 
     try {
-      const filters = currentFilters();
+      const filters = filterOverrides || currentFilters();
       const response = await NevApi.fetchFunding({
         country: filters.country,
         sector: filters.sector,
@@ -206,6 +216,15 @@
       });
 
       learnSectorsFrom(response.data);
+
+      // Now that learnSectorsFrom() may have just created the matching
+      // <option>, reflect the URL-supplied sector in the dropdown itself -
+      // otherwise the filter shown in the UI ("Tous les secteurs") would
+      // silently disagree with the data actually on screen.
+      if (filterOverrides && filterOverrides.sector) {
+        els.filterSector.value = filterOverrides.sector;
+      }
+
       renderMeta(response.meta, response.data.length);
 
       if (0 === response.data.length) {
@@ -233,6 +252,10 @@
     els.filterType.value = "";
     els.filterPeriodStart.value = "";
     els.filterPeriodEnd.value = "";
+    // Without this, a filter that arrived via the URL (global search, or a
+    // shared/bookmarked link) would silently come back on the next reload
+    // even after the user explicitly cleared it here.
+    window.history.replaceState(null, "", window.location.pathname);
     loadFunding(1);
   });
 
@@ -315,5 +338,38 @@
     els.exportButton.classList.add("inline-flex");
   }
 
-  loadFunding(1);
+  /**
+   * Seeds the filters from the URL's own query string on page load - the
+   * fix for global search (A2.8): a Country/Sector result's destination is
+   * "data.html?country=SEN"/"data.html?sector=<id>" (see
+   * backend/src/Service/SearchService.php), and until this existed nothing
+   * on this page ever read it back. Also what makes the URL genuinely
+   * shareable/bookmarkable and makes a filtered view survive a reload
+   * (the URL itself doesn't change across a reload).
+   *
+   * @returns {{country: string, sector: string, year: string, fundingType: string, periodStart: string, periodEnd: string}}
+   */
+  function filtersFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      country: params.get("country") || "",
+      sector: params.get("sector") || "",
+      year: params.get("year") || "",
+      fundingType: params.get("fundingType") || "",
+      periodStart: params.get("periodStart") || "",
+      periodEnd: params.get("periodEnd") || "",
+    };
+  }
+
+  const initialFilters = filtersFromUrl();
+  // filter-sector is deliberately left alone here - see loadFunding()'s
+  // filterOverrides handling above for why it can't be pre-set the way the
+  // other three (static <option>s) can.
+  els.filterCountry.value = initialFilters.country;
+  els.filterYear.value = initialFilters.year;
+  els.filterType.value = initialFilters.fundingType;
+  els.filterPeriodStart.value = initialFilters.periodStart;
+  els.filterPeriodEnd.value = initialFilters.periodEnd;
+
+  loadFunding(1, initialFilters);
 })();
