@@ -60,8 +60,11 @@
     paginationPrev: document.getElementById("pagination-prev"),
     paginationNext: document.getElementById("pagination-next"),
     paginationInfo: document.getElementById("pagination-info"),
-    exportButton: document.getElementById("export-csv-btn"),
-    exportButtonLabel: document.getElementById("export-csv-btn-label"),
+    exportControls: document.getElementById("export-controls"),
+    exportFormatSelect: document.getElementById("export-format-select"),
+    exportButton: document.getElementById("export-btn"),
+    exportButtonLabel: document.getElementById("export-btn-label"),
+    exportStatusMessage: document.getElementById("export-status-message"),
     exportErrorMessage: document.getElementById("export-error-message"),
   };
 
@@ -275,32 +278,99 @@
    * GET /api/funding/export (A2.3) - reuses currentFilters(), the exact
    * same filter values loadFunding() sends, so what gets exported always
    * matches what's currently on screen. Requires a session (the endpoint is
-   * authenticated, unlike GET /api/funding): the button stays hidden for an
-   * anonymous visitor rather than surfacing a 401 on click.
+   * authenticated, unlike GET /api/funding): the export controls stay
+   * hidden for an anonymous visitor rather than surfacing a 401 on click.
+   *
+   * Below the backend's row-count threshold, the response is the file
+   * itself (200) - downloaded immediately, exactly as before. Above it,
+   * the backend answers 202 with a job id instead (A2.3, "génération
+   * asynchrone au-delà du seuil"): the button switches to polling
+   * GET /api/funding/exports/{id} every few seconds and triggers the
+   * download itself once status is "ready" - the user never has to
+   * manually re-check anything, and a notification (A2.4/A2.10) is also
+   * waiting for them regardless of whether they stay on this page.
    */
+  const EXPORT_POLL_INTERVAL_MS = 3000;
+
+  function downloadBlob(blob, filename) {
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+  }
+
   function exportFilenameFromResponse(response, fallback) {
     const header = response.headers.get("Content-Disposition") || "";
     const match = header.match(/filename="?([^";]+)"?/);
     return match ? match[1] : fallback;
   }
 
-  async function exportCsv() {
+  function exportUrl(path) {
+    const url = new URL(NevApi.API_BASE_URL + path);
+    const filters = currentFilters();
+    Object.entries(filters).forEach(function ([key, value]) {
+      if (value) {
+        url.searchParams.set(key, value);
+      }
+    });
+    url.searchParams.set("format", els.exportFormatSelect.value);
+    return url;
+  }
+
+  async function pollExportUntilReady(exportId) {
+    const statusUrl = NevApi.API_BASE_URL + "/api/funding/exports/" + exportId;
+
+    for (;;) {
+      await new Promise(function (resolve) {
+        setTimeout(resolve, EXPORT_POLL_INTERVAL_MS);
+      });
+
+      const response = await NevAuth.authorizedFetch(statusUrl, { headers: { Accept: "application/json" } });
+      if (!response.ok) {
+        throw new Error("Le suivi de l'export a échoué (" + response.status + ").");
+      }
+      const body = await response.json();
+
+      if ("ready" === body.status) {
+        return body;
+      }
+      if ("failed" === body.status) {
+        throw new Error(body.errorMessage || "La génération de l'export a échoué.");
+      }
+      els.exportStatusMessage.textContent = "Export volumineux en cours de préparation (" + body.status + ")…";
+    }
+  }
+
+  async function exportFunding() {
     els.exportErrorMessage.classList.add("hidden");
+    els.exportStatusMessage.classList.add("hidden");
     els.exportButton.disabled = true;
     els.exportButtonLabel.textContent = "Export en cours…";
 
     try {
-      const filters = currentFilters();
-      const url = new URL(NevApi.API_BASE_URL + "/api/funding/export");
-      Object.entries(filters).forEach(function ([key, value]) {
-        if (value) {
-          url.searchParams.set(key, value);
-        }
+      const response = await NevAuth.authorizedFetch(exportUrl("/api/funding/export").toString(), {
+        headers: { Accept: "application/json, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
       });
 
-      const response = await NevAuth.authorizedFetch(url.toString(), {
-        headers: { Accept: "text/csv" },
-      });
+      if (202 === response.status) {
+        const job = await response.json();
+        els.exportStatusMessage.textContent = job.message;
+        els.exportStatusMessage.classList.remove("hidden");
+
+        const ready = await pollExportUntilReady(job.exportId);
+        const fileResponse = await NevAuth.authorizedFetch(NevApi.API_BASE_URL + ready.downloadUrl);
+        if (!fileResponse.ok) {
+          throw new Error("Le téléchargement a échoué (" + fileResponse.status + ").");
+        }
+        const blob = await fileResponse.blob();
+        downloadBlob(blob, exportFilenameFromResponse(fileResponse, "funding-export." + els.exportFormatSelect.value));
+        els.exportStatusMessage.textContent = "Export prêt et téléchargé (" + ready.rowCount + " lignes).";
+        return;
+      }
 
       if (!response.ok) {
         let message = "Une erreur est survenue (" + response.status + ").";
@@ -314,28 +384,23 @@
       }
 
       const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = exportFilenameFromResponse(response, "funding-export.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(objectUrl);
+      downloadBlob(blob, exportFilenameFromResponse(response, "funding-export." + els.exportFormatSelect.value));
+      els.exportStatusMessage.classList.add("hidden");
     } catch (error) {
       els.exportErrorMessage.textContent = error.message;
       els.exportErrorMessage.classList.remove("hidden");
+      els.exportStatusMessage.classList.add("hidden");
     } finally {
       els.exportButton.disabled = false;
-      els.exportButtonLabel.textContent = "Exporter (CSV)";
+      els.exportButtonLabel.textContent = "Exporter";
     }
   }
 
-  els.exportButton.addEventListener("click", exportCsv);
+  els.exportButton.addEventListener("click", exportFunding);
 
   if (NevAuth.isAuthenticated()) {
-    els.exportButton.classList.remove("hidden");
-    els.exportButton.classList.add("inline-flex");
+    els.exportControls.classList.remove("hidden");
+    els.exportControls.classList.add("flex");
   }
 
   /**

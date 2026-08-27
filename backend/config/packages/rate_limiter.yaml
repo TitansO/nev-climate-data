@@ -1,0 +1,20 @@
+# A2.3: export quotas by role ("règle 5.2.d"). Sliding-window limiters, one
+# per role, distinct from login_throttling (security.yaml) which protects
+# authentication itself, not a business-data endpoint. PROVISIONAL numbers,
+# same reasoning as App\Security\ApiKeyQuotaPolicy (A1.5): neither the
+# cahier des charges nor the plan gives concrete figures for export quotas
+# specifically - centralized here, easy to revise once real limits are set.
+framework:
+    rate_limiter:
+        export_admin:
+            policy: 'sliding_window'
+            limit: 50
+            interval: '1 day'
+        export_internal_analyst:
+            policy: 'sliding_window'
+            limit: 20
+            interval: '1 day'
+        export_external_partner:
+            policy: 'sliding_window'
+            limit: 5
+            interval: '1 day'
