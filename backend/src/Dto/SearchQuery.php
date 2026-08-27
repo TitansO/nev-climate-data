@@ -45,14 +45,17 @@ final readonly class SearchQuery
     }
 
     /**
-     * A safe, case-insensitive substring pattern for `LOWER(column) LIKE
-     * :pattern`. PostgreSQL's LIKE treats a literal backslash as the escape
-     * character by default, so escaping "\", "%" and "_" here (in that
-     * order - the backslash first, or it would double-escape the ones just
-     * inserted) is enough on its own: no ESCAPE clause needed in the query.
-     * This is what keeps a user's own "%" or "_" from acting as a wildcard
-     * instead of a literal character, and is why the term is never
-     * concatenated directly into SQL.
+     * A safe, case-insensitive substring pattern for `UNACCENT(LOWER(column))
+     * LIKE UNACCENT(:pattern)` (accent-folding happens server-side via
+     * PostgreSQL's unaccent() - see App\Doctrine\DQL\UnaccentFunction - not
+     * here, so this method only needs to handle case and escaping).
+     * PostgreSQL's LIKE treats a literal backslash as the escape character
+     * by default, so escaping "\", "%" and "_" here (in that order - the
+     * backslash first, or it would double-escape the ones just inserted) is
+     * enough on its own: no ESCAPE clause needed in the query. This is what
+     * keeps a user's own "%" or "_" from acting as a wildcard instead of a
+     * literal character, and is why the term is never concatenated
+     * directly into SQL.
      */
     public function likePattern(): string
     {

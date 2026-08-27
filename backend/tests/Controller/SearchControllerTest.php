@@ -17,7 +17,8 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 /**
  * GET /api/search (A2.8). Dataset seeded by seedDataset():
- *   - Countries: Senegal (SEN), Kenya (KEN)
+ *   - Countries: Senegal (SEN), Kenya (KEN), Côte d'Ivoire (CIV - accented,
+ *     for the accent-insensitivity tests)
  *   - Sectors: Renewable Energy, Agriculture
  *   - Sources: World Bank Data API, Local Registry
  *   - Reports: "Senegal Climate Finance Report" (Published),
@@ -54,6 +55,8 @@ final class SearchControllerTest extends WebTestCase
 
         $senegal = new Country('Senegal', 'SEN', "Afrique de l'Ouest");
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        // Accented on purpose - see testSearchFindsAnAccentedCountryWithAnUnaccentedQuery().
+        $coteDivoire = new Country("Côte d'Ivoire", 'CIV', "Afrique de l'Ouest");
         $renewableEnergy = new Sector('Renewable Energy');
         $agriculture = new Sector('Agriculture');
         $worldBank = new Source('World Bank Data API', SourceType::OfficialApi, SourceReliability::High);
@@ -64,7 +67,7 @@ final class SearchControllerTest extends WebTestCase
         $draft = new Report('Senegal Draft Notes', 'country', 'reports/senegal-draft.pdf');
         // Left in Draft (constructor default) - must never appear in search results.
 
-        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture, $worldBank, $localRegistry, $published, $draft] as $entity) {
+        foreach ([$senegal, $kenya, $coteDivoire, $renewableEnergy, $agriculture, $worldBank, $localRegistry, $published, $draft] as $entity) {
             $this->entityManager->persist($entity);
         }
 
@@ -148,6 +151,36 @@ final class SearchControllerTest extends WebTestCase
         self::assertCount(1, $countryResults);
         self::assertSame('Senegal', $countryResults[0]['title']);
         self::assertSame('data.html?country=SEN', $countryResults[0]['destination']);
+    }
+
+    public function testSearchFindsAnAccentedCountryWithAnUnaccentedQuery(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        // Data has the accents ("Côte d'Ivoire"), the query doesn't.
+        $client->request('GET', '/api/search?q='.urlencode("cote d'ivoire"));
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $countryResults = array_values(array_filter($data['results'], static fn (array $r) => 'country' === $r['type']));
+        self::assertCount(1, $countryResults);
+        self::assertSame("Côte d'Ivoire", $countryResults[0]['title']);
+        self::assertSame('data.html?country=CIV', $countryResults[0]['destination']);
+    }
+
+    public function testSearchFindsAnUnaccentedCountryWithAnAccentedQuery(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        // Reverse direction: the query has accents ("Sénégal"), the seeded
+        // data doesn't ("Senegal").
+        $client->request('GET', '/api/search?q='.urlencode('Sénégal'));
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $countryResults = array_values(array_filter($data['results'], static fn (array $r) => 'country' === $r['type']));
+        self::assertCount(1, $countryResults);
+        self::assertSame('Senegal', $countryResults[0]['title']);
     }
 
     public function testSearchIgnoresLeadingAndTrailingWhitespace(): void
