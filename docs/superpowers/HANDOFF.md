@@ -20,23 +20,36 @@ that task, it won't be there — don't wait on it or search for it as a record o
 
 ## Current state (as of this entry)
 
-- **Branch:** `developp`, commit `5eea3cb`, clean, pushed, matches `origin/developp`.
-- **Phase A1 (Fondations) is CLOSED — formally recetted and signed.** A1.1 through A1.8 are
-  all done: A1.1/A1.2 (Oumar — infra + API skeleton), A1.3 (schéma TimescaleDB, 8 entités +
-  enums, 3 migrations), A1.4 (auth JWT), A1.5 (Oumar — gestion des clés API), A1.6 (Oumar —
-  fixtures de démonstration), A1.7 (pipeline CI/CD GitLab), A1.8 (recette bout-en-bout,
-  **Validé** — see `docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md` for the full
-  signed report). Per cahier des charges section 10, Phase A2 can now start.
-- **Blocking bug found and fixed during A1.8:** Apache didn't forward the `Authorization`
-  header to PHP by default, so every real JWT/`X-API-Key` request against the actual running
-  server (not the PHPUnit test client) failed with a false 401. Fixed with `CGIPassAuth On`
-  in `docker/backend/vhost.conf` — see README "Points d'attention" #10 before touching that
-  file or switching web server (nginx/php-fpm would need the equivalent).
-- **Next task: not yet chosen.** Phase A2 ("Fonctionnalités & intégration frontend" — extraction
-  de données, export, dashboards, recherche, notifications, i18n, menu mobile, section
-  Rapports) starts now, but no specific A2.x task has been picked or spec'd yet. Check
-  `Plan_Implementation_NEV_Climate_Data.xlsx` for the A2 task list and dependencies, and
-  confirm with Serge which one to start before writing a spec.
+- **Branch:** `developp`, commit `0e2aa3d`, clean, pushed, matches `origin/developp`.
+- **Phase A1 (Fondations) is CLOSED** — formally recetted and signed
+  (`docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md`).
+- **Phase A2 (Oumar, via Antigravity) is in progress: A2.1–A2.6 done** (funding API with
+  filters/pagination/CORS, frontend wired to real data, CSV export, per-user notifications,
+  cached analytics endpoints, frontend charts). **A2.7–A2.14 are not started.**
+- **Phase A3 (Oumar): not started at all.** Zero commits, including **A3.10 itself** (the
+  formal Volet A recette + written client sign-off that the cahier des charges, sections 2
+  and 10, requires before Volet B may begin).
+- **Volet B (Serge) started anyway, as an explicit, informed decision — not an oversight.**
+  On 2026-08-27, told plainly that A3.10 does not yet exist, Serge chose to proceed with B1/B2
+  in parallel with Oumar finishing A2/A3, rather than wait. This is documented here so it
+  reads as a conscious call, not a missed governance gate. Two things already exist for
+  Volet B, done *before* this decision (pure design/coordination, not blocked by anything):
+  - `docs/superpowers/specs/2026-08-26-volet-b-pipeline-architecture-design.md` — shared
+    architecture for all of B1+B2 (own Kafka/Airflow/MinIO/Redis stack, `pipeline/` directory,
+    topic conventions, upsert+historization approach, ECB FX rates for the pivot currency).
+    Reference material used to write it: `pipeline-observatoire-cima.pdf` (Serge's own prior
+    work on an unrelated project, reused as a pattern only — never as shared infrastructure).
+  - `docs/note-de-cadrage-greenaccess-b2.1.md` — the GreenAccess scoping note (B2.1), ready to
+    send once a named recipient is confirmed; nothing downstream in B2 starts before it's
+    signed.
+  - A second sourcing document (`Cartographie_Sources_Donnees_Climat_Senegal.pdf`, ~12
+    additional data sources beyond the plan's 5 B1 tasks, and notably omitting PNUE which
+    *is* in the plan as B1.4) was shared by Serge and explicitly set aside on his instruction
+    — not in scope, not to be acted on, until he brings it back after further research. Don't
+    treat it as a source of truth for B1 scope.
+- **Next task:** B1.1 (Banque Mondiale connector) — not yet spec'd. Per the architecture spec,
+  each B1/B2 task still gets its own implementation plan on top of the shared architecture
+  before any code is written.
 - **In progress right now:** nothing. The repo is in a clean, fully-verified state between
   tasks.
 
