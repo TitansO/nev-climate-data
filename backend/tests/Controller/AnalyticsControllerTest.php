@@ -20,11 +20,18 @@ use Symfony\Contracts\Cache\CacheInterface;
 
 /**
  * GET /api/analytics/* (A2.5). Dataset seeded by seedDataset():
- *   - 2024: 3x Renewable Energy/public ($100 each = $300), 2x Agriculture/private ($50 each = $100)
- *   - 2025: 1x Renewable Energy/multilateral ($400)
+ *   - 2024: Renewable Energy/public $300, Agriculture/private $100
+ *   - 2025: Renewable Energy/multilateral $400
  * Chosen so financing-trends has two distinct years each with a distinct
  * funding-type mix, and sector-distribution has two sectors with an
  * unambiguous ranking (Renewable Energy $700 > Agriculture $100).
+ *
+ * One Funding row per (country, sector, year, fundingType) group, each
+ * already holding the summed amount, not one row per underlying
+ * contribution — the B1.1 dedup constraint (unique per
+ * source/country/sector/year/fundingType among current rows, see
+ * Funding::class) means duplicates land as a single summed row, matching
+ * how the real World Bank connector's upsert will behave in production.
  *
  * Cache assertions talk to Redis directly (via Predis, same client the app
  * itself uses - see composer.json) rather than mocking anything: this is
@@ -96,12 +103,8 @@ final class AnalyticsControllerTest extends WebTestCase
             $this->entityManager->persist($entity);
         }
 
-        for ($i = 0; $i < 3; ++$i) {
-            $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2024, '100.00', FundingType::Public, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Demo));
-        }
-        for ($i = 0; $i < 2; ++$i) {
-            $this->entityManager->persist(new Funding($senegal, $agriculture, 2024, '50.00', FundingType::Private, $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
-        }
+        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2024, '300.00', FundingType::Public, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Demo));
+        $this->entityManager->persist(new Funding($senegal, $agriculture, 2024, '100.00', FundingType::Private, $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
         $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '400.00', FundingType::Multilateral, $source, new \DateTimeImmutable('2025-01-10'), ValidationStatus::Demo));
 
         $this->entityManager->flush();
@@ -247,7 +250,7 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertSame(['countriesCovered', 'sectorsTracked', 'fundingRecords', 'activeSources'], array_keys($data));
         self::assertSame(1, $data['countriesCovered']); // only Senegal
         self::assertSame(2, $data['sectorsTracked']); // Renewable Energy + Agriculture
-        self::assertSame(6, $data['fundingRecords']); // 3 + 2 + 1
+        self::assertSame(3, $data['fundingRecords']); // one summed row per (sector, year, fundingType) group
         self::assertSame(1, $data['activeSources']); // only "Test Source"
     }
 
@@ -330,11 +333,13 @@ final class AnalyticsControllerTest extends WebTestCase
         $firstResponse = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(700.0, $firstResponse[0]['amount']);
 
-        // Mutate the dataset directly, bypassing AnalyticsService entirely.
+        // Mutate the dataset directly, bypassing AnalyticsService entirely. Year 2023 (not
+        // used by seedDataset) keeps this a fresh dedup key - reusing 2024/Public here would
+        // collide with the B1.1 dedup constraint's now-single summed row for that group.
         $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
         $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
-        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2024, '999999.00', FundingType::Public, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Demo));
+        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2023, '999999.00', FundingType::Public, $source, new \DateTimeImmutable('2023-03-15'), ValidationStatus::Demo));
         $this->entityManager->flush();
 
         $client->request('GET', '/api/analytics/sector-distribution');

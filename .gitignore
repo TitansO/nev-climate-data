@@ -23,5 +23,9 @@ Thumbs.db
 /frontend/dist/
 /frontend/build/
 
+### Pipeline (Volet B - Python) ###
+/pipeline/**/__pycache__/
+/pipeline/.pytest_cache/
+
 ### Docker ###
 docker/postgres/data/

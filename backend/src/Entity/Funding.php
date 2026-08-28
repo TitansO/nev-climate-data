@@ -15,6 +15,28 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(columns: ['sector_id'], name: 'idx_funding_sector')]
 #[ORM\Index(columns: ['year'], name: 'idx_funding_year')]
 #[ORM\Index(columns: ['collection_date'], name: 'idx_funding_collection_date')]
+// Partial unique index, not a flat UniqueConstraint: historization (already on this entity
+// since A1.3 - see isCurrent/validFrom/validTo below) deliberately keeps multiple rows sharing
+// this same 5-column tuple over time, one per historical version, with is_current=true on
+// exactly one of them. A flat constraint across every row - current and historized alike -
+// would reject the second version the moment it's inserted. Scoping the constraint to
+// `WHERE is_current = true` is what actually enforces "at most one *current* row per dedup
+// key" while still letting historized rows share the same business key indefinitely. Also
+// what Task 7's `INSERT ... ON CONFLICT (...) WHERE is_current = true` targets (Postgres
+// supports inferring a partial unique index this way).
+// Known Doctrine/DBAL limitation, confirmed while building this (`doctrine:schema:update
+// --dump-sql` on an already-correct DB): the Postgres schema comparator does not read back a
+// partial index's WHERE clause, so it always proposes DROP + CREATE of this exact index and
+// `doctrine:schema:validate` always reports it "not in sync" - even immediately after
+// applying the migration that creates it correctly. Verified via `\d funding` that the actual
+// index (`... WHERE is_current = true`) matches this mapping exactly. This is a permanent,
+// expected false positive for this one index - do not "fix" it by re-running
+// migrations:diff, it will only generate a no-op drop/recreate migration.
+#[ORM\UniqueConstraint(
+    name: 'uniq_funding_dedup_key_current',
+    columns: ['source_id', 'country_id', 'sector_id', 'year', 'funding_type'],
+    options: ['where' => 'is_current = true'],
+)]
 #[ORM\Entity(repositoryClass: FundingRepository::class)]
 class Funding
 {
