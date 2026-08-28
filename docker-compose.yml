@@ -157,6 +157,7 @@ services:
       # `pipeline` package importable the same way it already is inside the funding-validator
       # and pipeline-tools images (PYTHONPATH=/app there, via pipeline/Dockerfile).
       PYTHONPATH: /opt/airflow
+      IATI_API_KEY: ${IATI_API_KEY}
     volumes:
       - ./pipeline:/opt/airflow/pipeline
       - airflow_logs:/opt/airflow/logs
@@ -215,6 +216,7 @@ services:
     environment:
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      IATI_API_KEY: ${IATI_API_KEY}
     command: python -m pipeline.processors.funding_validator
     depends_on:
       - database
