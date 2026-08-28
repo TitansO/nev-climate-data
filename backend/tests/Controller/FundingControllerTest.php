@@ -61,13 +61,27 @@ final class FundingControllerTest extends WebTestCase
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
         $renewableEnergy = new Sector('Renewable Energy');
         $agriculture = new Sector('Agriculture');
-        $source = new Source('Test Source', SourceType::InternalDemo, SourceReliability::Medium);
 
-        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture, $source] as $entity) {
+        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture] as $entity) {
             $this->entityManager->persist($entity);
         }
 
+        // Each row below gets its own Source: the B1.1 dedup constraint (unique per
+        // source/country/sector/year/fundingType among *current* rows — see the
+        // #[ORM\UniqueConstraint] on Funding::class) means the rows within a group that share
+        // one (country, sector, year, fundingType) tuple can no longer also share one Source
+        // row. Source identity itself is asserted only once in this suite
+        // (testResponseShapeMatchesContractAndHidesInternalFields, via
+        // `?country=SEN&fundingType=public&limit=1`) — the list endpoint orders by
+        // collectionDate DESC, then id DESC (see FundingRepository), so within a
+        // same-collectionDate group the *last*-inserted row is the one returned for limit=1.
+        // Group A's last row keeps the exact original name "Test Source" for that reason;
+        // every other row's Source name is otherwise never asserted on, so any distinct name
+        // satisfies the constraint.
         for ($i = 0; $i < 10; ++$i) {
+            $name = 9 === $i ? 'Test Source' : "Test Source A{$i}";
+            $source = new Source($name, SourceType::InternalDemo, SourceReliability::Medium);
+            $this->entityManager->persist($source);
             $this->entityManager->persist(new Funding(
                 $senegal,
                 $renewableEnergy,
@@ -81,6 +95,8 @@ final class FundingControllerTest extends WebTestCase
         }
 
         for ($i = 0; $i < 5; ++$i) {
+            $source = new Source("Test Source B{$i}", SourceType::InternalDemo, SourceReliability::Medium);
+            $this->entityManager->persist($source);
             $this->entityManager->persist(new Funding(
                 $senegal,
                 $renewableEnergy,
@@ -94,6 +110,8 @@ final class FundingControllerTest extends WebTestCase
         }
 
         for ($i = 0; $i < 10; ++$i) {
+            $source = new Source("Test Source C{$i}", SourceType::InternalDemo, SourceReliability::Medium);
+            $this->entityManager->persist($source);
             $this->entityManager->persist(new Funding(
                 $kenya,
                 $agriculture,

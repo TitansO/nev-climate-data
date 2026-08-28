@@ -279,24 +279,58 @@ attribute:
 
 - [ ] **Step 2: Generate and review the migration**
 
+**Correction found while executing this step (real bug, not a hypothetical): the
+`#[ORM\UniqueConstraint]` must NOT be a flat constraint on those 5 columns.** `Funding` already
+carries historization columns from A1.3 (`isCurrent`/`validFrom`/`validTo`), and B1.1 spec
+decision 6 explicitly historizes on every accumulation — meaning multiple rows legitimately
+share the same `(source_id, country_id, sector_id, year, funding_type)` tuple over time, one
+per version, with `is_current = true` on at most one of them. A flat constraint across every
+row (current and historized alike) rejects the second version the moment it's inserted, and
+confirmed via the real PHPUnit suite (Step 5) that it also breaks pre-existing Volet A test
+fixtures (`FundingControllerTest`, `AnalyticsControllerTest`, `FundingExportTest`) that
+legitimately create several `Funding` rows sharing a tuple for pagination/aggregation testing.
+The fix is a **partial unique index**, scoped with `WHERE is_current = true`, expressed via
+Doctrine's `options: ['where' => ...]` on the same attribute:
+
+```php
+#[ORM\UniqueConstraint(
+    name: 'uniq_funding_dedup_key_current',
+    columns: ['source_id', 'country_id', 'sector_id', 'year', 'funding_type'],
+    options: ['where' => 'is_current = true'],
+)]
+```
+
+(Doctrine ORM 3.6+; confirmed via reflection that `UniqueConstraint` accepts `options`, and
+DBAL's PostgreSQL platform renders `options['where']` as the index's `WHERE` clause.) Task 7's
+`ON CONFLICT` target must match: `ON CONFLICT (source_id, country_id, sector_id, year,
+funding_type) WHERE is_current = true DO UPDATE ...` — Postgres supports inferring a conflict
+target from a partial unique index this way.
+
 Run: `docker compose exec backend php bin/console doctrine:migrations:diff --no-interaction`
 
 Expected: a single new migration whose `up()` contains
-`ALTER TABLE funding ADD CONSTRAINT uniq_funding_dedup_key UNIQUE (source_id, country_id, sector_id, year, funding_type)`
-**and**
-`ALTER TABLE source ADD CONSTRAINT ... UNIQUE (name)` (or equivalent `CREATE UNIQUE INDEX`
-statements) — nothing else. If the `source` constraint fails to apply because two existing
-rows already share a name (check the A1.6 fixtures — `SourceFixtures.php` creates one row per
-`SourceType` case, which should already be distinct by construction, but verify rather than
-assume), that's a real pre-existing data issue to resolve, not to migrate around. As with every migration
-generated in this project, check `down()` for spurious `CREATE SCHEMA`/`DROP SEQUENCE`
-statements on `timescaledb*`/`_timescaledb*` objects and remove them if present (see
+`CREATE UNIQUE INDEX uniq_funding_dedup_key_current ON funding (source_id, country_id,
+sector_id, year, funding_type) WHERE is_current = true` **and**
+`CREATE UNIQUE INDEX ... ON source (name)` — nothing else. If the `source` constraint fails to
+apply because two existing rows already share a name (check the A1.6 fixtures —
+`SourceFixtures.php` creates one row per `SourceType` case, which should already be distinct by
+construction, but verify rather than assume), that's a real pre-existing data issue to resolve,
+not to migrate around. As with every migration generated in this project, check `down()` for
+spurious `CREATE SCHEMA`/`DROP SEQUENCE` statements on `timescaledb*`/`_timescaledb*` objects
+and remove them if present (see
 `docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md` for why this recurs).
 
 If the migration fails to apply because existing demo fixture data already violates the new
-constraint (two `Funding` rows sharing a key), that is a real pre-existing data issue to
-investigate — do not silently delete rows to force the migration through; report it before
+constraint (two *current* `Funding` rows sharing a key), that is a real pre-existing data issue
+to investigate — do not silently delete rows to force the migration through; report it before
 proceeding.
+
+**Also**, if this repo's `developp` branch has migrations from other in-flight work (e.g. a
+colleague's own feature branch merged since this plan was written) that are not yet applied to
+your local test/dev databases, `migrations:diff` will bundle their tables into this migration
+too. Run `doctrine:migrations:status` first and `doctrine:migrations:migrate` to catch up to
+`Latest` *before* running `diff`, so the generated migration contains only this task's own
+change.
 
 - [ ] **Step 3: Apply to test and dev, verify**
 
@@ -305,25 +339,53 @@ docker compose exec -e APP_ENV=test backend php bin/console doctrine:migrations:
 docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
 docker compose exec backend php bin/console doctrine:schema:validate
 ```
-Expected: both `[OK]` lines.
+Expected: **`[OK] The mapping files are correct.`, but `[ERROR] The database schema is not in
+sync` on the `Database` line is expected and permanent** — confirmed via
+`doctrine:schema:update --dump-sql` that the only proposed change is `DROP INDEX
+uniq_funding_dedup_key_current; CREATE UNIQUE INDEX ... WHERE is_current = true;`, i.e. Doctrine
+proposing to replace the partial index with an identical copy of itself. This is a known
+Doctrine/DBAL limitation: the PostgreSQL schema comparator does not read back a partial index's
+`WHERE` clause, so it can never recognize the index it introspects as matching the one in the
+mapping. Verify manually instead with `\d funding` in `psql` (or `docker compose exec database
+psql -U <user> -d <db> -c '\d funding'`) that `uniq_funding_dedup_key_current` exists with `...
+WHERE is_current = true` — that is the real, sufficient proof this step passed. Do **not** run
+`migrations:diff` again to "fix" this; it only regenerates the same no-op drop/recreate.
 
 - [ ] **Step 4: Verify reversibility**
 
 ```bash
 docker compose exec backend php bin/console doctrine:migrations:migrate prev --no-interaction
 docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
-docker compose exec backend php bin/console doctrine:schema:validate
 ```
-Expected: no errors, both `[OK]` lines again.
+Expected: no errors on either command. (Skip `doctrine:schema:validate` here — see Step 3's
+note; it will always report the same expected false positive.)
 
 - [ ] **Step 5: Run the existing PHPUnit suite to confirm no regression**
 
 ```bash
 docker compose exec -e APP_ENV=test backend php bin/phpunit
 ```
-Expected: full suite green (no test currently creates two `Funding` rows with an identical
-key, so this constraint should not break anything existing — if it does, that's a real
-conflict to resolve, not to work around).
+Expected: full suite green — **it will not be, on the codebase as it stood when this plan was
+written.** Confirmed by actually running it: 43 errors, all `SQLSTATE[23505]: Unique violation
+... uniq_funding_dedup_key_current`, all in `FundingControllerTest`, `AnalyticsControllerTest`,
+`FundingExportTest`. The partial index (`WHERE is_current = true`) does not save these tests —
+every fixture row in all three is created with the entity's default `isCurrent = true` and
+nothing ever historizes an earlier one, so two rows sharing a tuple still collide.
+
+This is not a fixture-only fix. Checked every assertion across the three files: each of the
+five dedup-key columns (`source`, `country`, `sector`, `year`, `funding_type`) is pinned exactly
+by some assertion somewhere in this trio —
+`FundingControllerTest::testFilteringByYearReturnsOnlyMatchingRecords` expects exactly 15 rows
+back for `?year=2025`; `AnalyticsControllerTest` asserts `activeSources === 1` ("only Test
+Source"); country/sector/funding_type are each exercised by their own filter test. There is no
+column left free to vary per fixture row without breaking an assertion elsewhere in the same
+file. Resolving this for real means restructuring how these three pre-existing Volet A/A2.x
+tests build their dataset (most likely: one row per distinct dedup key with the *summed* amount
+that today's `N` identical rows represent, restructured to still produce enough distinct rows
+for whatever each test's pagination/count logic needs) — a change to test files this plan does
+not own the intent of, not a B1.1-scoped fix. **Flag this to Serge and get explicit direction
+before touching those three files; do not silently rewrite another engineer's test assertions
+to force this step green.**
 
 - [ ] **Step 6: Commit**
 
