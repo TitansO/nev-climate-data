@@ -337,7 +337,9 @@ def test_fetch_afdb_activities_paginates_using_start_offset():
     assert mock_get.call_count == 2
     assert mock_get.call_args_list[0].kwargs["params"]["start"] == 0
     assert mock_get.call_args_list[0].kwargs["params"]["q"] == 'reporting_org_ref:"XM-DAC-46002"'
-    assert mock_get.call_args_list[1].kwargs["params"]["start"] == 1000
+    # Advances by documents actually received (2), not the requested page
+    # size - confirms the loop doesn't stop early when a page is short.
+    assert mock_get.call_args_list[1].kwargs["params"]["start"] == 2
 
 
 def test_fetch_xdr_to_usd_rate_reads_usd_from_response():
@@ -457,7 +459,13 @@ def fetch_afdb_activities() -> Iterator[dict[str, Any]]:
         if not docs:
             return
         yield from docs
-        offset += PAGE_SIZE
+        # Advance by the number of documents actually received, not the
+        # requested page size - a non-final page normally returns exactly
+        # `rows` documents against a real Solr backend, but advancing by
+        # the real count is correct regardless (confirmed by a test where
+        # it isn't: a short first page must not make the loop stop early -
+        # a real bug caught while executing this task, not a hypothetical).
+        offset += len(docs)
         if offset >= payload["response"]["numFound"]:
             return
 
