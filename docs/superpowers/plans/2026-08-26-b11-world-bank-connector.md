@@ -88,7 +88,7 @@ only add `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`):
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9 requests==2.32.3 pycountry==24.6.1"
+      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python-ng==2.2.3 psycopg2-binary==2.9.9 requests==2.32.3 pycountry==24.6.1"
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
     volumes:
       - ./pipeline:/opt/airflow/pipeline
@@ -356,12 +356,22 @@ git commit -m "feat(b1.1): add unique constraints on funding dedup key and sourc
 - [ ] **Step 1: Write `pipeline/requirements.txt`**
 
 ```
-kafka-python==2.0.2
+kafka-python-ng==2.2.3
 psycopg2-binary==2.9.9
 requests==2.32.3
 pycountry==24.6.1
 pytest==8.3.3
 ```
+
+`kafka-python-ng` (not `kafka-python`) — confirmed during Task 4 execution: plain
+`kafka-python==2.0.2`'s vendored `six` shim breaks under Python 3.12
+(`ModuleNotFoundError: No module named 'kafka.vendor.six.moves'` on `import kafka`, reproduced
+against this exact image). `kafka-python-ng` is the actively-maintained fork, is a drop-in
+replacement (`from kafka import KafkaProducer, KafkaConsumer` unchanged — the module namespace
+is still `kafka`, only the PyPI distribution name differs), and was verified working against
+the real `kafka` service in this stack. This affects every place `kafka-python` is installed —
+also update the `airflow` service's `_PIP_ADDITIONAL_REQUIREMENTS` in Task 1's
+`docker-compose.yml` snippet the same way.
 
 `pycountry` converts the World Bank API's 2-letter (`SN`) country codes into the 3-letter
 codes (`SEN`) that `Country.isoCode` actually stores (see `#[ORM\Column(length: 3, ...)]` on
