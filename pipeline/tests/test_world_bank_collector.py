@@ -50,6 +50,16 @@ def test_parse_project_extracts_expected_fields():
     assert result["board_approval_date"] == "2026-09-15"
 
 
+def test_parse_project_truncates_a_decimal_total_amount():
+    # Real bug found running the DAG end-to-end (Task 9): totalamt is not always an integer
+    # string - int("1439873.8") raises ValueError. Regression test for the float()-based fix.
+    project = {**_SAMPLE_PROJECT_WITH_SECTOR, "totalamt": "1439873.8"}
+
+    result = parse_project(project)
+
+    assert result["amount_usd"] == 1439873
+
+
 def test_parse_project_returns_none_for_zero_amount():
     assert parse_project(_SAMPLE_PROJECT_PIPELINE_NO_DATA) is None
 
