@@ -18,7 +18,7 @@ class Source
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(length: 255)]
+    #[ORM\Column(length: 255, unique: true)]
     private string $name;
 
     #[ORM\Column(type: Types::STRING, enumType: SourceType::class, length: 30)]

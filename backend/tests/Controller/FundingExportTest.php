@@ -57,20 +57,33 @@ final class FundingExportTest extends WebTestCase
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
         $renewableEnergy = new Sector('Renewable Energy');
         $agriculture = new Sector('Agriculture');
-        $source = new Source('Test Source', SourceType::InternalDemo, SourceReliability::Medium);
         $user = new User('Amina Diallo', 'export-user@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::ExternalPartner);
 
-        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture, $source, $user] as $entity) {
+        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture, $user] as $entity) {
             $this->entityManager->persist($entity);
         }
 
+        // Each row below gets its own Source: the B1.1 dedup constraint (unique per
+        // source/country/sector/year/fundingType among *current* rows — see the
+        // #[ORM\UniqueConstraint] on Funding::class) means the rows within a group that share
+        // one (country, sector, year, fundingType) tuple can no longer also share one Source
+        // row. No assertion in this file pins a specific source name except
+        // seedManyMoreRecordsToExceedTheAsyncThreshold's lookup of the literal "Test Source"
+        // row, so exactly one row below keeps that exact name and the rest get distinct ones.
         for ($i = 0; $i < 10; ++$i) {
+            $name = 0 === $i ? 'Test Source' : "Test Source A{$i}";
+            $source = new Source($name, SourceType::InternalDemo, SourceReliability::Medium);
+            $this->entityManager->persist($source);
             $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '1000000.00', FundingType::Public, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Demo));
         }
         for ($i = 0; $i < 5; ++$i) {
+            $source = new Source("Test Source B{$i}", SourceType::InternalDemo, SourceReliability::Medium);
+            $this->entityManager->persist($source);
             $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '500000.00', FundingType::Private, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Demo));
         }
         for ($i = 0; $i < 10; ++$i) {
+            $source = new Source("Test Source C{$i}", SourceType::InternalDemo, SourceReliability::Medium);
+            $this->entityManager->persist($source);
             $this->entityManager->persist(new Funding($kenya, $agriculture, 2024, '250000.00', FundingType::Private, $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
         }
 
@@ -334,11 +347,14 @@ final class FundingExportTest extends WebTestCase
     {
         $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
-        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
 
         // 25 already seeded by seedDataset(); this brings the total well past
-        // ExportService::ASYNC_THRESHOLD (500).
+        // ExportService::ASYNC_THRESHOLD (500). Only the row count matters here, not any
+        // field's value, but each row still needs its own Source to satisfy the B1.1 dedup
+        // constraint (unique per source/country/sector/year/fundingType among current rows).
         for ($i = 0; $i < 500; ++$i) {
+            $source = new Source("Threshold Source {$i}", SourceType::InternalDemo, SourceReliability::Medium);
+            $this->entityManager->persist($source);
             $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '100.00', FundingType::Public, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Demo));
         }
         $this->entityManager->flush();
