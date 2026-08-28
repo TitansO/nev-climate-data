@@ -1431,19 +1431,32 @@ volume-mounted to `/opt/airflow/pipeline` inside the `airflow` container, and
 `_PIP_ADDITIONAL_REQUIREMENTS` already installs `kafka-python`/`psycopg2-binary`/`requests`
 there — this file needs no separate packaging step.
 
-- [ ] **Step 2: Point Airflow at the DAGs folder (already done in Task 1 — verify, don't re-add)**
+- [ ] **Step 2: Point Airflow at the DAGs folder, and put its parent on PYTHONPATH**
 
 Airflow's default `AIRFLOW__CORE__DAGS_FOLDER` is `/opt/airflow/dags`, but this plan mounts
 the whole `pipeline/` tree at `/opt/airflow/pipeline`. This was anticipated and already added
 to the `airflow` service's environment during Task 1 (`AIRFLOW__CORE__DAGS_FOLDER:
-/opt/airflow/pipeline/dags`), so there is nothing to add here — confirm it's present:
+/opt/airflow/pipeline/dags`) — confirm it's present:
 
 ```bash
 docker compose exec airflow printenv AIRFLOW__CORE__DAGS_FOLDER
 ```
-Expected: `/opt/airflow/pipeline/dags`. If it's missing (e.g. Task 1 was done before this
-note existed), add the line to the `airflow` service in `docker-compose.yml` now and run
-`docker compose up -d --force-recreate airflow`.
+Expected: `/opt/airflow/pipeline/dags`.
+
+**Real bug found while executing this step**: that alone is not enough. Airflow puts
+`DAGS_FOLDER` itself on `sys.path`, not its parent — so `collecte_worldbank.py`'s `from
+pipeline.collectors.world_bank import ...` (a package one level *above* `DAGS_FOLDER`) fails
+with `ModuleNotFoundError: No module named 'pipeline'`, confirmed live via `airflow dags
+list-import-errors`. Add `PYTHONPATH: /opt/airflow` to the `airflow` service's environment in
+`docker-compose.yml` (that's where `./pipeline` is mounted, so this makes the `pipeline`
+package importable — the same way it already is inside the `funding-validator`/pipeline-tools
+image via its own `ENV PYTHONPATH=/app` in `pipeline/Dockerfile`). Then recreate the container:
+
+```bash
+docker compose up -d --force-recreate airflow
+```
+Wait for it to finish reinstalling `_PIP_ADDITIONAL_REQUIREMENTS` and become healthy again
+(standalone mode re-runs the pip install and re-initializes on every start) before continuing.
 
 - [ ] **Step 3: Verify the DAG is recognized**
 

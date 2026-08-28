@@ -150,6 +150,13 @@ services:
       AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/pipeline/dags
       _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python-ng==2.2.3 psycopg2-binary==2.9.9 requests==2.32.3 pycountry==24.6.1"
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
+      # Airflow puts DAGS_FOLDER itself (.../pipeline/dags) on sys.path, not its parent - a DAG
+      # importing `from pipeline.collectors... import ...` (a package one level above DAGS_FOLDER)
+      # otherwise fails with ModuleNotFoundError: No module named 'pipeline' (confirmed live
+      # while building Task 8). /opt/airflow is where ./pipeline is mounted, so this makes the
+      # `pipeline` package importable the same way it already is inside the funding-validator
+      # and pipeline-tools images (PYTHONPATH=/app there, via pipeline/Dockerfile).
+      PYTHONPATH: /opt/airflow
     volumes:
       - ./pipeline:/opt/airflow/pipeline
       - airflow_logs:/opt/airflow/logs
