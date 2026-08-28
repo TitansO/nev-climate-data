@@ -1,8 +1,31 @@
 {
   "name": "NEV Climate Data",
-  "dockerComposeFile": "../docker-compose.yml",
-  "service": "backend",
-  "workspaceFolder": "/var/www/html",
+
+  // Deliberately NOT "dockerComposeFile" + "service": that combination
+  // makes the Codespaces platform bring up the *entire* compose stack
+  // (db, redis, backend, backend-worker) as a blocking step of container
+  // creation itself, via its own extra compose-override layers. In
+  // practice this failed reliably: TimescaleDB's healthcheck (5s
+  // interval/timeout, 10 retries = 50s budget) loses the race against the
+  // backend image's own build (the "intl" PHP extension alone compiles
+  // for ~90s), so "docker compose ... up -d" aborts with "dependency
+  // failed to start: container nev-climate-data-db is unhealthy" and the
+  // whole codespace falls back to a bare recovery container (no docker
+  // CLI, /home/codespace not writable) - see git history around
+  // 2026-08-28 for the two failed creation logs.
+  //
+  // A plain base image + the docker-outside-of-docker feature avoids all
+  // of that: container creation is just "pull a generic image", nothing
+  // dependency-ordered or health-checked, and it still leaves a real
+  // `docker`/`docker compose` CLI available afterwards (talking to the
+  // same host daemon) for the usual manual
+  // `docker compose up -d` once the codespace is actually up - exactly
+  // the workflow that has always worked reliably in this project.
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "workspaceFolder": "/workspaces/nev-climate-data",
 
   // Ports stay declared here specifically so their visibility is *fixed
   // in code*, not in Codespaces' session state. Without this file, GitHub
