@@ -477,6 +477,16 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 12. **Apache ne transmet pas l'en-tête `Authorization` à PHP par défaut.** Sans `CGIPassAuth On` (présent dans `docker/backend/vhost.conf` depuis A1.8), toute requête JWT (`Authorization: Bearer ...`) ou clé API (`X-API-Key`) échoue avec un faux `401 "JWT Token not found"` - **contre le vrai serveur Apache qui tourne**, alors que la suite PHPUnit (`WebTestCase`/`KernelBrowser`) passe quand même au vert, puisqu'elle appelle le noyau Symfony directement sans jamais passer par Apache. Bug trouvé pendant la recette A1.8 (invisible dans 65 tests automatisés), corrigé, non-régression vérifiée. Si un jour le `Dockerfile`/`vhost.conf` est réécrit (ex. passage à php-fpm + nginx), s'assurer que l'équivalent (`fastcgi_pass_header Authorization` pour nginx, ou configuration native pour php-fpm) est bien présent.
 
+13. **Le pipeline Python (`pipeline/`) écrit directement en base, sans passer par l'API Symfony.** Toute évolution du schéma `funding` (colonnes, contraintes) impacte donc potentiellement deux codebases séparées (`backend/src/Entity/Funding.php` ET `pipeline/processors/funding_validator.py`) qui doivent rester manuellement synchronisées - rien ne le vérifie automatiquement. La clé de dédup de B1.1 en est un exemple concret : elle existe à la fois dans l'attribut Doctrine `#[ORM\UniqueConstraint]` sur `Funding` (un **index unique partiel**, `WHERE is_current = true` - pas une contrainte plate, voir point 14) et dans la logique Python d'upsert (`upsert_funding()`, un `SELECT` puis `UPDATE`/`INSERT` explicite, pas un `ON CONFLICT` SQL). Si l'un change sans l'autre, l'échec est silencieux jusqu'à ce qu'une vraie collision de données le révèle.
+
+14. **Une contrainte d'unicité sur une table historisée (SCD Type 2 : `is_current`/`valid_from`/`valid_to`) ne peut pas être une contrainte plate.** `funding` a des colonnes d'historisation depuis A1.3 ; une `UniqueConstraint` classique sur `(source_id, country_id, sector_id, year, funding_type)` rejette la deuxième version historisée d'une même clé dès son insertion, alors que l'historisation dépend justement de pouvoir garder plusieurs lignes partageant cette clé (une par version, une seule `is_current = true`). Solution : un **index unique partiel** Postgres, exprimé côté Doctrine via `options: ['where' => 'is_current = true']` sur l'attribut `#[ORM\UniqueConstraint]` (Doctrine ORM 3.6+ ; confirmé fonctionnel avec `doctrine/dbal`). **Limitation connue à ne pas essayer de corriger** : `doctrine:schema:validate` et `doctrine:schema:update --dump-sql` rapportent *toujours* cet index comme désynchronisé (proposant un `DROP`/`CREATE` identique à lui-même), car le comparateur de schéma Postgres de Doctrine/DBAL ne relit pas la clause `WHERE` d'un index partiel lors de l'introspection. Vérifier l'état réel avec `\d funding` dans `psql`, pas avec `schema:validate`, pour cette table.
+
+15. **`kafka-python` (PyPI) ne fonctionne pas sous Python 3.12** - son module vendoré `six` échoue à l'import (`ModuleNotFoundError: No module named 'kafka.vendor.six.moves'`). Utiliser `kafka-python-ng` à la place (fork activement maintenu, même espace de nommage `kafka`, aucun changement de code applicatif) - voir `pipeline/requirements.txt` et la variable `_PIP_ADDITIONAL_REQUIREMENTS` du service `airflow` dans `docker-compose.yml`.
+
+16. **Airflow place `DAGS_FOLDER` lui-même sur `sys.path`, pas son dossier parent.** Un DAG qui importe un package situé un niveau au-dessus de `DAGS_FOLDER` (ici : `pipeline/dags/` contient les DAGs, mais `from pipeline.collectors... import ...` a besoin que `pipeline/` - son parent - soit importable) échoue avec `ModuleNotFoundError` tant que ce parent n'est pas explicitement ajouté au `PYTHONPATH` du service `airflow` dans `docker-compose.yml`.
+
+17. **Les codes pays de l'API World Bank (`countrycode_exact`) sont en alpha-2, pas alpha-3.** `Country.isoCode` (NEV, depuis A1.3) est en alpha-3 (`SEN`). Passer directement `country.iso_code` à l'API renvoie silencieusement 0 projet pour chaque pays (pas d'erreur, juste un résultat vide) - vérifié en direct : `SEN` → 0 projets, `SN` → 264. Toujours convertir via `pycountry` avant d'appeler l'API (voir `pipeline/dags/collecte_worldbank.py`).
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -513,3 +523,44 @@ Prochaine étape : A2.3 (export CSV/Excel par rôle) et le reste de la Phase A2 
 **Documentation de conception disponible** pour tout ce qui est fait jusqu'ici (décisions prises, alternatives écartées, justifications) :
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)
 - [`docs/superpowers/specs/2026-08-24-a14-jwt-authentication-design.md`](docs/superpowers/specs/2026-08-24-a14-jwt-authentication-design.md) + [`docs/superpowers/plans/2026-08-24-a14-jwt-authentication.md`](docs/superpowers/plans/2026-08-24-a14-jwt-authentication.md)
+
+## Pipeline (Volet B)
+
+Premier connecteur du Volet B (données réelles) : collecte trimestrielle des financements
+climat de la Banque Mondiale. Architecture complète et décisions de conception :
+[`docs/superpowers/specs/2026-08-26-volet-b-pipeline-architecture-design.md`](docs/superpowers/specs/2026-08-26-volet-b-pipeline-architecture-design.md)
+(fondation partagée) et
+[`docs/superpowers/specs/2026-08-26-b11-world-bank-connector-design.md`](docs/superpowers/specs/2026-08-26-b11-world-bank-connector-design.md)
+(ce connecteur). Plan d'implémentation détaillé (10 tâches, avec les bugs réels trouvés et
+corrigés en cours de route) :
+[`docs/superpowers/plans/2026-08-26-b11-world-bank-connector.md`](docs/superpowers/plans/2026-08-26-b11-world-bank-connector.md).
+
+### Services
+
+`docker compose up -d` démarre désormais aussi `zookeeper`, `kafka`, `postgres-airflow`,
+`airflow`, `minio`, `kafka-ui` et `funding-validator`, en plus des services existants.
+
+- Interface Airflow : `http://localhost:8081` (utilisateur `admin` ; mot de passe généré au
+  premier démarrage et écrit dans
+  `docker compose exec airflow cat /opt/airflow/standalone_admin_password.txt` - **pas** dans
+  les logs du conteneur, malgré ce qu'indique la documentation Airflow standalone habituelle)
+- Console MinIO : `http://localhost:9001` (identifiants : `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`
+  du `.env` racine)
+- Kafka UI (navigateur visuel des topics/messages, ajouté pour l'observabilité locale) :
+  `http://localhost:8083`
+
+### Déclencher la collecte manuellement
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_worldbank
+```
+
+### Lancer les tests du pipeline
+
+```bash
+docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m "not live"
+```
+
+Le test marqué `live` (`pipeline/tests/test_world_bank_collector_live.py`) appelle la vraie
+API Banque Mondiale - à exécuter séparément (`-m live`) plutôt qu'en routine, pour ne pas rendre
+la suite dépendante du réseau.
