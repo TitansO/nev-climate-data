@@ -14,8 +14,10 @@ from typing import Any
 from pipeline.common.db import get_connection
 from pipeline.common.kafka_client import make_consumer, make_producer
 from pipeline.processors.sector_mapping import map_to_nev_sector
+from pipeline.processors.sector_mapping_gcf import map_gcf_sector
 
 WORLD_BANK_SOURCE_NAME = "World Bank Data API"  # matches backend/src/DataFixtures/SourceFixtures.php - reuses that row instead of creating a duplicate
+GCF_SOURCE_NAME = "Green Climate Fund — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -31,6 +33,22 @@ def ensure_world_bank_source(cursor) -> int:
         (WORLD_BANK_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (WORLD_BANK_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_gcf_source(cursor) -> int:
+    """Idempotently ensures the GCF (IATI Datastore) row exists in
+    `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (GCF_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (GCF_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -89,11 +107,20 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
 
 
 def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
-    """Applies sector mapping and, on success, upserts. Returns
-    (accepted, reason) - `reason` is None when accepted, or a short
-    machine-readable string explaining rejection when not.
+    """Applies source-specific sector mapping and, on success, upserts.
+    Returns (accepted, reason) - `reason` is None when accepted, or a
+    short machine-readable string explaining rejection when not.
     """
-    nev_sector = map_to_nev_sector(message["raw_sectors"], message["raw_theme"])
+    source = message["source"]
+    if source == "world_bank":
+        nev_sector = map_to_nev_sector(message["raw_sectors"], message["raw_theme"])
+        ensure_source = ensure_world_bank_source
+    elif source == "gcf":
+        nev_sector = map_gcf_sector(message["raw_sector_codes"], message["raw_sector_percentages"])
+        ensure_source = ensure_gcf_source
+    else:
+        return False, "unknown_source"
+
     if nev_sector is None:
         return False, "unclassifiable_sector"
 
@@ -105,7 +132,7 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
     if sector_id is None:
         return False, "unknown_sector"
 
-    source_id = ensure_world_bank_source(cursor)
+    source_id = ensure_source(cursor)
 
     upsert_funding(
         cursor,
