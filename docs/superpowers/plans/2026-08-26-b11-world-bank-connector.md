@@ -653,7 +653,12 @@ from __future__ import annotations
 _SECTOR_RULES: list[tuple[str, list[str]]] = [
     ("Renewable Energy", ["energy generation", "renewable", "solar", "wind", "hydropower"]),
     ("Sustainable Transport", ["transport", "roads", "urban mobility"]),
-    ("Agriculture", ["agriculture", "rural development", "irrigation"]),
+    # "agricultur" (stem, not "agriculture") - matches both "Agriculture" and
+    # "Agricultural Extension"/"Agricultural Research" etc.; "agriculture" as a
+    # literal substring does not match "agricultural" (diverges after
+    # "agricultur": "-e" vs "-al"), confirmed by a real failing test when this
+    # task was executed.
+    ("Agriculture", ["agricultur", "rural development", "irrigation"]),
     ("Forestry", ["forest"]),
 ]
 
