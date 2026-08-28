@@ -195,25 +195,25 @@ services:
     networks:
       - nev-network
 
-  # One-off runner for the pipeline/ Python codebase (tests, ad-hoc scripts).
-  # Does not start with a plain `docker compose up` (profiles below) - use
-  # `docker compose run --rm pipeline ...`. Task 7 turns this same image into
-  # the always-on `funding-validator` service.
-  pipeline:
+  # Permanent Kafka consumer: nev.funding.raw -> validate/upsert -> TimescaleDB, publishing
+  # to nev.funding.valides/nev.funding.rejets (B1.1). Also doubles as the runner for pipeline/
+  # one-off commands and tests - `docker compose run --rm funding-validator <anything>`
+  # overrides `command:` below regardless of this service being always-on.
+  funding-validator:
     build:
       context: .
       dockerfile: pipeline/Dockerfile
-    container_name: nev-climate-data-pipeline
+    container_name: nev-climate-data-funding-validator
+    restart: unless-stopped
     environment:
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    command: python -m pipeline.processors.funding_validator
     depends_on:
       - database
       - kafka
     networks:
       - nev-network
-    profiles:
-      - pipeline-tools
 
 networks:
   nev-network:
