@@ -88,7 +88,7 @@ only add `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`):
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9 requests==2.32.3"
+      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python-ng==2.2.3 psycopg2-binary==2.9.9 requests==2.32.3 pycountry==24.6.1"
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
     volumes:
       - ./pipeline:/opt/airflow/pipeline
@@ -114,7 +114,27 @@ only add `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`):
       - minio_data:/data
     networks:
       - nev-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: nev-climate-data-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nev-climate-data
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8083:8080"
+    networks:
+      - nev-network
 ```
+
+`kafka-ui` is a read-only visual browser for Kafka (topics, partitions, live message
+content) — not part of the pipeline's own architecture (nothing in the architecture or B1.1
+spec references it), added purely so Serge can see what's flowing through Kafka in a browser
+instead of only via CLI, per his explicit request when this plan was reviewed. Port `8083`
+(not `8080`, taken by `backend`, nor `8081`, taken by `airflow`).
 
 Add the two new named volumes to the `volumes:` top-level block:
 
@@ -142,7 +162,7 @@ Add the same two lines with real values to the local `.env` (gitignored).
 
 Run:
 ```bash
-docker compose up -d zookeeper kafka postgres-airflow airflow minio
+docker compose up -d zookeeper kafka postgres-airflow airflow minio kafka-ui
 ```
 
 Wait roughly a minute for Airflow's `standalone` mode to finish initializing its database and
@@ -152,7 +172,7 @@ boot), then check:
 ```bash
 docker compose ps
 ```
-Expected: `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio` all show `Up`.
+Expected: `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`, `kafka-ui` all show `Up`.
 
 ```bash
 docker compose logs airflow | grep -i "Login with username"
@@ -171,11 +191,15 @@ docker compose exec minio mc --version
 (Or simply open `http://localhost:9001` in a browser and confirm the MinIO console login page
 loads with the credentials from `.env`.)
 
+Open `http://localhost:8083` in a browser. Expected: the Kafka UI dashboard loads and shows
+the `nev-climate-data` cluster as online (0 topics at this point — Task 2 creates the first
+ones).
+
 - [ ] **Step 4: Commit**
 
 ```bash
 git add docker-compose.yml .env.example
-git commit -m "feat(b1.1): provision shared Volet B infrastructure (Kafka, Airflow, MinIO)"
+git commit -m "feat(b1.1): provision shared Volet B infrastructure (Kafka, Airflow, MinIO, Kafka UI)"
 ```
 
 ---
@@ -255,24 +279,58 @@ attribute:
 
 - [ ] **Step 2: Generate and review the migration**
 
+**Correction found while executing this step (real bug, not a hypothetical): the
+`#[ORM\UniqueConstraint]` must NOT be a flat constraint on those 5 columns.** `Funding` already
+carries historization columns from A1.3 (`isCurrent`/`validFrom`/`validTo`), and B1.1 spec
+decision 6 explicitly historizes on every accumulation — meaning multiple rows legitimately
+share the same `(source_id, country_id, sector_id, year, funding_type)` tuple over time, one
+per version, with `is_current = true` on at most one of them. A flat constraint across every
+row (current and historized alike) rejects the second version the moment it's inserted, and
+confirmed via the real PHPUnit suite (Step 5) that it also breaks pre-existing Volet A test
+fixtures (`FundingControllerTest`, `AnalyticsControllerTest`, `FundingExportTest`) that
+legitimately create several `Funding` rows sharing a tuple for pagination/aggregation testing.
+The fix is a **partial unique index**, scoped with `WHERE is_current = true`, expressed via
+Doctrine's `options: ['where' => ...]` on the same attribute:
+
+```php
+#[ORM\UniqueConstraint(
+    name: 'uniq_funding_dedup_key_current',
+    columns: ['source_id', 'country_id', 'sector_id', 'year', 'funding_type'],
+    options: ['where' => 'is_current = true'],
+)]
+```
+
+(Doctrine ORM 3.6+; confirmed via reflection that `UniqueConstraint` accepts `options`, and
+DBAL's PostgreSQL platform renders `options['where']` as the index's `WHERE` clause.) Task 7's
+`ON CONFLICT` target must match: `ON CONFLICT (source_id, country_id, sector_id, year,
+funding_type) WHERE is_current = true DO UPDATE ...` — Postgres supports inferring a conflict
+target from a partial unique index this way.
+
 Run: `docker compose exec backend php bin/console doctrine:migrations:diff --no-interaction`
 
 Expected: a single new migration whose `up()` contains
-`ALTER TABLE funding ADD CONSTRAINT uniq_funding_dedup_key UNIQUE (source_id, country_id, sector_id, year, funding_type)`
-**and**
-`ALTER TABLE source ADD CONSTRAINT ... UNIQUE (name)` (or equivalent `CREATE UNIQUE INDEX`
-statements) — nothing else. If the `source` constraint fails to apply because two existing
-rows already share a name (check the A1.6 fixtures — `SourceFixtures.php` creates one row per
-`SourceType` case, which should already be distinct by construction, but verify rather than
-assume), that's a real pre-existing data issue to resolve, not to migrate around. As with every migration
-generated in this project, check `down()` for spurious `CREATE SCHEMA`/`DROP SEQUENCE`
-statements on `timescaledb*`/`_timescaledb*` objects and remove them if present (see
+`CREATE UNIQUE INDEX uniq_funding_dedup_key_current ON funding (source_id, country_id,
+sector_id, year, funding_type) WHERE is_current = true` **and**
+`CREATE UNIQUE INDEX ... ON source (name)` — nothing else. If the `source` constraint fails to
+apply because two existing rows already share a name (check the A1.6 fixtures —
+`SourceFixtures.php` creates one row per `SourceType` case, which should already be distinct by
+construction, but verify rather than assume), that's a real pre-existing data issue to resolve,
+not to migrate around. As with every migration generated in this project, check `down()` for
+spurious `CREATE SCHEMA`/`DROP SEQUENCE` statements on `timescaledb*`/`_timescaledb*` objects
+and remove them if present (see
 `docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md` for why this recurs).
 
 If the migration fails to apply because existing demo fixture data already violates the new
-constraint (two `Funding` rows sharing a key), that is a real pre-existing data issue to
-investigate — do not silently delete rows to force the migration through; report it before
+constraint (two *current* `Funding` rows sharing a key), that is a real pre-existing data issue
+to investigate — do not silently delete rows to force the migration through; report it before
 proceeding.
+
+**Also**, if this repo's `developp` branch has migrations from other in-flight work (e.g. a
+colleague's own feature branch merged since this plan was written) that are not yet applied to
+your local test/dev databases, `migrations:diff` will bundle their tables into this migration
+too. Run `doctrine:migrations:status` first and `doctrine:migrations:migrate` to catch up to
+`Latest` *before* running `diff`, so the generated migration contains only this task's own
+change.
 
 - [ ] **Step 3: Apply to test and dev, verify**
 
@@ -281,25 +339,53 @@ docker compose exec -e APP_ENV=test backend php bin/console doctrine:migrations:
 docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
 docker compose exec backend php bin/console doctrine:schema:validate
 ```
-Expected: both `[OK]` lines.
+Expected: **`[OK] The mapping files are correct.`, but `[ERROR] The database schema is not in
+sync` on the `Database` line is expected and permanent** — confirmed via
+`doctrine:schema:update --dump-sql` that the only proposed change is `DROP INDEX
+uniq_funding_dedup_key_current; CREATE UNIQUE INDEX ... WHERE is_current = true;`, i.e. Doctrine
+proposing to replace the partial index with an identical copy of itself. This is a known
+Doctrine/DBAL limitation: the PostgreSQL schema comparator does not read back a partial index's
+`WHERE` clause, so it can never recognize the index it introspects as matching the one in the
+mapping. Verify manually instead with `\d funding` in `psql` (or `docker compose exec database
+psql -U <user> -d <db> -c '\d funding'`) that `uniq_funding_dedup_key_current` exists with `...
+WHERE is_current = true` — that is the real, sufficient proof this step passed. Do **not** run
+`migrations:diff` again to "fix" this; it only regenerates the same no-op drop/recreate.
 
 - [ ] **Step 4: Verify reversibility**
 
 ```bash
 docker compose exec backend php bin/console doctrine:migrations:migrate prev --no-interaction
 docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
-docker compose exec backend php bin/console doctrine:schema:validate
 ```
-Expected: no errors, both `[OK]` lines again.
+Expected: no errors on either command. (Skip `doctrine:schema:validate` here — see Step 3's
+note; it will always report the same expected false positive.)
 
 - [ ] **Step 5: Run the existing PHPUnit suite to confirm no regression**
 
 ```bash
 docker compose exec -e APP_ENV=test backend php bin/phpunit
 ```
-Expected: full suite green (no test currently creates two `Funding` rows with an identical
-key, so this constraint should not break anything existing — if it does, that's a real
-conflict to resolve, not to work around).
+Expected: full suite green — **it will not be, on the codebase as it stood when this plan was
+written.** Confirmed by actually running it: 43 errors, all `SQLSTATE[23505]: Unique violation
+... uniq_funding_dedup_key_current`, all in `FundingControllerTest`, `AnalyticsControllerTest`,
+`FundingExportTest`. The partial index (`WHERE is_current = true`) does not save these tests —
+every fixture row in all three is created with the entity's default `isCurrent = true` and
+nothing ever historizes an earlier one, so two rows sharing a tuple still collide.
+
+This is not a fixture-only fix. Checked every assertion across the three files: each of the
+five dedup-key columns (`source`, `country`, `sector`, `year`, `funding_type`) is pinned exactly
+by some assertion somewhere in this trio —
+`FundingControllerTest::testFilteringByYearReturnsOnlyMatchingRecords` expects exactly 15 rows
+back for `?year=2025`; `AnalyticsControllerTest` asserts `activeSources === 1` ("only Test
+Source"); country/sector/funding_type are each exercised by their own filter test. There is no
+column left free to vary per fixture row without breaking an assertion elsewhere in the same
+file. Resolving this for real means restructuring how these three pre-existing Volet A/A2.x
+tests build their dataset (most likely: one row per distinct dedup key with the *summed* amount
+that today's `N` identical rows represent, restructured to still produce enough distinct rows
+for whatever each test's pagination/count logic needs) — a change to test files this plan does
+not own the intent of, not a B1.1-scoped fix. **Flag this to Serge and get explicit direction
+before touching those three files; do not silently rewrite another engineer's test assertions
+to force this step green.**
 
 - [ ] **Step 6: Commit**
 
@@ -332,12 +418,22 @@ git commit -m "feat(b1.1): add unique constraints on funding dedup key and sourc
 - [ ] **Step 1: Write `pipeline/requirements.txt`**
 
 ```
-kafka-python==2.0.2
+kafka-python-ng==2.2.3
 psycopg2-binary==2.9.9
 requests==2.32.3
 pycountry==24.6.1
 pytest==8.3.3
 ```
+
+`kafka-python-ng` (not `kafka-python`) — confirmed during Task 4 execution: plain
+`kafka-python==2.0.2`'s vendored `six` shim breaks under Python 3.12
+(`ModuleNotFoundError: No module named 'kafka.vendor.six.moves'` on `import kafka`, reproduced
+against this exact image). `kafka-python-ng` is the actively-maintained fork, is a drop-in
+replacement (`from kafka import KafkaProducer, KafkaConsumer` unchanged — the module namespace
+is still `kafka`, only the PyPI distribution name differs), and was verified working against
+the real `kafka` service in this stack. This affects every place `kafka-python` is installed —
+also update the `airflow` service's `_PIP_ADDITIONAL_REQUIREMENTS` in Task 1's
+`docker-compose.yml` snippet the same way.
 
 `pycountry` converts the World Bank API's 2-letter (`SN`) country codes into the 3-letter
 codes (`SEN`) that `Country.isoCode` actually stores (see `#[ORM\Column(length: 3, ...)]` on
@@ -557,7 +653,12 @@ from __future__ import annotations
 _SECTOR_RULES: list[tuple[str, list[str]]] = [
     ("Renewable Energy", ["energy generation", "renewable", "solar", "wind", "hydropower"]),
     ("Sustainable Transport", ["transport", "roads", "urban mobility"]),
-    ("Agriculture", ["agriculture", "rural development", "irrigation"]),
+    # "agricultur" (stem, not "agriculture") - matches both "Agriculture" and
+    # "Agricultural Extension"/"Agricultural Research" etc.; "agriculture" as a
+    # literal substring does not match "agricultural" (diverges after
+    # "agricultur": "-e" vs "-al"), confirmed by a real failing test when this
+    # task was executed.
+    ("Agriculture", ["agricultur", "rural development", "irrigation"]),
     ("Forestry", ["forest"]),
 ]
 
@@ -1283,6 +1384,7 @@ hard-coded list) and decision 8 (quarterly schedule).
 """
 from datetime import datetime, timedelta
 
+import pycountry
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
@@ -1302,9 +1404,21 @@ def _collect(**context) -> None:
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT iso_code FROM country ORDER BY iso_code")
-            country_isos = [row[0] for row in cursor.fetchall()]
+            country_isos_alpha3 = [row[0] for row in cursor.fetchall()]
     finally:
         connection.close()
+
+    # `country.iso_code` is alpha-3 (see Country.php, A1.3), but the World Bank API's
+    # `countrycode_exact` filter expects alpha-2 (verified live during Task 9: querying with
+    # "SEN" returns 0 projects, "SN" returns 264 - a real bug found by running this DAG
+    # end-to-end for real, not caught by Task 6's unit tests since those mock the HTTP layer
+    # entirely). A country pycountry doesn't recognize is skipped rather than passed through
+    # unconverted - an alpha-3 code sent to the API would just as silently return 0 for it.
+    country_isos = []
+    for alpha3 in country_isos_alpha3:
+        country = pycountry.countries.get(alpha_3=alpha3)
+        if country is not None:
+            country_isos.append(country.alpha_2)
 
     producer = make_producer()
     published = collect_and_publish(country_isos, producer)
@@ -1330,20 +1444,32 @@ volume-mounted to `/opt/airflow/pipeline` inside the `airflow` container, and
 `_PIP_ADDITIONAL_REQUIREMENTS` already installs `kafka-python`/`psycopg2-binary`/`requests`
 there — this file needs no separate packaging step.
 
-- [ ] **Step 2: Point Airflow at the DAGs folder and restart**
+- [ ] **Step 2: Point Airflow at the DAGs folder, and put its parent on PYTHONPATH**
 
-Airflow's default `AIRFLOW__CORE__DAGS_FOLDER` is `/opt/airflow/dags`, but this plan mounted
-the whole `pipeline/` tree at `/opt/airflow/pipeline`. Add one more environment variable to
-the `airflow` service in `docker-compose.yml` (alongside the ones from Task 1):
+Airflow's default `AIRFLOW__CORE__DAGS_FOLDER` is `/opt/airflow/dags`, but this plan mounts
+the whole `pipeline/` tree at `/opt/airflow/pipeline`. This was anticipated and already added
+to the `airflow` service's environment during Task 1 (`AIRFLOW__CORE__DAGS_FOLDER:
+/opt/airflow/pipeline/dags`) — confirm it's present:
 
-```yaml
-      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/pipeline/dags
+```bash
+docker compose exec airflow printenv AIRFLOW__CORE__DAGS_FOLDER
 ```
+Expected: `/opt/airflow/pipeline/dags`.
 
-Run:
+**Real bug found while executing this step**: that alone is not enough. Airflow puts
+`DAGS_FOLDER` itself on `sys.path`, not its parent — so `collecte_worldbank.py`'s `from
+pipeline.collectors.world_bank import ...` (a package one level *above* `DAGS_FOLDER`) fails
+with `ModuleNotFoundError: No module named 'pipeline'`, confirmed live via `airflow dags
+list-import-errors`. Add `PYTHONPATH: /opt/airflow` to the `airflow` service's environment in
+`docker-compose.yml` (that's where `./pipeline` is mounted, so this makes the `pipeline`
+package importable — the same way it already is inside the `funding-validator`/pipeline-tools
+image via its own `ENV PYTHONPATH=/app` in `pipeline/Dockerfile`). Then recreate the container:
+
 ```bash
 docker compose up -d --force-recreate airflow
 ```
+Wait for it to finish reinstalling `_PIP_ADDITIONAL_REQUIREMENTS` and become healthy again
+(standalone mode re-runs the pip install and re-initializes on every start) before continuing.
 
 - [ ] **Step 3: Verify the DAG is recognized**
 
