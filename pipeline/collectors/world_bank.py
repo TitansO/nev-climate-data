@@ -62,8 +62,13 @@ def parse_project(project: dict[str, Any]) -> dict[str, Any] | None:
     """
     total_amount = project.get("totalamt")
     approval_date = project.get("boardapprovaldate")
-    if not total_amount or not approval_date or int(total_amount) <= 0:
+    # `totalamt` is not always an integer string - confirmed live during Task 9's end-to-end
+    # run, which crashed on a real record with totalamt="1439873.8" (int() rejects the decimal
+    # point; float() handles both integer and decimal strings). Truncates to whole USD, which
+    # is what amount_usd represents throughout this connector.
+    if not total_amount or not approval_date or float(total_amount) <= 0:
         return None
+    total_amount_usd = int(float(total_amount))
 
     raw_sectors = [
         entry["major_sector"]["major_sector_name"]
@@ -87,7 +92,7 @@ def parse_project(project: dict[str, Any]) -> dict[str, Any] | None:
         "project_id": project["id"],
         "country_iso": country_iso,
         "year": int(approval_date[:4]),
-        "amount_usd": int(total_amount),
+        "amount_usd": total_amount_usd,
         "funding_type": "multilateral",
         "raw_sectors": raw_sectors,
         "raw_theme": raw_theme,

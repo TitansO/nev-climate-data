@@ -5,6 +5,7 @@ hard-coded list) and decision 8 (quarterly schedule).
 """
 from datetime import datetime, timedelta
 
+import pycountry
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
@@ -24,9 +25,20 @@ def _collect(**context) -> None:
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT iso_code FROM country ORDER BY iso_code")
-            country_isos = [row[0] for row in cursor.fetchall()]
+            country_isos_alpha3 = [row[0] for row in cursor.fetchall()]
     finally:
         connection.close()
+
+    # `country.iso_code` is alpha-3 (see Country.php, A1.3), but the World Bank API's
+    # `countrycode_exact` filter expects alpha-2 (verified live: querying with "SEN" returns 0
+    # projects, "SN" returns 264 - confirmed while running this DAG end-to-end for real). A
+    # country pycountry doesn't recognize is skipped rather than passed through unconverted -
+    # an alpha-3 code sent to the API would just as silently return 0 projects for it.
+    country_isos = []
+    for alpha3 in country_isos_alpha3:
+        country = pycountry.countries.get(alpha_3=alpha3)
+        if country is not None:
+            country_isos.append(country.alpha_2)
 
     producer = make_producer()
     published = collect_and_publish(country_isos, producer)
