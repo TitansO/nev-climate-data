@@ -1,6 +1,6 @@
 # NEV Climate Data
 
-Plateforme de collecte, structuration et diffusion de données climatiques et de financement (Volet A : application ; Volet B : pipeline de données). La Phase A1 (fondations : environnement Docker, API Symfony, schéma TimescaleDB « pipeline-ready », authentification JWT, clés API, fixtures, CI/CD) est close. La Phase A2 est en cours : le frontend (HTML + Tailwind CSS v4) existe désormais et consomme les vraies données du backend (`GET /api/funding`, A2.1/A2.2), avec une authentification complète côté client (connexion, session JWT, profil, gestion des clés API) - voir « État d'avancement » en bas de ce document pour le détail.
+Plateforme de collecte, structuration et diffusion de données climatiques et de financement (Volet A : application ; Volet B : pipeline de données). La Phase A1 (fondations : environnement Docker, API Symfony, schéma TimescaleDB « pipeline-ready », authentification JWT, clés API, fixtures, CI/CD) est close. La Phase A2 est bien avancée : extraction de données filtrée/paginée, export CSV/Excel (synchrone et asynchrone), notifications par utilisateur (navigables), dashboards analytiques mis en cache, statistiques d'en-tête, recherche globale insensible à la casse/aux accents, internationalisation FR/EN et menu mobile complet sont tous opérationnels (A2.1-A2.12) - voir « État d'avancement » en bas de ce document pour le détail. Volet B (pipeline de données) a démarré en parallèle (infrastructure Kafka/Airflow/MinIO, connecteur Banque Mondiale).
 
 ## Structure du dépôt
 
@@ -64,7 +64,7 @@ Le fichier `.env` réel n'est **jamais** versionné (voir `.gitignore`). Aucun s
 
 Si tu avais déjà un environnement local avant ce commit, ces étapes nécessitent une action :
 
-1. **Nouvelle variable d'environnement** : ajoute `JWT_PASSPHRASE=<valeur aléatoire>` à ton `.env` local (voir `.env.example` - génère une valeur avec `openssl rand -hex 16`).
+1. **Nouvelle variable d'environnement** : ajoute `JWT_PASSPHRASE=<valeur aléatoire>` à ton `.env` local (voir `.env.example` - génère une valeur avec `openssl rand -hex 16`). Si tu pars d'un environnement tout neuf (premier clone, nouveau Codespace) et que `.env` n'existe pas encore à la racine : `cp .env.example .env`, puis remplace chaque `change_me_...` par une vraie valeur (`openssl rand -hex 16` pour les secrets, `openssl rand -base64 24` pour les mots de passe) - sans ce fichier, `docker compose up -d` échoue sur la base (« superuser password is not specified »).
 2. **Reconstruire l'image backend** (nouvelles dépendances Composer - JWT, refresh token, rate limiter, fixtures) :
    ```bash
    docker compose up -d --build backend
@@ -418,6 +418,22 @@ Ajoutée en marge du plan d'implémentation, entre A2.2 et A2.3 (justification :
 
 `assets/js/api.js` et `assets/js/auth.js` déduisent l'origine du backend de celle de la page elle-même (`window.location.hostname`), plutôt qu'une valeur codée en dur - nécessaire car ce projet est vu depuis deux environnements différents avec des origines différentes : le tunnel SSH local (`http://localhost:8123` → backend `http://localhost:8080`) et l'URL forwardée d'un Codespace (`https://<nom>-8123.app.github.dev` → backend déduit en `https://<nom>-8080.app.github.dev`). Aucun mécanisme de build/injection de variables d'environnement n'existe côté frontend (HTML statique, pas de bundler), donc cette déduction dynamique est la seule solution qui fonctionne sans édition manuelle par environnement.
 
+### Internationalisation FR/EN (A2.11)
+
+Mécanisme léger, cohérent avec le reste du frontend (pas de bundler, module en espace de noms global `window.NevI18n`, voir `assets/js/i18n.js`) :
+
+- **Dictionnaires** : `assets/i18n/fr.json` et `assets/i18n/en.json` - une seule paire de fichiers plats (clé → texte), parité de clés vérifiée (185 clés de chaque côté).
+- **Convention côté HTML** : `data-i18n="cle"` (remplace `textContent`), `data-i18n-html="cle"` (remplace `innerHTML` - réservé aux rares textes statiques contenant du balisage, ex. un `<br>` dans le titre du hero), `data-i18n-placeholder="cle"` / `data-i18n-aria-label="cle"` pour les attributs correspondants.
+- **Sélecteur de langue** : bouton `#lang-switch-btn` dans le header (affiche la langue cible : « EN » quand on est en français, « Français » quand on est en anglais). Bascule instantanée (pas de rechargement), langue persistée dans `localStorage` (`nev_lang`), défaut `fr`.
+- **Couverture actuelle** : les 12 pages statiques (nav commune, footer commun, contenu propre à chaque page). Le contenu injecté dynamiquement par JavaScript à l'exécution (lignes du tableau de données, éléments de notification, libellés de rôle sur `account-profile.html`, texte du bouton d'export pendant le traitement) n'est **pas** traduit par ce mécanisme - hors périmètre pour l'instant.
+- Pour ajouter une nouvelle chaîne traduisible : poser l'attribut `data-i18n` sur l'élément, ajouter la même clé dans les deux fichiers JSON.
+
+### Menu mobile (A2.12)
+
+Le mécanisme de bascule du menu hamburger (`#navbarToggler` / `#navbarCollapse`, voir `assets/js/main.js`) existait déjà mais le panneau mobile n'affichait que les liens de navigation : recherche, notifications et connexion étaient dans un bloc `hidden … sm:flex` invisible sous 640px et jamais inclus dans le menu ouvert. Ce bloc a été déplacé à l'intérieur de `#navbarCollapse` (empilé sous les liens en mobile ; remis en ligne à droite via `lg:flex lg:justify-between` en desktop, layout desktop inchangé) sur les 10 pages qui le partagent.
+
+**Piège à ne pas réintroduire** : Tailwind CSS v4 est compilé à l'avance (`frontend/src/css/tailwind.css`, généré depuis `frontend/src/input.css` par `npm run build` - voir `frontend/package.json`). Ajouter une classe Tailwind dans un fichier HTML sans relancer `npm run build` derrière n'a **aucun effet visible** (la classe n'existe simplement pas dans le CSS livré) - c'est exactement ce qui a cassé le rendu du header une première fois pendant le développement de A2.12.
+
 ## CI/CD
 
 Pipeline GitLab CI (`.gitlab-ci.yml`), deux étapes :
@@ -471,6 +487,10 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 9. **La liste d'extensions PHP du job `phpunit` (`.gitlab-ci.yml`) est dupliquée depuis `docker/backend/Dockerfile`, pas partagée.** Le job de test tourne dans une image PHP générique, pas dans l'image Docker du projet (choix documenté dans le spec A1.7, pour garder le pipeline rapide sur chaque push). Si une extension PHP est ajoutée/retirée du `Dockerfile`, il faut penser à répercuter le changement dans `.gitlab-ci.yml` - rien ne le fait automatiquement, et un oubli ne casse rien immédiatement (juste une divergence silencieuse entre l'environnement testé et l'environnement réel).
 
+10. **`.devcontainer/devcontainer.json` ne doit PAS utiliser `dockerComposeFile` + `service` pour orchestrer toute la stack.** Cette combinaison fait démarrer *tous* les services du `docker-compose.yml` (db, redis, backend, backend-worker, et désormais Kafka/Airflow/MinIO du Volet B) comme étape bloquante de la création même du Codespace. En pratique ça échoue de façon fiable : le healthcheck de TimescaleDB (50s de budget) perd la course contre la compilation de l'extension PHP `intl` (~90s), et le Codespace bascule en conteneur de secours (pas de `docker` CLI, `/home/codespace` non inscriptible). Le fichier utilise à la place une image de base simple + la feature `docker-outside-of-docker` (CLI Docker disponible, mais rien d'auto-orchestré) et la feature `sshd` (sans elle, `gh codespace ssh` échoue avec « no SSH server installed » sur cette image minimale - l'image par défaut de Codespaces en a un, celle-ci non). `docker compose up -d` reste une étape manuelle après la création du Codespace, exactement comme en local.
+
+11. **Un Codespace fraîchement créé n'a ni `.env` racine, ni trousseau JWT, ni fixtures chargées - `docker compose up -d` seul ne suffit pas.** Trois pièges rencontrés en re-provisionnant un Codespace : (a) `nev-climate-data-db` reste `unhealthy` avec l'erreur Postgres « superuser password is not specified » tant que `.env` (gitignoré, jamais cloné) n'a pas été recréé depuis `.env.example` avec de vraies valeurs ; (b) une fois la base up, la connexion échoue en 500 « Internal Server Error » tant que `backend/config/jwt/` (gitignoré) n'a pas été régénéré via `docker compose exec backend php bin/console lexik:jwt:generate-keypair --overwrite` ; (c) même avec un backend fonctionnel, le frontend affiche des compteurs à zéro et des listes vides tant que `docker compose exec backend php bin/console doctrine:fixtures:load --no-interaction` n'a pas été rejoué (une base neuve est un schéma vide, pas un jeu de données). Voir « Après avoir récupéré ce travail » ci-dessus pour la checklist complète.
+
 10. **Un port de Codespace en visibilité "private" fait échouer un `fetch()` cross-origin avec un faux message CORS.** Ouvrir la page dans le navigateur (navigation complète) fonctionne car GitHub complète la redirection d'authentification (`https://<nom>-<port>.app.github.dev` → `github.dev/pf-signin` → retour), mais un `fetch()` JS depuis une autre origine ne peut pas suivre cette redirection interactive : GitHub répond `302` sans aucun en-tête CORS, et le navigateur l'affiche comme "No 'Access-Control-Allow-Origin' header is present" - alors que la config CORS du backend est correcte. Diagnostic : `curl -i <url-forwardée>/api/health` sans authentification renvoie `302` vers `github.dev/pf-signin` si le port est privé. Fix ponctuel : `gh codespace ports visibility <port>:public -c <nom-du-codespace>` (ou depuis VS Code : onglet Ports → clic droit → Port Visibility → Public) - mais ce réglage n'est pas persisté dans le code : GitHub Codespaces le réinitialise à "private" dès que le port est complètement recréé (ex. `docker compose down` puis `up`), pas seulement redémarré. **Fix définitif** : `.devcontainer/devcontainer.json` déclare `portsAttributes` avec `visibility: "public"` pour 8080 et 8123 - une fois le Codespace reconstruit une fois avec ce fichier, la visibilité ne se réinitialise plus jamais, quel que soit le nombre de `docker compose down`/`up`.
 
 11. **`docker-compose.yml` interpole `$` avant que Docker Compose ne lise la valeur.** Une valeur par défaut (`${VAR:-...}`) contenant un `$` littéral (ex. une regex avec ancres `^...$`) doit doubler ce `$` en `$$`, sinon Compose tente de le résoudre comme une référence de variable (vide) et le tronque silencieusement. Voir `CORS_ALLOWED_ORIGIN_REGEX` dans `docker-compose.yml` pour l'exemple.
@@ -522,6 +542,16 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 |---|---|---|
 | A2.1 | `GET /api/funding` : filtres, pagination, accès public, CORS, erreurs JSON uniformes | ✅ Fait |
 | A2.2 | `data.html` connecté aux vraies données (`GET /api/funding`) - plus aucune donnée simulée | ✅ Fait |
+| A2.3 | Export CSV/Excel : génération synchrone et asynchrone (au-delà de 500 lignes, avec notification), quotas par rôle | ✅ Fait |
+| A2.4 | Bouton d'export branché sur le module réel (retrait de l'ancienne alerte) | ✅ Fait |
+| A2.5 | Endpoints d'agrégats analytiques (tendances de financement, répartition sectorielle, CO2), cache Redis TTL 15 min | ✅ Fait |
+| A2.6 | Graphiques Chart.js connectés aux agrégats réels, états de chargement / « Donnée non disponible » | ✅ Fait |
+| A2.7 | Endpoint des statistiques d'en-tête (compteurs Hero calculés dynamiquement, mis en cache) | ✅ Fait |
+| A2.8 | Recherche globale insensible casse/accents (PostgreSQL `unaccent`), pays/sources/rapports | ✅ Fait |
+| A2.9 | Barre de recherche du header branchée sur l'API, résultats groupés par catégorie | ✅ Fait |
+| A2.10 | Module de notifications (backend + icône du header, statut lu/non lu, navigation directe vers la page concernée) | ✅ Fait |
+| A2.11 | Internationalisation FR/EN : fichiers de traduction (`frontend/assets/i18n/`), sélecteur de langue, bascule dynamique sans rechargement | ✅ Fait |
+| A2.12 | Menu mobile complet sous le breakpoint `lg` (recherche, notifications, connexion désormais accessibles depuis le menu hamburger) | ✅ Fait |
 
 **Travaux supplémentaires réalisés hors plan officiel** (prérequis non couverts par une tâche dédiée) :
 
@@ -530,7 +560,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 | Préparation frontend | Fusion du HTML NEV existant avec le template Tailwind "Play" - 9 pages, thème vert, pipeline de build (voir [`frontend/README.md`](frontend/README.md)) | Non |
 | Intégration frontend de l'authentification | Connexion réelle, session JWT/refresh, « Mon profil », « Mes clés API » (branche enfin A1.5 à une interface) | Non |
 
-Prochaine étape : A2.3 (export CSV/Excel par rôle) et le reste de la Phase A2 (dashboards, recherche, notifications, i18n, menu mobile, section Rapports), puis Phase A3 (temps réel, sécurité, performance, mise en production), puis Volet B (pipeline de données réelles). Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
+Prochaine étape : A2.13 (section Rapports - liste, filtres, téléchargement, compteur) puis A2.14 (recette Phase A2), puis Phase A3 (temps réel, sécurité, performance, mise en production). Le Volet B (pipeline de données réelles) a démarré en parallèle : voir la section « Pipeline (Volet B) » plus bas. Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
 
 **Documentation de conception disponible** pour tout ce qui est fait jusqu'ici (décisions prises, alternatives écartées, justifications) :
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)

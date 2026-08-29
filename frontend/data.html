@@ -21,7 +21,7 @@
             </a>
           </div>
           <div class="flex w-full items-center justify-between px-4">
-            <div>
+            <div class="w-full">
               <button
                 id="navbarToggler"
                 aria-label="Ouvrir le menu"
@@ -33,20 +33,18 @@
               </button>
               <nav
                 id="navbarCollapse"
-                class="absolute right-4 top-full hidden w-full max-w-[280px] rounded-lg bg-white py-5 shadow-lg lg:static lg:block lg:w-full lg:max-w-full lg:bg-transparent lg:px-4 lg:py-0 lg:shadow-none xl:px-6"
+                class="absolute right-4 top-full hidden w-full max-w-[280px] rounded-lg bg-white py-5 shadow-lg lg:static lg:flex lg:w-full lg:max-w-full lg:items-center lg:justify-between lg:bg-transparent lg:px-4 lg:py-0 lg:shadow-none xl:px-6"
               >
                 <ul class="block lg:flex lg:items-center">
-                  <li><a href="index.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Accueil</a></li>
-                  <li><a href="data.html" class="nav-link-active mx-6 flex py-2 text-sm font-semibold text-white lg:mx-4 lg:inline-flex lg:py-6">Données</a></li>
-                  <li><a href="visualizations.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Visualisations</a></li>
-                  <li><a href="reports.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Rapports</a></li>
-                  <li><a href="sources.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Sources</a></li>
-                  <li><a href="about.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">À propos</a></li>
-                  <li><a href="api-docs.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Documentation API</a></li>
+                  <li><a href="index.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.home">Accueil</a></li>
+                  <li><a href="data.html" class="nav-link-active mx-6 flex py-2 text-sm font-semibold text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.data">Données</a></li>
+                  <li><a href="visualizations.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.visualizations">Visualisations</a></li>
+                  <li><a href="reports.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.reports">Rapports</a></li>
+                  <li><a href="sources.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.sources">Sources</a></li>
+                  <li><a href="about.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.about">À propos</a></li>
+                  <li><a href="api-docs.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.apiDocs">Documentation API</a></li>
                 </ul>
-              </nav>
-            </div>
-            <div class="hidden items-center gap-4 sm:flex">
+                <div class="mt-4 flex flex-col items-start gap-3 border-t border-stroke px-6 pt-4 lg:mt-0 lg:flex-row lg:items-center lg:gap-4 lg:border-t-0 lg:px-0 lg:pt-0">
               <label class="relative">
                 <span class="sr-only">Rechercher (fonctionnalité à venir)</span>
                 <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dark-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M18 11a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -60,7 +58,9 @@
                 />
                 <div id="global-search-results" class="absolute left-0 right-0 top-full z-50 mt-2 hidden max-h-96 w-80 overflow-y-auto rounded-md border border-stroke bg-white p-2 text-left shadow-2"></div>
               </label>
-              <button type="button" id="notif-bell-btn" class="relative hidden rounded-md p-2 text-white/90 transition hover:bg-white/10 hover:text-white" aria-label="Notifications"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg><span id="notif-bell-badge" class="hidden absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-demo px-1 text-[10px] font-bold leading-none text-white"></span></button><a href="login.html" id="auth-nav-slot" class="loginBtn signUpBtn rounded-md bg-white/15 px-5 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark">Connexion</a>
+              <button type="button" id="notif-bell-btn" class="relative hidden rounded-md p-2 text-white/90 transition hover:bg-white/10 hover:text-white" aria-label="Notifications"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg><span id="notif-bell-badge" class="hidden absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-demo px-1 text-[10px] font-bold leading-none text-white"></span></button><button type="button" id="lang-switch-btn" class="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white" aria-label="Changer de langue">EN</button><a href="login.html" id="auth-nav-slot" class="loginBtn signUpBtn rounded-md bg-white/15 px-5 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark" data-i18n="nav.login">Connexion</a>
+                </div>
+              </nav>
             </div>
           </div>
         </div>
@@ -71,8 +71,8 @@
     <!-- ====== Page header ====== -->
     <section class="bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-16 pt-[140px] text-center text-white lg:pt-[160px]">
       <div class="container mx-auto px-4">
-        <h1 class="mb-3 text-3xl font-bold sm:text-4xl">Explorer les données de financement</h1>
-        <p class="mx-auto max-w-[640px] text-white/80">
+        <h1 class="mb-3 text-3xl font-bold sm:text-4xl" data-i18n="dataPage.title">Explorer les données de financement</h1>
+        <p class="mx-auto max-w-[640px] text-white/80" data-i18n="dataPage.subtitle">
           Filtrez et parcourez les données de financement climatique collectées par NEV Climate Data.
         </p>
       </div>
@@ -83,17 +83,17 @@
       <!-- ====== Filtres ====== -->
       <section class="relative z-20 -mt-10 rounded-2xl bg-white p-6 shadow-2 sm:p-8">
         <div class="mb-4 flex items-center justify-between lg:hidden">
-          <h2 class="text-base font-semibold text-dark">Filtres</h2>
+          <h2 class="text-base font-semibold text-dark" data-i18n="dataPage.filters">Filtres</h2>
           <button id="filtersToggler" type="button" class="rounded-md border border-stroke px-3 py-1.5 text-sm font-medium text-dark-4">
-            Afficher / masquer
+            <span data-i18n="dataPage.toggleFilters">Afficher / masquer</span>
           </button>
         </div>
         <div id="filtersPanel" class="hidden lg:block">
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <div>
-              <label for="filter-country" class="mb-1.5 block text-sm font-medium text-dark-3">Pays</label>
+              <label for="filter-country" class="mb-1.5 block text-sm font-medium text-dark-3" data-i18n="dataPage.country">Pays</label>
               <select id="filter-country" class="w-full rounded-md border border-stroke bg-white px-3 py-2.5 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
-                <option value="">Tous les pays</option>
+                <option value="" data-i18n="dataPage.allCountries">Tous les pays</option>
                 <optgroup label="Afrique du Nord">
                   <option value="DZA">Algeria</option>
                   <option value="EGY">Egypt</option>
@@ -161,16 +161,16 @@
               </select>
             </div>
             <div>
-              <label for="filter-sector" class="mb-1.5 block text-sm font-medium text-dark-3">Secteur</label>
+              <label for="filter-sector" class="mb-1.5 block text-sm font-medium text-dark-3" data-i18n="dataPage.sector">Secteur</label>
               <select id="filter-sector" class="w-full rounded-md border border-stroke bg-white px-3 py-2.5 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
-                <option value="">Tous les secteurs</option>
+                <option value="" data-i18n="dataPage.allSectors">Tous les secteurs</option>
                 <!-- Peuplé dynamiquement depuis les réponses réelles de l'API (assets/js/data.js) : Sector.id est généré par la base, pas une valeur métier stable à coder en dur ici. -->
               </select>
             </div>
             <div>
-              <label for="filter-year" class="mb-1.5 block text-sm font-medium text-dark-3">Année</label>
+              <label for="filter-year" class="mb-1.5 block text-sm font-medium text-dark-3" data-i18n="dataPage.year">Année</label>
               <select id="filter-year" class="w-full rounded-md border border-stroke bg-white px-3 py-2.5 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
-                <option value="">Toutes les années</option>
+                <option value="" data-i18n="dataPage.allYears">Toutes les années</option>
                 <option value="2025">2025</option>
                 <option value="2024">2024</option>
                 <option value="2023">2023</option>
@@ -178,33 +178,33 @@
               </select>
             </div>
             <div>
-              <label for="filter-type" class="mb-1.5 block text-sm font-medium text-dark-3">Type de financement</label>
+              <label for="filter-type" class="mb-1.5 block text-sm font-medium text-dark-3" data-i18n="dataPage.fundingType">Type de financement</label>
               <select id="filter-type" class="w-full rounded-md border border-stroke bg-white px-3 py-2.5 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
-                <option value="">Tous les types</option>
-                <option value="public">Public</option>
-                <option value="private">Privé</option>
-                <option value="multilateral">Multilatéral</option>
+                <option value="" data-i18n="dataPage.allTypes">Tous les types</option>
+                <option value="public" data-i18n="dataPage.typePublic">Public</option>
+                <option value="private" data-i18n="dataPage.typePrivate">Privé</option>
+                <option value="multilateral" data-i18n="dataPage.typeMultilateral">Multilatéral</option>
               </select>
             </div>
             <div>
-              <label for="filter-period-start" class="mb-1.5 block text-sm font-medium text-dark-3">Depuis</label>
+              <label for="filter-period-start" class="mb-1.5 block text-sm font-medium text-dark-3" data-i18n="dataPage.since">Depuis</label>
               <input type="date" id="filter-period-start" class="w-full rounded-md border border-stroke bg-white px-3 py-2.5 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label for="filter-period-end" class="mb-1.5 block text-sm font-medium text-dark-3">Jusqu'à</label>
+              <label for="filter-period-end" class="mb-1.5 block text-sm font-medium text-dark-3" data-i18n="dataPage.until">Jusqu'à</label>
               <input type="date" id="filter-period-end" class="w-full rounded-md border border-stroke bg-white px-3 py-2.5 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
           </div>
           <div class="mt-6 flex flex-wrap items-center gap-3">
-            <button id="apply-filters-btn" type="button" class="rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark">Appliquer les filtres</button>
-            <button id="reset-filters-btn" type="button" class="rounded-md border border-stroke px-6 py-2.5 text-sm font-semibold text-dark-4 transition hover:bg-gray-2">Réinitialiser</button>
+            <button id="apply-filters-btn" type="button" class="rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark" data-i18n="dataPage.applyFilters">Appliquer les filtres</button>
+            <button id="reset-filters-btn" type="button" class="rounded-md border border-stroke px-6 py-2.5 text-sm font-semibold text-dark-4 transition hover:bg-gray-2" data-i18n="dataPage.resetFilters">Réinitialiser</button>
             <div id="export-controls" class="ml-auto hidden items-center gap-2">
               <select id="export-format-select" class="rounded-md border border-stroke bg-white px-3 py-2.5 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
                 <option value="csv">CSV</option>
                 <option value="xlsx">Excel (XLSX)</option>
               </select>
               <button id="export-btn" type="button" class="rounded-md border border-primary px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-white">
-                <span id="export-btn-label">Exporter</span>
+                <span id="export-btn-label" data-i18n="dataPage.export">Exporter</span>
               </button>
             </div>
           </div>
@@ -222,17 +222,17 @@
 
         <div id="state-loading" class="hidden rounded-2xl border border-stroke bg-white p-16 text-center">
           <div class="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
-          <p class="text-sm text-body-color">Chargement des données…</p>
+          <p class="text-sm text-body-color" data-i18n="dataPage.loadingData">Chargement des données…</p>
         </div>
 
         <div id="state-error" class="hidden rounded-2xl border border-status-demo/30 bg-status-demo-bg/40 p-16 text-center">
-          <p class="mb-1 text-base font-semibold text-status-demo">Impossible de charger les données</p>
-          <p id="error-message" class="text-sm text-body-color">Une erreur est survenue. Veuillez réessayer.</p>
+          <p class="mb-1 text-base font-semibold text-status-demo" data-i18n="dataPage.loadError">Impossible de charger les données</p>
+          <p id="error-message" class="text-sm text-body-color" data-i18n="dataPage.tryAgain">Une erreur est survenue. Veuillez réessayer.</p>
         </div>
 
         <div id="state-empty" class="hidden rounded-2xl border border-stroke bg-white p-16 text-center">
-          <p class="mb-1 text-base font-semibold text-dark">Aucune donnée trouvée</p>
-          <p class="text-sm text-body-color">Essayez d'élargir vos critères de filtrage.</p>
+          <p class="mb-1 text-base font-semibold text-dark" data-i18n="dataPage.noData">Aucune donnée trouvée</p>
+          <p class="text-sm text-body-color" data-i18n="dataPage.widenFilters">Essayez d'élargir vos critères de filtrage.</p>
         </div>
 
         <div id="state-data" class="hidden overflow-hidden rounded-2xl border border-stroke bg-white shadow-1">
@@ -240,14 +240,14 @@
             <table class="w-full min-w-[900px] text-left text-sm">
               <thead class="bg-surface-alt text-xs font-semibold uppercase tracking-wide text-dark-4">
                 <tr>
-                  <th class="px-5 py-4">Pays</th>
-                  <th class="px-5 py-4">Secteur</th>
-                  <th class="px-5 py-4">Année</th>
-                  <th class="px-5 py-4">Type</th>
-                  <th class="px-5 py-4">Montant</th>
-                  <th class="px-5 py-4">Devise</th>
-                  <th class="px-5 py-4">Source</th>
-                  <th class="px-5 py-4">Statut</th>
+                  <th class="px-5 py-4" data-i18n="dataPage.country">Pays</th>
+                  <th class="px-5 py-4" data-i18n="dataPage.sector">Secteur</th>
+                  <th class="px-5 py-4" data-i18n="dataPage.year">Année</th>
+                  <th class="px-5 py-4" data-i18n="dataPage.type">Type</th>
+                  <th class="px-5 py-4" data-i18n="dataPage.amount">Montant</th>
+                  <th class="px-5 py-4" data-i18n="dataPage.currency">Devise</th>
+                  <th class="px-5 py-4" data-i18n="dataPage.source">Source</th>
+                  <th class="px-5 py-4" data-i18n="dataPage.status">Statut</th>
                 </tr>
               </thead>
               <tbody id="funding-table-body" class="divide-y divide-stroke"></tbody>
@@ -256,12 +256,12 @@
           <div class="flex flex-wrap items-center justify-between gap-3 border-t border-stroke px-5 py-4">
             <p id="pagination-info" class="text-xs text-dark-5">Page 1 sur 1</p>
             <nav class="flex items-center gap-1.5" aria-label="Pagination">
-              <button id="pagination-prev" type="button" class="rounded-md border border-stroke px-3 py-1.5 text-sm text-dark-4 hover:bg-gray-2 disabled:cursor-not-allowed disabled:text-dark-6 disabled:hover:bg-transparent" disabled>Précédent</button>
-              <button id="pagination-next" type="button" class="rounded-md border border-stroke px-3 py-1.5 text-sm text-dark-4 hover:bg-gray-2 disabled:cursor-not-allowed disabled:text-dark-6 disabled:hover:bg-transparent" disabled>Suivant</button>
+              <button id="pagination-prev" type="button" class="rounded-md border border-stroke px-3 py-1.5 text-sm text-dark-4 hover:bg-gray-2 disabled:cursor-not-allowed disabled:text-dark-6 disabled:hover:bg-transparent" disabled data-i18n="dataPage.previous">Précédent</button>
+              <button id="pagination-next" type="button" class="rounded-md border border-stroke px-3 py-1.5 text-sm text-dark-4 hover:bg-gray-2 disabled:cursor-not-allowed disabled:text-dark-6 disabled:hover:bg-transparent" disabled data-i18n="dataPage.next">Suivant</button>
             </nav>
           </div>
         </div>
-        <p class="mt-4 text-xs text-dark-5">
+        <p class="mt-4 text-xs text-dark-5" data-i18n-html="dataPage.disclaimer">
           Données réelles issues de <code class="font-mono">GET /api/funding</code> (A2.1). Le jeu de données provient actuellement des fixtures de démonstration (A1.6) et porte le statut « Démonstration ».
         </p>
       </section>
@@ -274,38 +274,39 @@
         <div class="grid grid-cols-1 gap-10 pb-12 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <a href="index.html" class="mb-4 inline-block"><img src="assets/images/logo/logo-white.svg" alt="NEV Climate Data" class="h-8 w-auto" /></a>
-            <p class="max-w-[260px] text-sm leading-relaxed">Plateforme de collecte, structuration et diffusion des données climatiques et de financement.</p>
+            <p class="max-w-[260px] text-sm leading-relaxed" data-i18n="footer.tagline">Plateforme de collecte, structuration et diffusion des données climatiques et de financement.</p>
           </div>
           <div>
-            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Navigation</h4>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white" data-i18n="footer.navHeading">Navigation</h4>
             <ul class="space-y-3 text-sm">
-              <li><a href="data.html" class="hover:text-white">Données</a></li>
-              <li><a href="visualizations.html" class="hover:text-white">Visualisations</a></li>
-              <li><a href="reports.html" class="hover:text-white">Rapports</a></li>
-              <li><a href="sources.html" class="hover:text-white">Sources</a></li>
+              <li><a href="data.html" class="hover:text-white" data-i18n="nav.data">Données</a></li>
+              <li><a href="visualizations.html" class="hover:text-white" data-i18n="nav.visualizations">Visualisations</a></li>
+              <li><a href="reports.html" class="hover:text-white" data-i18n="nav.reports">Rapports</a></li>
+              <li><a href="sources.html" class="hover:text-white" data-i18n="nav.sources">Sources</a></li>
             </ul>
           </div>
           <div>
-            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Documentation</h4>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white" data-i18n="footer.docHeading">Documentation</h4>
             <ul class="space-y-3 text-sm">
-              <li><a href="api-docs.html" class="hover:text-white">Documentation API</a></li>
-              <li><a href="about.html" class="hover:text-white">À propos</a></li>
-              <li><a href="login.html" class="hover:text-white">Connexion</a></li>
+              <li><a href="api-docs.html" class="hover:text-white" data-i18n="nav.apiDocs">Documentation API</a></li>
+              <li><a href="about.html" class="hover:text-white" data-i18n="nav.about">À propos</a></li>
+              <li><a href="login.html" class="hover:text-white" data-i18n="nav.login">Connexion</a></li>
             </ul>
           </div>
           <div>
-            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Contact</h4>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white" data-i18n="footer.contactHeading">Contact</h4>
             <ul class="space-y-3 text-sm">
               <li>contact@nev-climate-data.org</li>
-              <li>Dakar, Sénégal</li>
+              <li data-i18n="footer.location">Dakar, Sénégal</li>
             </ul>
           </div>
         </div>
-        <div class="border-t border-white/10 py-6 text-center text-xs">&copy; 2026 NEV Climate Data. Tous droits réservés.</div>
+        <div class="border-t border-white/10 py-6 text-center text-xs" data-i18n="footer.copyright">&copy; 2026 NEV Climate Data. Tous droits réservés.</div>
       </div>
     </footer>
     <!-- ====== /Footer ====== -->
 
+    <script src="assets/js/i18n.js"></script>
     <script src="assets/js/main.js"></script>
     <script src="assets/js/auth.js"></script>
     <script src="assets/js/api.js"></script>
