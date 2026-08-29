@@ -13,6 +13,13 @@ parameters:
     # under public/ - never served directly by Apache, only ever streamed
     # through that authenticated endpoint.
     app.export_storage_dir: '%kernel.project_dir%/var/exports'
+    # A2.13: where published reports' PDF files live, read by
+    # App\Controller\ReportController::download(). Report.pdfFile already
+    # stores a "reports/..." relative path (see App\DataFixtures\ReportFixtures),
+    # so this points at var/ itself, not var/reports/ - avoids a doubled
+    # "reports/reports/" segment. Not under public/ - never served directly
+    # by Apache, only ever streamed through the tracked download endpoint.
+    app.report_storage_dir: '%kernel.project_dir%/var'
 
 services:
     # default configuration for services in *this* file
@@ -21,6 +28,7 @@ services:
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
         bind:
             string $exportStorageDir: '%app.export_storage_dir%'
+            string $reportStorageDir: '%app.report_storage_dir%'
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name

@@ -205,7 +205,7 @@
   }
 
   /**
-   * Swaps the navbar's "Connexion" link (id="auth-nav-slot" — present in
+   * Swaps the navbar's "Connexion" link (id="auth-nav-slot" - present in
    * every page's navbar) for the logged-in user's email + a logout button.
    * Left untouched when logged out, or when a page has no such slot
    * (login.html, 404.html).
@@ -218,15 +218,20 @@
 
     const user = await getCurrentUser();
     if (null === user) {
-      // Token invalid/expired and refresh failed — fall back to the logged-out navbar.
+      // Token invalid/expired and refresh failed - fall back to the logged-out navbar.
       clearTokens();
       return;
     }
 
+    // data-i18n="profilePage.logout" (A2.11): this button is injected here,
+    // after the page's initial translation pass, so its starting text comes
+    // from NevI18n.t() rather than data-i18n alone; the attribute keeps it
+    // correct if the user switches language afterwards. See NevI18n.refresh().
+    const logoutLabel = global.NevI18n ? global.NevI18n.t("profilePage.logout") : "Déconnexion";
     slot.outerHTML =
       '<div class="flex items-center gap-3">' +
       '<a href="account-profile.html" class="text-sm font-medium text-white/90 hover:text-white">' + escapeHtml(user.email) + "</a>" +
-      '<button type="button" id="auth-logout-btn" class="rounded-md bg-white/15 px-4 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark">Déconnexion</button>' +
+      '<button type="button" id="auth-logout-btn" data-i18n="profilePage.logout" class="rounded-md bg-white/15 px-4 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark">' + escapeHtml(logoutLabel) + "</button>" +
       "</div>";
 
     document.getElementById("auth-logout-btn").addEventListener("click", async function () {
