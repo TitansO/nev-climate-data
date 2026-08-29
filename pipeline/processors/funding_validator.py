@@ -14,8 +14,12 @@ from typing import Any
 from pipeline.common.db import get_connection
 from pipeline.common.kafka_client import make_consumer, make_producer
 from pipeline.processors.sector_mapping import map_to_nev_sector
+from pipeline.processors.sector_mapping_gcf import map_gcf_sector
+from pipeline.processors.sector_mapping_afdb import map_afdb_sector
 
 WORLD_BANK_SOURCE_NAME = "World Bank Data API"  # matches backend/src/DataFixtures/SourceFixtures.php - reuses that row instead of creating a duplicate
+GCF_SOURCE_NAME = "Green Climate Fund — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
+AFDB_SOURCE_NAME = "African Development Bank Group — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -34,6 +38,38 @@ def ensure_world_bank_source(cursor) -> int:
     return cursor.fetchone()[0]
 
 
+def ensure_gcf_source(cursor) -> int:
+    """Idempotently ensures the GCF (IATI Datastore) row exists in
+    `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (GCF_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (GCF_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_afdb_source(cursor) -> int:
+    """Idempotently ensures the AfDB (IATI Datastore) row exists in
+    `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (AFDB_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (AFDB_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
 def lookup_country_id(cursor, country_iso: str) -> int | None:
     cursor.execute("SELECT id FROM country WHERE iso_code = %s", (country_iso,))
     row = cursor.fetchone()
@@ -47,10 +83,19 @@ def lookup_sector_id(cursor, sector_name: str) -> int | None:
 
 
 def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, year: int,
-                    funding_type: str, amount: Decimal, collection_date: str) -> None:
+                    funding_type: str, amount: Decimal, collection_date: str,
+                    original_amount: Decimal | None = None,
+                    original_currency: str | None = None,
+                    exchange_rate: Decimal | None = None) -> None:
     """Sums `amount` into the current row for this dedup key if one
     exists (closing it out and inserting a new historized version), or
     inserts a fresh row otherwise - see B1.1 spec decision 6.
+    `original_amount`/`original_currency`/`exchange_rate` describe the
+    latest contributing message's raw figures (not accumulated across
+    historized versions, same treatment as `collection_date`) - only
+    populated by connectors reporting in a non-pivot currency (B1.3's
+    AfDB connector is the first; World Bank/GCF never pass them, so they
+    stay NULL as before).
     """
     cursor.execute(
         """
@@ -77,23 +122,38 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
         INSERT INTO funding (
             country_id, sector_id, year, amount, funding_type, source_id,
             collection_date, validation_status, valid_from, is_current,
+            original_amount, original_currency, exchange_rate,
             created_at, updated_at
         ) VALUES (
             %s, %s, %s, %s, %s, %s,
             %s, 'validated', now(), true,
+            %s, %s, %s,
             now(), now()
         )
         """,
-        (country_id, sector_id, year, new_amount, funding_type, source_id, collection_date),
+        (country_id, sector_id, year, new_amount, funding_type, source_id, collection_date,
+         original_amount, original_currency, exchange_rate),
     )
 
 
 def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
-    """Applies sector mapping and, on success, upserts. Returns
-    (accepted, reason) - `reason` is None when accepted, or a short
-    machine-readable string explaining rejection when not.
+    """Applies source-specific sector mapping and, on success, upserts.
+    Returns (accepted, reason) - `reason` is None when accepted, or a
+    short machine-readable string explaining rejection when not.
     """
-    nev_sector = map_to_nev_sector(message["raw_sectors"], message["raw_theme"])
+    source = message["source"]
+    if source == "world_bank":
+        nev_sector = map_to_nev_sector(message["raw_sectors"], message["raw_theme"])
+        ensure_source = ensure_world_bank_source
+    elif source == "gcf":
+        nev_sector = map_gcf_sector(message["raw_sector_codes"], message["raw_sector_percentages"])
+        ensure_source = ensure_gcf_source
+    elif source == "afdb":
+        nev_sector = map_afdb_sector(message["raw_sector_codes"])
+        ensure_source = ensure_afdb_source
+    else:
+        return False, "unknown_source"
+
     if nev_sector is None:
         return False, "unclassifiable_sector"
 
@@ -105,8 +165,12 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
     if sector_id is None:
         return False, "unknown_sector"
 
-    source_id = ensure_world_bank_source(cursor)
+    source_id = ensure_source(cursor)
 
+    # AfDB messages carry original_amount/original_currency/exchange_rate
+    # (floats, from JSON) - convert via str() to avoid binary float
+    # artifacts in the Decimal conversion (e.g. Decimal(1.370818) != 1.370818).
+    # World Bank/GCF messages don't have these keys at all.
     upsert_funding(
         cursor,
         source_id=source_id,
@@ -116,6 +180,9 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         funding_type=message["funding_type"],
         amount=Decimal(message["amount_usd"]),
         collection_date=message["collected_at"][:10],
+        original_amount=Decimal(str(message["original_amount"])) if "original_amount" in message else None,
+        original_currency=message.get("original_currency"),
+        exchange_rate=Decimal(str(message["exchange_rate"])) if "exchange_rate" in message else None,
     )
     return True, None
 

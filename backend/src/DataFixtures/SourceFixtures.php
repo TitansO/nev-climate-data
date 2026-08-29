@@ -30,6 +30,8 @@ final class SourceFixtures extends Fixture
     private const SOURCES = [
         ['World Bank Data API', 'world-bank-api', SourceType::OfficialApi, SourceReliability::High],
         ['Green Climate Fund — Annual Report (PDF)', 'gcf-pdf-report', SourceType::PdfReport, SourceReliability::Medium],
+        ['Green Climate Fund — IATI Datastore', 'gcf-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
+        ['African Development Bank Group — IATI Datastore', 'afdb-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data — Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];
