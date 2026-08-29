@@ -39,19 +39,24 @@ def country_iso3_to_m49(country_iso: str) -> str | None:
     return country.numeric if country is not None else None
 
 
-def parse_emission(row: dict[str, Any]) -> dict[str, Any] | None:
+def parse_emission(row: dict[str, Any], country_iso: str) -> dict[str, Any] | None:
     """Converts one raw UN SDG API data row into a `nev.emissions.raw`
     payload, or None if it isn't the national total (see TOTAL_ACTIVITY_CODE).
+
+    `country_iso` is passed in by the caller rather than reverse-derived
+    from `row["geoAreaCode"]` - real bug found during B1.4's end-to-end
+    verification: `pycountry.countries.get(numeric=...)` requires an
+    exact zero-padded 3-digit string (Angola is "024", not "24"), but the
+    SDG API returns `geoAreaCode` unpadded for any country whose numeric
+    code is under 100 - confirmed live, Angola's real CO2 data was wrongly
+    quarantined as unknown_country because of this mismatch. The caller
+    (collect_and_publish) already knows which country_iso it queried for
+    (it's how `area_code` was obtained in the first place via
+    country_iso3_to_m49), so there is no need to round-trip back through
+    a second, error-prone numeric lookup at all.
     """
     if row.get("dimensions", {}).get("Activity") != TOTAL_ACTIVITY_CODE:
         return None
-
-    country = pycountry.countries.get(numeric=row["geoAreaCode"])
-    # Falls back to the raw numeric code if pycountry doesn't recognize it
-    # - same reasoning as every earlier connector: it will never match a
-    # Country.isoCode downstream, so the record is quarantined as
-    # unknown_country rather than silently mis-mapped.
-    country_iso = country.alpha_3 if country is not None else row["geoAreaCode"]
 
     return {
         "source": "pnue",
@@ -94,7 +99,7 @@ def collect_and_publish(country_isos: list[str], producer) -> int:
         if area_code is None:
             continue
         for row in fetch_emissions_for_country(area_code):
-            payload = parse_emission(row)
+            payload = parse_emission(row, country_iso)
             if payload is None:
                 continue
             producer.send("nev.emissions.raw", payload)
