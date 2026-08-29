@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import time
 from typing import Any, Iterator
 
 import pycountry
@@ -18,6 +19,13 @@ IATI_DATASTORE_URL = "https://api.iatistandard.org/datastore/activity/select"
 AFDB_REPORTING_ORG_REF = "XM-DAC-46002"
 PAGE_SIZE = 1000
 REQUEST_TIMEOUT_SECONDS = 30
+# The IATI Datastore's free ("Exploratory") subscription tier enforces a
+# real 1 request/second rate limit - confirmed live while running this
+# connector end-to-end: firing all 6 pagination requests back-to-back
+# (no delay) reliably hit HTTP 429 partway through, every single run,
+# regardless of how much of the tier's daily quota remained. B1.2's GCF
+# collector never needed this - its entire portfolio fits in one request.
+PAGINATION_DELAY_SECONDS = 1.1
 
 FIELDS = ",".join([
     "iati_identifier", "recipient_country_code", "sector_code",
@@ -50,6 +58,9 @@ def fetch_afdb_activities() -> Iterator[dict[str, Any]]:
     """
     offset = 0
     while True:
+        if offset > 0:
+            # Real rate limit, not a precaution - see PAGINATION_DELAY_SECONDS.
+            time.sleep(PAGINATION_DELAY_SECONDS)
         response = requests.get(
             IATI_DATASTORE_URL,
             headers={"Ocp-Apim-Subscription-Key": os.environ["IATI_API_KEY"]},

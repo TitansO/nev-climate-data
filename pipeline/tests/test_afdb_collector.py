@@ -128,11 +128,15 @@ def test_fetch_afdb_activities_paginates_using_start_offset():
     with patch(
         "pipeline.collectors.afdb.requests.get",
         side_effect=[mock_response_one, mock_response_two],
-    ) as mock_get:
+    ) as mock_get, patch("pipeline.collectors.afdb.time.sleep") as mock_sleep:
         results = list(fetch_afdb_activities())
 
     assert [a["iati_identifier"] for a in results] == ["A1", "A2", "A3"]
     assert mock_get.call_count == 2
+    # Real rate limit on the IATI Datastore's free tier (confirmed live: 6
+    # back-to-back requests reliably hit HTTP 429 partway through every
+    # single run) - must pause between pages, not before the first request.
+    mock_sleep.assert_called_once()
     assert mock_get.call_args_list[0].kwargs["params"]["start"] == 0
     assert mock_get.call_args_list[0].kwargs["params"]["q"] == 'reporting_org_ref:"XM-DAC-46002"'
     # Advances by documents actually received (2), not the requested page
