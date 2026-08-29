@@ -218,10 +218,19 @@ def test_afdb_message_inserts_a_new_funding_row_with_currency_provenance(db_curs
 
     # original_amount/original_currency/exchange_rate: never populated by
     # any earlier connector (World Bank/GCF are always-USD) - this is the
-    # first real test of this path.
+    # first real test of this path. Scoped to the exact same dedup key as
+    # _funding_row above, not just source_id - the dev database this runs
+    # against also carries thousands of real AfDB rows from Task 5's
+    # end-to-end DAG runs, so an unscoped "any current row for this
+    # source" query can return an unrelated one (hit this for real: got
+    # back a real row's original_amount instead of this test's own).
     db_cursor.execute(
-        "SELECT original_amount, original_currency, exchange_rate FROM funding WHERE source_id = %s AND is_current = true",
-        (source_id,),
+        """
+        SELECT original_amount, original_currency, exchange_rate FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = true
+        """,
+        (source_id, country_id, sector_id, 2026, "multilateral"),
     )
     original_amount, original_currency, exchange_rate = db_cursor.fetchone()
     assert original_amount == Decimal("2000000.00")
