@@ -519,6 +519,17 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 23. **Deux tests indépendants qui interrogent la même base de données partagée peuvent se marcher dessus si leurs requêtes ne sont pas suffisamment précises.** Un test comparant un nombre de lignes filtré uniquement par pays/année (sans filtrer par source) a compté à tort de vraies données de production accumulées par les runs Airflow réels des connecteurs précédents (B1.1/B1.2), en plus des lignes que le test venait d'insérer lui-même. Sur une base de développement partagée entre tests et pipeline réel (contrairement à la base de test, réinitialisée et isolée), toujours scoper une assertion de comptage aux identifiants exacts (source, montants...) que le test contrôle - jamais une plage large en espérant qu'elle reste vide par ailleurs.
 
+24. **Une "vraie API du fournisseur institutionnel attendu" peut ne pas exister du tout, même quand un fournisseur alternatif documenté et fonctionnel existe pour les mêmes données.** B1.4 (connecteur "PNUE") en est l'exemple : après 12+ vérifications réelles (API PNUE de 2016 mise hors service, portail SDG brandé PNUE vide, WESR sans API publique documentée, MapX explicitement déconseillé pour un usage tiers, rapports phares du PNUE agrégés au niveau G20 sans donnée pour la plupart des pays NEV), la seule source réelle et alimentée avec la bonne granularité pays s'est révélée être l'API SDG des Nations Unies, dont les données CO2 sont elles-mêmes attribuées à l'IEA, pas au PNUE. Documenter cette attribution explicitement (comme le XDR d'AfDB en B1.3) plutôt que de la masquer derrière le nom de la tâche.
+
+25. **Un même indicateur d'une API peut recouvrir plusieurs dimensions incompatibles sous le même code de série.** La série SDG `EN_ATM_CO2` renvoie à la fois le total national réel (`Activity: "TOTAL"`) et un sous-ensemble manufacturier (`Activity: "ISIC4_C10T32X19"`) pour la même paire pays/année, avec des valeurs différentes. Ne jamais publier une ligne d'API sans avoir vérifié en direct quelles dimensions elle porte et lesquelles constituent réellement la grandeur recherchée.
+
+26. **Toutes les tables historisées SCD2 de ce projet ne partagent pas la même sémantique d'upsert.** `funding` additionne les nouveaux messages pour une même clé (un flux d'événements de financement cumulatifs) ; `emission` (B1.4) remplace la valeur courante par la nouvelle (une statistique annuelle unique, régulièrement révisée par sa source). Vérifier quelle sémantique s'applique avant d'écrire une logique d'upsert pour une future table historisée - copier `upsert_funding()` par réflexe serait incorrect ici.
+
+27. **`pycountry.countries.get(numeric=...)` exige un code numérique ISO à 3 chiffres avec zéros de tête - une API tierce ne le fournit pas forcément ainsi.** Bug réel trouvé pendant la vérification bout-en-bout de B1.4 : l'API SDG renvoie `geoAreaCode` sans padding (`"24"` pour l'Angola) alors que `pycountry` stocke ce même code en interne comme `"024"` - la recherche inverse échouait silencieusement et mettait en quarantaine à tort des pays réels (Angola confirmé en direct). Corrigé en évitant complètement cette conversion inverse : `pipeline/collectors/pnue.py` fait transiter le `country_iso` déjà connu de l'appelant (`collect_and_publish`) plutôt que de le re-dériver d'un second lookup numérique fragile. Plus généralement : préférer transmettre une donnée déjà connue plutôt que de la recalculer par un chemin qui peut silencieusement échouer sur un format inattendu.
+
+28. **`docker compose exec <service> php bin/phpunit` peut ignorer le `<server name="APP_ENV" value="test" force="true"/>` de `phpunit.dist.xml`.** Le service `backend` a un vrai `APP_ENV=dev` défini dans `docker-compose.yml`, hérité par PHP dans `$_ENV`. `KernelTestCase::createKernel()` (Symfony) lit `$_ENV` **avant** `$_SERVER`, donc l'environnement réel du conteneur l'emporte silencieusement sur la valeur forcée par PHPUnit - la suite tourne alors en `dev`, où `framework.test: true` (bloc `when@test`) n'est jamais actif, d'où une cascade d'erreurs `"Could not find service test.service_container"`. Contournement : toujours lancer `docker compose exec -e APP_ENV=test backend php bin/phpunit` en local (la CI n'est pas affectée - voir point 9, elle tourne dans une image générique sans cet `APP_ENV` réel positionné). Détail complet, et un second problème pré-existant et indépendant (collisions d'isolation de test) trouvés en même temps :
+    [`docs/known-issues-backend-phpunit.md`](docs/known-issues-backend-phpunit.md).
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -642,3 +653,36 @@ Réutilise `IATI_API_KEY` (déjà configuré depuis B1.2) et l'infrastructure ex
 nouveau service, aucun nouveau topic. Contrairement à B1.2, ce connecteur pagine tout le
 portefeuille (~5600 activités) au lieu d'une seule requête — voir le point d'attention sur la
 limite de débit de l'offre gratuite IATI ci-dessous.
+
+### Connecteur PNUE (B1.4)
+
+Quatrième connecteur du Volet B : collecte annuelle des émissions de CO2 par pays, via l'API SDG
+des Nations Unies (indicateur 9.4.1, série `EN_ATM_CO2`) - **pas** une API PNUE native : une
+recherche approfondie (12+ vérifications réelles) a confirmé qu'aucune API PNUE vivante et
+alimentée avec une granularité par pays n'existe (API historique de 2016 morte, portail SDG
+brandé PNUE vide, WESR sans API publique documentée, rapports phares du PNUE agrégés au niveau
+G20 sans donnée pour la plupart des pays NEV). Les données réelles utilisées sont attribuées à
+l'IEA - voir la spec pour le détail complet de cette recherche et de la décision.
+
+Premier connecteur du Volet B à introduire ses propres topics Kafka dédiés
+(`nev.emissions.raw`/`.valides`/`.rejets`, distincts de `nev.funding.*`) et sa propre table
+(`emission`, distincte de `funding`) - le roadmap demandait explicitement un "topic Kafka dédié"
+pour B1.4, et le domaine de données (impact environnemental) est différent du financement.
+Historisation SCD2 comme `Funding`, mais avec une sémantique **remplacement, pas addition** : un
+second message pour la même clé (source, pays, année) remplace la valeur courante au lieu de s'y
+additionner - une statistique nationale annuelle est une estimation révisée, pas un flux de
+transactions cumulatives.
+
+Décisions de conception complètes :
+[`docs/superpowers/specs/2026-08-29-b14-pnue-connector-design.md`](docs/superpowers/specs/2026-08-29-b14-pnue-connector-design.md).
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_pnue
+```
+
+Aucune clé API requise (API publique). Vérifié en direct : 840 lignes réelles couvrant 35 des 54
+pays NEV ; les 19 pays restants n'ont aucune donnée pour cet indicateur dans la source elle-même
+(`totalElements: 0`, confirmé en direct pour le Burkina Faso par exemple) - une vraie lacune de
+couverture de la source, pas un bug. Périmètre : collecte uniquement -
+`AnalyticsService::getCo2Reduction()` (endpoint `/api/analytics/co2-reduction`) reste
+volontairement non rebranché sur cette nouvelle table dans le cadre de B1.4.
