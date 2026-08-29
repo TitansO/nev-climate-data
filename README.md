@@ -507,6 +507,12 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 17. **Les codes pays de l'API World Bank (`countrycode_exact`) sont en alpha-2, pas alpha-3.** `Country.isoCode` (NEV, depuis A1.3) est en alpha-3 (`SEN`). Passer directement `country.iso_code` à l'API renvoie silencieusement 0 projet pour chaque pays (pas d'erreur, juste un résultat vide) - vérifié en direct : `SEN` → 0 projets, `SN` → 264. Toujours convertir via `pycountry` avant d'appeler l'API (voir `pipeline/dags/collecte_worldbank.py`).
 
+18. **Une requête Solr non guillemetée sur un identifiant contenant des tirets fait un matching flou, pas une correspondance exacte.** `reporting_org_ref:XM-DAC-41317` (sans guillemets) tokenize sur les tirets et retourne ~269 000 documents sans rapport, contre 350 avec `reporting_org_ref:"XM-DAC-41317"` (guillemets = expression exacte). Tout code interrogeant l'API IATI Datastore avec un identifiant contenant des tirets doit guillemeter sa valeur dans le paramètre `q=`.
+
+19. **Un champ "provider_org" d'une API ne garantit pas qu'il identifie le vrai payeur.** Sur l'API IATI Datastore, `transaction_provider_org_ref` vaut toujours l'identifiant du GCF sur *toutes* les transactions de type "Commitment" d'une activité GCF — y compris celles explicitement décrites comme "Co-financing commitment" (argent d'autres bailleurs, que GCF enregistre pour la transparence mais qui n'est pas son propre argent). Le seul signal fiable trouvé est un champ texte libre (`transaction_description_narrative`), pas un champ codé — voir `pipeline/collectors/gcf.py::_gcf_commitment_summary` et la décision 4 de la spec B1.2. Toujours vérifier qu'un champ apparemment codé («provider», «owner», «source») identifie vraiment ce que son nom suggère, sur des données réelles, avant de s'appuyer dessus pour un calcul financier.
+
+20. **Le scheduler Airflow peut rester marqué "vivant" (`airflow jobs check`) tout en n'exécutant plus aucune tâche.** Rencontré pendant la vérification end-to-end de B1.2 : plusieurs runs déclenchés restaient bloqués en `queued` indéfiniment, `airflow jobs check --job-type SchedulerJob` répondait pourtant "Found one alive job" et les logs ne montraient plus aucune activité `scheduler` depuis plusieurs minutes (heartbeat du `triggerer` toujours présent, celui du scheduler silencieux). Un `docker compose restart airflow` seul n'a pas suffi ; il a fallu un `docker compose up -d --force-recreate airflow` pour repartir sur un scheduler sain. Si des runs restent bloqués en `queued` plus d'une minute ou deux malgré un scheduler "vivant", ne pas attendre plus longtemps - recréer le conteneur directement.
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -594,3 +600,20 @@ docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m
 Le test marqué `live` (`pipeline/tests/test_world_bank_collector_live.py`) appelle la vraie
 API Banque Mondiale - à exécuter séparément (`-m live`) plutôt qu'en routine, pour ne pas rendre
 la suite dépendante du réseau.
+
+### Connecteur GCF (B1.2)
+
+Deuxième connecteur du Volet B : collecte mensuelle des financements du Fonds Vert pour le
+Climat, via l'API IATI Datastore (pas l'API/dashboard propre du GCF, injoignable au moment de
+la conception — voir la spec). Décisions de conception complètes :
+[`docs/superpowers/specs/2026-08-28-b12-gcf-connector-design.md`](docs/superpowers/specs/2026-08-28-b12-gcf-connector-design.md).
+
+Nécessite `IATI_API_KEY` dans le `.env` racine (clé gratuite, inscription sur
+`developer.iatistandard.org` → Subscriptions → "Exploratory").
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_gcf
+```
+
+Réutilise l'infrastructure et le topic `nev.funding.raw` déjà provisionnés par B1.1 — aucun
+nouveau service, aucun nouveau topic.
