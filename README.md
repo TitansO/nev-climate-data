@@ -493,6 +493,12 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 20. **Le scheduler Airflow peut rester marqué "vivant" (`airflow jobs check`) tout en n'exécutant plus aucune tâche.** Rencontré pendant la vérification end-to-end de B1.2 : plusieurs runs déclenchés restaient bloqués en `queued` indéfiniment, `airflow jobs check --job-type SchedulerJob` répondait pourtant "Found one alive job" et les logs ne montraient plus aucune activité `scheduler` depuis plusieurs minutes (heartbeat du `triggerer` toujours présent, celui du scheduler silencieux). Un `docker compose restart airflow` seul n'a pas suffi ; il a fallu un `docker compose up -d --force-recreate airflow` pour repartir sur un scheduler sain. Si des runs restent bloqués en `queued` plus d'une minute ou deux malgré un scheduler "vivant", ne pas attendre plus longtemps - recréer le conteneur directement.
 
+21. **Une pagination qui avance d'une taille de page fixe plutôt que du nombre de documents réellement reçus peut s'arrêter trop tôt.** Bug réel trouvé en écrivant le collecteur BAD (`pipeline/collectors/afdb.py`) : si une page renvoie moins de documents que demandé alors qu'il en reste, avancer le curseur de `PAGE_SIZE` au lieu de `len(docs)` fait dépasser le total réel et la boucle s'arrête avant la fin. Peu probable en pratique contre un vrai backend Solr (une page non-finale renvoie normalement exactement `rows` documents), mais la version robuste (avancer du nombre réel reçu) coûte la même chose à écrire et protège contre ce cas.
+
+22. **Une API "gratuite, sans clé" peut quand même avoir une vraie limite de débit stricte (ex. 1 requête/seconde), indépendante du quota journalier.** L'offre "Exploratory" de l'API IATI Datastore (utilisée par B1.2 et B1.3) a ce comportement : enchaîner plusieurs requêtes de pagination sans pause (fonctionnait très bien pour B1.2, une seule requête suffisait) a fait échouer B1.3 de façon répétée et déroutante en `429 Too Many Requests` — y compris juste après un passage à minuit, ce qui a d'abord fait croire à tort à un quota journalier épuisé plutôt qu'à un débit trop rapide. Avant d'implémenter une pagination multi-requêtes contre une API tierce, toujours vérifier explicitement sa politique de débit (pas seulement son quota total) et ajouter une pause entre requêtes en conséquence - voir `PAGINATION_DELAY_SECONDS` dans `pipeline/collectors/afdb.py`.
+
+23. **Deux tests indépendants qui interrogent la même base de données partagée peuvent se marcher dessus si leurs requêtes ne sont pas suffisamment précises.** Un test comparant un nombre de lignes filtré uniquement par pays/année (sans filtrer par source) a compté à tort de vraies données de production accumulées par les runs Airflow réels des connecteurs précédents (B1.1/B1.2), en plus des lignes que le test venait d'insérer lui-même. Sur une base de développement partagée entre tests et pipeline réel (contrairement à la base de test, réinitialisée et isolée), toujours scoper une assertion de comptage aux identifiants exacts (source, montants...) que le test contrôle - jamais une plage large en espérant qu'elle reste vide par ailleurs.
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -587,3 +593,22 @@ docker compose exec airflow airflow dags trigger collecte_gcf
 
 Réutilise l'infrastructure et le topic `nev.funding.raw` déjà provisionnés par B1.1 — aucun
 nouveau service, aucun nouveau topic.
+
+### Connecteur BAD (B1.3)
+
+Troisième connecteur du Volet B : collecte trimestrielle des financements de la Banque
+Africaine de Développement (Groupe BAD), via la même API IATI Datastore que B1.2. Premier
+connecteur à effectuer une vraie conversion de devise (XDR→USD, la BCE ne pouvant
+structurellement pas servir cette devise — voir la spec) et à peupler pour de vrai les colonnes
+`originalAmount`/`originalCurrency`/`exchangeRate` de `Funding`, réservées depuis A1.3.
+Décisions de conception complètes :
+[`docs/superpowers/specs/2026-08-28-b13-afdb-connector-design.md`](docs/superpowers/specs/2026-08-28-b13-afdb-connector-design.md).
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_afdb
+```
+
+Réutilise `IATI_API_KEY` (déjà configuré depuis B1.2) et l'infrastructure existante — aucun
+nouveau service, aucun nouveau topic. Contrairement à B1.2, ce connecteur pagine tout le
+portefeuille (~5600 activités) au lieu d'une seule requête — voir le point d'attention sur la
+limite de débit de l'offre gratuite IATI ci-dessous.
