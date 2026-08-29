@@ -330,7 +330,7 @@ def test_fetch_afdb_activities_paginates_using_start_offset():
     with patch(
         "pipeline.collectors.afdb.requests.get",
         side_effect=[mock_response_one, mock_response_two],
-    ) as mock_get:
+    ) as mock_get, patch("pipeline.collectors.afdb.time.sleep") as mock_sleep:
         results = list(fetch_afdb_activities())
 
     assert [a["iati_identifier"] for a in results] == ["A1", "A2", "A3"]
@@ -340,6 +340,10 @@ def test_fetch_afdb_activities_paginates_using_start_offset():
     # Advances by documents actually received (2), not the requested page
     # size - confirms the loop doesn't stop early when a page is short.
     assert mock_get.call_args_list[1].kwargs["params"]["start"] == 2
+    # Real rate limit on the IATI Datastore's free tier (confirmed live: 6
+    # back-to-back requests reliably hit HTTP 429 partway through every
+    # single run) - must pause between pages, not before the first request.
+    mock_sleep.assert_called_once()
 
 
 def test_fetch_xdr_to_usd_rate_reads_usd_from_response():
@@ -399,6 +403,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import time
 from typing import Any, Iterator
 
 import pycountry
@@ -408,6 +413,13 @@ IATI_DATASTORE_URL = "https://api.iatistandard.org/datastore/activity/select"
 AFDB_REPORTING_ORG_REF = "XM-DAC-46002"
 PAGE_SIZE = 1000
 REQUEST_TIMEOUT_SECONDS = 30
+# The IATI Datastore's free ("Exploratory") subscription tier enforces a
+# real 1 request/second rate limit - confirmed live while running this
+# connector end-to-end: firing all 6 pagination requests back-to-back
+# (no delay) reliably hit HTTP 429 partway through, every single run,
+# regardless of how much of the tier's daily quota remained. B1.2's GCF
+# collector never needed this - its entire portfolio fits in one request.
+PAGINATION_DELAY_SECONDS = 1.1
 
 FIELDS = ",".join([
     "iati_identifier", "recipient_country_code", "sector_code",
@@ -440,6 +452,9 @@ def fetch_afdb_activities() -> Iterator[dict[str, Any]]:
     """
     offset = 0
     while True:
+        if offset > 0:
+            # Real rate limit, not a precaution - see PAGINATION_DELAY_SECONDS.
+            time.sleep(PAGINATION_DELAY_SECONDS)
         response = requests.get(
             IATI_DATASTORE_URL,
             headers={"Ocp-Apim-Subscription-Key": os.environ["IATI_API_KEY"]},
