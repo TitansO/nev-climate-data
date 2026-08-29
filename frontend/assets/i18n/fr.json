@@ -118,7 +118,8 @@
   "reportsPage.date": "Date",
   "reportsPage.view": "Consulter",
   "reportsPage.comingSoon": "Bientôt disponible",
-  "reportsPage.disclaimer": "Contenu présenté à partir des jeux de fixtures de démonstration (A1.6). La logique de publication/téléchargement réelle des rapports (A2.13) n'est pas encore développée.",
+  "reportsPage.disclaimer": "Données réelles issues de <code class=\"font-mono\">GET /api/reports</code> (A2.13). Le jeu de rapports provient actuellement des fixtures de démonstration (A1.6).",
+  "reportsPage.downloads": "Téléchargements",
 
   "sourcesPage.title": "Sources de données",
   "sourcesPage.subtitle": "Les origines des données collectées, structurées et diffusées par la plateforme.",
