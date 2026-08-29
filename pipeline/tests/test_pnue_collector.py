@@ -44,16 +44,36 @@ _ROW_MANUFACTURING_SUBSET = {
 
 
 def test_parse_emission_keeps_the_total_activity_row():
-    payload = parse_emission(_ROW_TOTAL)
+    payload = parse_emission(_ROW_TOTAL, "SEN")
 
     assert payload["source"] == "pnue"
-    assert payload["country_iso"] == "SEN"  # converted from the numeric geoAreaCode
+    assert payload["country_iso"] == "SEN"
     assert payload["year"] == 2000
     assert payload["value_mt"] == 3.52
 
 
 def test_parse_emission_discards_the_manufacturing_subset_row():
-    assert parse_emission(_ROW_MANUFACTURING_SUBSET) is None
+    assert parse_emission(_ROW_MANUFACTURING_SUBSET, "SEN") is None
+
+
+def test_parse_emission_uses_the_caller_provided_country_iso_not_geo_area_code():
+    # Real bug found during B1.4's end-to-end verification:
+    # pycountry.countries.get(numeric=...) requires zero-padding ("024"
+    # for Angola), but the SDG API returns geoAreaCode unpadded ("24") for
+    # any country under numeric code 100 - reverse-deriving country_iso
+    # from geoAreaCode wrongly quarantined real Angola data as
+    # unknown_country. parse_emission must use the caller-provided
+    # country_iso, not row["geoAreaCode"], regardless of its format.
+    row = {
+        "geoAreaCode": "24",  # Angola, unpadded - as the real API returns it
+        "timePeriodStart": 2000.0,
+        "value": "4.63",
+        "dimensions": {"Reporting Type": "G", "Activity": "TOTAL"},
+    }
+
+    payload = parse_emission(row, "AGO")
+
+    assert payload["country_iso"] == "AGO"
 
 
 def test_fetch_emissions_for_country_queries_the_series_for_the_given_area():
