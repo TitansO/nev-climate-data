@@ -25,6 +25,7 @@
   const SUPPORTED = ["fr", "en"];
   const DEFAULT_LANG = "fr";
   const dictionaries = {};
+  let activeDict = null;
 
   function currentLang() {
     const stored = global.localStorage.getItem(STORAGE_KEY);
@@ -45,6 +46,7 @@
   }
 
   function applyTranslations(dict) {
+    activeDict = dict;
     document.querySelectorAll("[data-i18n]").forEach(function (el) {
       el.textContent = translate(dict, el.getAttribute("data-i18n"));
     });
@@ -91,5 +93,29 @@
     init();
   }
 
-  global.NevI18n = { setLang: setLang, currentLang: currentLang };
+  /**
+   * Synchronous lookup against the currently active dictionary, for
+   * scripts that inject markup after the page's initial translation pass
+   * (e.g. auth.js swapping in the logged-in navbar) and need the right
+   * string immediately rather than waiting on data-i18n's next pass.
+   * Falls back to the key itself if called before the dictionary loads.
+   */
+  function t(key) {
+    return activeDict ? translate(activeDict, key) : key;
+  }
+
+  /**
+   * Re-applies the active dictionary to the current DOM - call this after
+   * injecting new data-i18n-tagged markup (e.g. auth.js's navbar swap) so
+   * it picks up the right language immediately, and stays correct if the
+   * user switches language afterwards (data-i18n is a live attribute, not
+   * a one-time substitution).
+   */
+  function refresh() {
+    if (activeDict) {
+      applyTranslations(activeDict);
+    }
+  }
+
+  global.NevI18n = { setLang: setLang, currentLang: currentLang, t: t, refresh: refresh };
 })(window);
