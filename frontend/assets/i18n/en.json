@@ -118,7 +118,8 @@
   "reportsPage.date": "Date",
   "reportsPage.view": "View",
   "reportsPage.comingSoon": "Coming soon",
-  "reportsPage.disclaimer": "Content shown from the demonstration fixtures (A1.6). The real report publishing/download logic (A2.13) has not been built yet.",
+  "reportsPage.disclaimer": "Real data from <code class=\"font-mono\">GET /api/reports</code> (A2.13). The report set currently comes from the demonstration fixtures (A1.6).",
+  "reportsPage.downloads": "Downloads",
 
   "sourcesPage.title": "Data sources",
   "sourcesPage.subtitle": "The origins of the data collected, structured and shared by the platform.",

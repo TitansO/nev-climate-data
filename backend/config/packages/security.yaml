@@ -62,6 +62,10 @@ security:
         # A2.8: every searched entity is already public data (see
         # App\Service\SearchService's docblock).
         - { path: ^/api/search, roles: PUBLIC_ACCESS }
+        # A2.13: reports.html has no login requirement, same reasoning as
+        # /api/funding (A2.1) - only published reports are ever exposed by
+        # the controller itself (see App\Repository\ReportRepository).
+        - { path: ^/api/reports, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
