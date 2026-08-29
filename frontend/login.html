@@ -18,22 +18,25 @@
             <a href="index.html" class="navbar-logo block w-full py-5"><img src="assets/images/logo/logo-white.svg" alt="NEV Climate Data" class="header-logo h-8 w-auto" /></a>
           </div>
           <div class="flex w-full items-center justify-between px-4">
-            <div>
+            <div class="w-full">
               <button id="navbarToggler" aria-label="Ouvrir le menu" class="absolute right-4 top-1/2 block -translate-y-1/2 rounded-lg px-3 py-[6px] ring-primary focus:ring-2 lg:hidden">
                 <span class="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
                 <span class="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
                 <span class="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
               </button>
-              <nav id="navbarCollapse" class="absolute right-4 top-full hidden w-full max-w-[280px] rounded-lg bg-white py-5 shadow-lg lg:static lg:block lg:w-full lg:max-w-full lg:bg-transparent lg:px-4 lg:py-0 lg:shadow-none xl:px-6">
+              <nav id="navbarCollapse" class="absolute right-4 top-full hidden w-full max-w-[280px] rounded-lg bg-white py-5 shadow-lg lg:static lg:flex lg:w-full lg:max-w-full lg:items-center lg:justify-between lg:bg-transparent lg:px-4 lg:py-0 lg:shadow-none xl:px-6">
                 <ul class="block lg:flex lg:items-center">
-                  <li><a href="index.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Accueil</a></li>
-                  <li><a href="data.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Données</a></li>
-                  <li><a href="visualizations.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Visualisations</a></li>
-                  <li><a href="reports.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Rapports</a></li>
-                  <li><a href="sources.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Sources</a></li>
-                  <li><a href="about.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">À propos</a></li>
-                  <li><a href="api-docs.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6">Documentation API</a></li>
+                  <li><a href="index.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.home">Accueil</a></li>
+                  <li><a href="data.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.data">Données</a></li>
+                  <li><a href="visualizations.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.visualizations">Visualisations</a></li>
+                  <li><a href="reports.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.reports">Rapports</a></li>
+                  <li><a href="sources.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.sources">Sources</a></li>
+                  <li><a href="about.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.about">À propos</a></li>
+                  <li><a href="api-docs.html" class="mx-6 flex py-2 text-sm font-medium text-white/90 hover:text-white lg:mx-4 lg:inline-flex lg:py-6" data-i18n="nav.apiDocs">Documentation API</a></li>
                 </ul>
+                <div class="mt-4 lg:mt-0">
+                  <button type="button" id="lang-switch-btn" class="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white" aria-label="Changer de langue">EN</button>
+                </div>
               </nav>
             </div>
           </div>
@@ -47,30 +50,30 @@
         <div class="mx-auto w-full max-w-[440px] rounded-2xl bg-white p-8 shadow-2 sm:p-10">
           <div class="mb-8 text-center">
             <img src="assets/images/logo/logo.svg" alt="NEV Climate Data" class="mx-auto mb-6 h-8 w-auto" />
-            <h1 class="mb-2 text-xl font-bold text-dark">Connexion</h1>
-            <p class="text-sm text-body-color">Accédez à votre espace NEV Climate Data.</p>
+            <h1 class="mb-2 text-xl font-bold text-dark" data-i18n="nav.login">Connexion</h1>
+            <p class="text-sm text-body-color" data-i18n="loginPage.subtitle">Accédez à votre espace NEV Climate Data.</p>
           </div>
 
           <div id="login-error" class="mb-5 hidden rounded-md border border-status-demo/30 bg-status-demo-bg/40 px-4 py-3 text-sm text-status-demo"></div>
 
           <form id="login-form" novalidate>
             <div class="mb-5">
-              <label for="email" class="mb-1.5 block text-sm font-medium text-dark-3">Adresse e-mail</label>
+              <label for="email" class="mb-1.5 block text-sm font-medium text-dark-3" data-i18n="profilePage.email">Adresse e-mail</label>
               <input id="email" type="email" required autocomplete="email" placeholder="vous@organisation.org" class="w-full rounded-md border border-stroke bg-white px-4 py-3 text-sm text-dark shadow-input placeholder:text-dark-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div class="mb-2">
-              <label for="password" class="mb-1.5 block text-sm font-medium text-dark-3">Mot de passe</label>
+              <label for="password" class="mb-1.5 block text-sm font-medium text-dark-3" data-i18n="loginPage.password">Mot de passe</label>
               <input id="password" type="password" required autocomplete="current-password" placeholder="••••••••" class="w-full rounded-md border border-stroke bg-white px-4 py-3 text-sm text-dark shadow-input placeholder:text-dark-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div class="mb-6 text-right">
-              <a href="#" class="text-xs font-medium text-dark-5 hover:text-primary">Mot de passe oublié ?</a>
+              <a href="#" class="text-xs font-medium text-dark-5 hover:text-primary" data-i18n="loginPage.forgotPassword">Mot de passe oublié ?</a>
             </div>
             <button id="login-submit" type="submit" class="w-full rounded-md bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary-dark">
-              Se connecter
+              <span data-i18n="loginPage.submit">Se connecter</span>
             </button>
           </form>
 
-          <p class="mt-6 text-center text-xs text-dark-5">
+          <p class="mt-6 text-center text-xs text-dark-5" data-i18n-html="loginPage.disclaimer">
             Authentification JWT réelle (<code class="font-mono">POST /api/auth/login</code>).
           </p>
         </div>
@@ -83,38 +86,39 @@
         <div class="grid grid-cols-1 gap-10 pb-12 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <a href="index.html" class="mb-4 inline-block"><img src="assets/images/logo/logo-white.svg" alt="NEV Climate Data" class="h-8 w-auto" /></a>
-            <p class="max-w-[260px] text-sm leading-relaxed">Plateforme de collecte, structuration et diffusion des données climatiques et de financement.</p>
+            <p class="max-w-[260px] text-sm leading-relaxed" data-i18n="footer.tagline">Plateforme de collecte, structuration et diffusion des données climatiques et de financement.</p>
           </div>
           <div>
-            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Navigation</h4>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white" data-i18n="footer.navHeading">Navigation</h4>
             <ul class="space-y-3 text-sm">
-              <li><a href="data.html" class="hover:text-white">Données</a></li>
-              <li><a href="visualizations.html" class="hover:text-white">Visualisations</a></li>
-              <li><a href="reports.html" class="hover:text-white">Rapports</a></li>
-              <li><a href="sources.html" class="hover:text-white">Sources</a></li>
+              <li><a href="data.html" class="hover:text-white" data-i18n="nav.data">Données</a></li>
+              <li><a href="visualizations.html" class="hover:text-white" data-i18n="nav.visualizations">Visualisations</a></li>
+              <li><a href="reports.html" class="hover:text-white" data-i18n="nav.reports">Rapports</a></li>
+              <li><a href="sources.html" class="hover:text-white" data-i18n="nav.sources">Sources</a></li>
             </ul>
           </div>
           <div>
-            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Documentation</h4>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white" data-i18n="footer.docHeading">Documentation</h4>
             <ul class="space-y-3 text-sm">
-              <li><a href="api-docs.html" class="hover:text-white">Documentation API</a></li>
-              <li><a href="about.html" class="hover:text-white">À propos</a></li>
-              <li><a href="login.html" class="hover:text-white">Connexion</a></li>
+              <li><a href="api-docs.html" class="hover:text-white" data-i18n="nav.apiDocs">Documentation API</a></li>
+              <li><a href="about.html" class="hover:text-white" data-i18n="nav.about">À propos</a></li>
+              <li><a href="login.html" class="hover:text-white" data-i18n="nav.login">Connexion</a></li>
             </ul>
           </div>
           <div>
-            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white">Contact</h4>
+            <h4 class="mb-5 text-sm font-semibold uppercase tracking-wide text-white" data-i18n="footer.contactHeading">Contact</h4>
             <ul class="space-y-3 text-sm">
               <li>contact@nev-climate-data.org</li>
-              <li>Dakar, Sénégal</li>
+              <li data-i18n="footer.location">Dakar, Sénégal</li>
             </ul>
           </div>
         </div>
-        <div class="border-t border-white/10 py-6 text-center text-xs">&copy; 2026 NEV Climate Data. Tous droits réservés.</div>
+        <div class="border-t border-white/10 py-6 text-center text-xs" data-i18n="footer.copyright">&copy; 2026 NEV Climate Data. Tous droits réservés.</div>
       </div>
     </footer>
     <!-- ====== /Footer ====== -->
 
+    <script src="assets/js/i18n.js"></script>
     <script src="assets/js/main.js"></script>
     <script src="assets/js/auth.js"></script>
     <script>
