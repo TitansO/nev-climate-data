@@ -224,6 +224,26 @@ services:
     networks:
       - nev-network
 
+  # Permanent Kafka consumer: nev.emissions.raw -> validate/upsert -> TimescaleDB, publishing
+  # to nev.emissions.valides/nev.emissions.rejets (B1.4). Separate service from
+  # funding-validator - a different Kafka topic set and a different consumer group, so each
+  # can be restarted/scaled independently.
+  emission-validator:
+    build:
+      context: .
+      dockerfile: pipeline/Dockerfile
+    container_name: nev-climate-data-emission-validator
+    restart: unless-stopped
+    environment:
+      PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    command: python -m pipeline.processors.emission_validator
+    depends_on:
+      - database
+      - kafka
+    networks:
+      - nev-network
+
 networks:
   nev-network:
     driver: bridge
