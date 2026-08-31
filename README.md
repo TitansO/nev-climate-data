@@ -780,3 +780,27 @@ publiés ; `collecte_gcf` : 999 ; `collecte_afdb` : 3615 ; `collecte_pnue` : 840
 `extraction_pdf` : cache hit sur le document déjà traité depuis la vérification B1.5, `0` message
 publié comme attendu - le court-circuit de cache fonctionne bout-en-bout, pas seulement dans les
 tests mockés.
+
+### Processor de validation et normalisation (B1.6)
+
+B1.6 demande un "processor de validation et normalisation (devise pivot, upsert, valeurs
+manquantes)" appliquant les règles de gouvernance de la section 6.4 du cahier des charges.
+Vérification du code réel avant tout nouveau développement : l'essentiel de ce livrable
+existe déjà, construit progressivement avec B1.1-B1.5 plutôt que comme tâche isolée -
+`funding-validator`/`emission-validator` sont deux services Kafka permanents qui écrivent
+directement dans TimescaleDB depuis B1.1, avec déduplication, upsert et historisation SCD2
+réels (voir `upsert_funding()`/`upsert_emission()`). La conversion en devise pivot est
+satisfaite en résultat (tout est en USD) mais par un mécanisme différent de celui prévu à
+l'origine (taux BCE centralisés dans le processor) : aucun connecteur n'a eu besoin de cette
+conversion centralisée en pratique - AfDB, seul cas réel de devise étrangère (XDR), convertit
+dans son propre collecteur via `open.er-api.com`, la BCE ne cotant pas le XDR (déviation déjà
+documentée en B1.3). "Absence ≠ zéro" est garanti au niveau des collecteurs, qui ne publient
+jamais de message pour une donnée manquante. Décisions complètes et preuves détaillées :
+[`docs/superpowers/specs/2026-08-31-b16-validation-processor-closure-design.md`](docs/superpowers/specs/2026-08-31-b16-validation-processor-closure-design.md).
+
+Un vrai manque de robustesse a été trouvé et corrigé : `run()` n'entourait l'appel à
+`process_message()` d'aucun `try`/`except` dans les deux processors - un message malformé
+aurait fait planter tout le service permanent au lieu d'être mis en quarantaine comme tout
+autre rejet. Corrigé : une exception inattendue publie désormais le message sur le topic
+`.rejets` correspondant avec `rejection_reason: "processing_error:<NomException>"`, et le
+service continue de consommer les messages suivants.
