@@ -16,11 +16,24 @@
 
   /**
    * Derives the backend origin from where this page itself is being served,
-   * so the same static files work unmodified whether opened through the
-   * local SSH tunnel (http://localhost:8123) or through a Codespace's
-   * forwarded HTTPS URL (https://<name>-8123.app.github.dev) - the two
-   * environments this project is actually viewed from. A hardcoded
-   * "http://localhost:8080" only ever worked for the first case.
+   * so the same static files work unmodified across every environment this
+   * project is actually viewed from: the local SSH tunnel
+   * (http://localhost:8123), a Codespace's forwarded HTTPS URL
+   * (https://<name>-8123.app.github.dev), and production (Netlify).
+   *
+   * Production returns "" (relative URLs, e.g. fetch("/api/funding")) - a
+   * same-origin request the host's own routing proxies to the real backend
+   * server-side (see frontend/_redirects: "/api/* -> the Render backend"
+   * origin), rather than a hardcoded absolute backend URL. Two reasons:
+   * this file is the one place meant to need editing per environment, and
+   * a hardcoded URL here couldn't survive the backend host ever changing;
+   * and a same-origin request never needs CORS at all, so it can't be
+   * broken by a CORS_ALLOWED_ORIGIN_REGEX misconfiguration on the backend
+   * (a real outage caught after this fell back to "http://localhost:8080"
+   * for the Netlify origin instead - a request the browser rejects
+   * outright as mixed content on an HTTPS page, surfacing as an opaque
+   * "impossible de contacter le serveur" network error with no clue in
+   * the browser console pointing at the real cause).
    */
   function resolveApiBaseUrl() {
     const host = global.location.hostname;
@@ -31,7 +44,7 @@
     if (codespaceMatch) {
       return "https://" + codespaceMatch[1] + "-8080.app.github.dev";
     }
-    return "http://localhost:8080";
+    return "";
   }
 
   /**
@@ -46,7 +59,10 @@
    *   response or network failure.
    */
   async function fetchFunding(params) {
-    const url = new URL(API_BASE_URL + "/api/funding");
+    // The base argument makes this work whether API_BASE_URL is absolute
+    // (dev/Codespace) or "" (production, relative - see resolveApiBaseUrl
+    // above): new URL() alone throws on a relative-only input.
+    const url = new URL(API_BASE_URL + "/api/funding", global.location.origin);
     Object.entries(params || {}).forEach(function ([key, value]) {
       if (value !== null && value !== undefined && value !== "") {
         url.searchParams.set(key, value);

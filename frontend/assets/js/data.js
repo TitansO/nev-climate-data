@@ -332,7 +332,7 @@
   }
 
   function exportUrl(path) {
-    const url = new URL(NevApi.API_BASE_URL + path);
+    const url = new URL(NevApi.API_BASE_URL + path, window.location.origin);
     const filters = currentFilters();
     Object.entries(filters).forEach(function ([key, value]) {
       if (value) {
