@@ -15,8 +15,10 @@ import time
 import httpx
 from google import genai
 from google.genai import errors, types
-from minio import Minio
 from pypdf import PdfReader, PdfWriter
+
+from pipeline.common.minio_staging import MINIO_BUCKET, make_minio_client
+from pipeline.common.minio_staging import upload_bytes as upload_to_minio
 
 # Pinned - see B1.5 spec decision 1: "gemini-flash-latest" hit repeated real
 # HTTP 503s on the real target document, "gemini-2.5-flash" is fully retired
@@ -34,8 +36,6 @@ GEMINI_MAX_RETRIES = 5
 # Real transient overload delay observed live during this connector's design
 # work - not a documented rate limit, an empirically-sized backoff.
 GEMINI_RETRY_DELAY_SECONDS = 20
-
-MINIO_BUCKET = "nev-climate-data"
 
 
 def sha256_hash(data: bytes) -> str:
@@ -95,21 +95,6 @@ def extract_json_via_gemini(pdf_bytes: bytes, prompt: str) -> str:
     raise RuntimeError(
         f"Gemini extraction failed after {GEMINI_MAX_RETRIES} attempts"
     ) from last_error
-
-
-def make_minio_client() -> Minio:
-    return Minio(
-        os.environ.get("MINIO_ENDPOINT", "minio:9000"),
-        access_key=os.environ["MINIO_ROOT_USER"],
-        secret_key=os.environ["MINIO_ROOT_PASSWORD"],
-        secure=False,
-    )
-
-
-def upload_to_minio(client: Minio, object_path: str, data: bytes) -> None:
-    if not client.bucket_exists(MINIO_BUCKET):
-        client.make_bucket(MINIO_BUCKET)
-    client.put_object(MINIO_BUCKET, object_path, io.BytesIO(data), length=len(data))
 
 
 def is_already_processed(cursor, document_hash: str) -> bool:
