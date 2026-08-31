@@ -83,6 +83,7 @@ class FundingRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('funding')
             ->select('funding.year AS year', 'funding.fundingType AS fundingType', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
             ->groupBy('funding.year')
             ->addGroupBy('funding.fundingType')
             ->orderBy('funding.year', 'ASC')
@@ -105,6 +106,7 @@ class FundingRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('funding')
             ->select('sector.id AS sectorId', 'sector.name AS sectorName', 'SUM(funding.amount) AS total')
             ->join('funding.sector', 'sector')
+            ->where('funding.isCurrent = true')
             ->groupBy('sector.id')
             ->addGroupBy('sector.name')
             ->orderBy('total', 'DESC')
@@ -125,7 +127,8 @@ class FundingRepository extends ServiceEntityRepository
     private function criteriaQueryBuilder(FundingSearchCriteria $criteria): QueryBuilder
     {
         $qb = $this->createQueryBuilder('funding')
-            ->join('funding.country', 'country');
+            ->join('funding.country', 'country')
+            ->andWhere('funding.isCurrent = true');
 
         if (null !== $criteria->countryIsoCode) {
             $qb->andWhere('country.isoCode = :countryIsoCode')
@@ -170,6 +173,7 @@ class FundingRepository extends ServiceEntityRepository
     {
         return (int) $this->createQueryBuilder('funding')
             ->select('COUNT(DISTINCT funding.country)')
+            ->where('funding.isCurrent = true')
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -183,6 +187,7 @@ class FundingRepository extends ServiceEntityRepository
     {
         return (int) $this->createQueryBuilder('funding')
             ->select('COUNT(DISTINCT funding.source)')
+            ->where('funding.isCurrent = true')
             ->getQuery()
             ->getSingleScalarResult();
     }
