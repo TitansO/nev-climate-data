@@ -117,7 +117,7 @@ final class AnalyticsService
             return [
                 'countriesCovered' => $this->fundingRepository->countDistinctCountries(),
                 'sectorsTracked' => $this->sectorRepository->count([]),
-                'fundingRecords' => $this->fundingRepository->count([]),
+                'fundingRecords' => $this->fundingRepository->count(['isCurrent' => true]),
                 'activeSources' => $this->fundingRepository->countDistinctSources(),
             ];
         });
