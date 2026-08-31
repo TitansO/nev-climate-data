@@ -33,6 +33,7 @@ final class SourceFixtures extends Fixture
         ['Green Climate Fund — IATI Datastore', 'gcf-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['African Development Bank Group — IATI Datastore', 'afdb-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['UN SDG Global Database — Indicator 9.4.1 (IEA)', 'un-sdg-en-atm-co2', SourceType::OfficialApi, SourceReliability::High],
+        ['OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)', 'opec-fund-climate-finance-pdf', SourceType::PdfReport, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data — Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];
