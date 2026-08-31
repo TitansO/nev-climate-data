@@ -544,6 +544,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 33. **Un champ requis par une règle de classification en aval doit être transporté explicitement dans le message publié, pas recalculé plus tard.** Bug réel trouvé pendant l'auto-relecture du plan B1.5 (avant toute exécution) : une première ébauche appelait `map_opec_sector(sector_label, "")` dans `funding_validator.py`, avec une chaîne vide à la place du vrai nom du projet - ce qui aurait rendu la règle mot-clé "Energy + Wind/Solar/Hydro" totalement inopérante en production (tout projet hydroélectrique/éolien/solaire réel aurait été mis en quarantaine au lieu d'être classé en Renewable Energy). Corrigé en ajoutant un champ `project_name` au message publié, avec un test qui vérifie ce chemin de bout en bout (pas seulement la fonction de mapping appelée isolément) - confirmé en direct après correction : 3 lignes réelles, 110 M$, correctement classées en Renewable Energy.
 34. **Un fichier de test qui importe un module de DAG hérite de toutes ses dépendances au niveau module - y compris `airflow` lui-même, qui n'est installé que dans l'image `airflow`, pas dans `funding-validator`.** Découverte réelle pendant le refactoring multi-tâches des DAGs (2026-08-31) : les premiers `pipeline/tests/test_dag_*_tasks.py` écrits pour tester les nouvelles fonctions `_extraire`/`_transformer`/`_publier` de chaque DAG ont échoué en collection avec `ModuleNotFoundError: No module named 'airflow'` dans `funding-validator` - cette image n'a jamais eu besoin d'Airflow pour son propre rôle de consommateur Kafka. Il a fallu router ces tests vers le conteneur `airflow` à la place, qui lui-même n'avait pas `pytest` installé (jamais eu besoin de faire tourner de tests avant que les DAGs n'aient leur propre logique testable). Résolu en ajoutant `pytest==8.3.3` à `_PIP_ADDITIONAL_REQUIREMENTS` du service `airflow`. Un projet à plusieurs images Docker n'a pas une seule "suite de tests" mais potentiellement plusieurs, une par image ayant les dépendances du code qu'elle teste.
+35. **Un connecteur qui republie l'intégralité de son portefeuille à chaque exécution rend un validateur qui "additionne chaque message reçu" dangereux, pas seulement redondant.** Bug réel de production trouvé le 2026-08-31 en creusant B1.7 : chaque DAG de collecte (World Bank, GCF, AfDB) re-télécharge et republie tout son portefeuille courant à chaque run - pas seulement les nouveautés. `upsert_funding()` additionnait pourtant aveuglément chaque message reçu au total courant, sans jamais vérifier si le `project_id` avait déjà contribué lors d'un run précédent. Résultat vérifié en base réelle : Sénégal/Agriculture/1989 (Banque Mondiale) a été additionné 8 fois de suite avec exactement le même incrément (16,1M → 128,8M), et jusqu'à 92% des lignes `Funding` réelles de ces 3 sources étaient des versions historisées par ce bug, pas de vraies révisions. PNUE (sémantique remplacement, pas addition) et OPEC Fund PDF (protégé par son cache SHA-256 de document) n'étaient pas affectés. Corrigé par une vraie idempotence par projet (`funding_project_contribution`, décisions complètes : [`docs/superpowers/specs/2026-08-31-funding-project-idempotency-design.md`](docs/superpowers/specs/2026-08-31-funding-project-idempotency-design.md)) plutôt qu'un correctif superficiel - les données corrompues des 3 sources ont été supprimées et reconstruites à partir d'un run propre chacune : Sénégal/Agriculture/1989 affiche maintenant exactement 16 100 000 (au lieu de 128 800 000), et une vérification croisée confirme que la somme totale des lignes `Funding` courantes correspond exactement à la somme des contributions individuelles suivies par projet (268 138 642 869,00 des deux côtés pour la Banque Mondiale). Avant de faire sommer un validateur, toujours vérifier ce que fait réellement le collecteur en amont à chaque exécution - "récupère les nouveautés" et "récupère tout l'état courant" ont des implications d'idempotence radicalement différentes en aval.
 
 ## État d'avancement
 
@@ -804,3 +805,24 @@ aurait fait planter tout le service permanent au lieu d'être mis en quarantaine
 autre rejet. Corrigé : une exception inattendue publie désormais le message sur le topic
 `.rejets` correspondant avec `rejection_reason: "processing_error:<NomException>"`, et le
 service continue de consommer les messages suivants.
+
+### Correction du double comptage Funding (2026-08-31)
+
+Un vrai bug de production a été trouvé en creusant B1.7 (gestion des conflits entre sources) :
+chaque DAG de collecte re-publie l'intégralité de son portefeuille à chaque exécution, et
+`funding_validator.py` additionnait aveuglément chaque message reçu sans vérifier si le projet
+avait déjà contribué lors d'un run précédent - gonflant indéfiniment les totaux réels à chaque
+nouveau déclenchement (Sénégal/Agriculture/1989 : 16,1M → 128,8M après 8 déclenchements).
+Décisions complètes et preuves détaillées :
+[`docs/superpowers/specs/2026-08-31-funding-project-idempotency-design.md`](docs/superpowers/specs/2026-08-31-funding-project-idempotency-design.md).
+
+Corrigé par une nouvelle table `funding_project_contribution` qui suit la dernière contribution
+connue de chaque projet et applique un vrai delta (zéro si republié à l'identique, la différence
+réelle si le montant a changé) au lieu de sommer aveuglément. Les données déjà corrompues des 3
+sources concernées (Banque Mondiale, GCF, BAD - 37 073 lignes) ont été supprimées et reconstruites
+à partir d'un seul run propre par connecteur - OPEC Fund PDF (protégé par son cache) et PNUE
+(sémantique remplacement, jamais affecté) n'ont pas eu besoin de correction. Vérifié en direct
+après reconstruction : Sénégal/Agriculture/1989 affiche exactement 16 100 000 (la valeur d'un seul
+portefeuille), et la somme totale des lignes `Funding` courantes de la Banque Mondiale correspond
+exactement à la somme des contributions individuelles suivies par projet
+(268 138 642 869,00 des deux côtés).
