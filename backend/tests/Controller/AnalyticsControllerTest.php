@@ -347,4 +347,37 @@ final class AnalyticsControllerTest extends WebTestCase
 
         self::assertEquals(700.0, $secondResponse[0]['amount'], 'must still be the cached pre-change value, not a recomputed one');
     }
+
+    public function testHistorizedRowsAreExcludedFromEveryAggregate(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        // A superseded (historized) row sharing the exact same dedup key as
+        // an existing current row from seedDataset() (Senegal/Renewable
+        // Energy/2024/public/"Test Source") - a real revision scenario, not
+        // a hypothetical one (see the 2026-08-31 idempotency fix spec). Its
+        // large amount would visibly change every aggregate below if it
+        // weren't excluded.
+        $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
+        $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
+        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
+        $historized = new Funding($senegal, $renewableEnergy, 2024, '999999.00', FundingType::Public, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Demo);
+        $historized->setIsCurrent(false);
+        $this->entityManager->persist($historized);
+        $this->entityManager->flush();
+        static::getContainer()->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/financing-trends');
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertEquals(300.0, $data[0]['public']); // unchanged, not 999999 + 300
+
+        $client->request('GET', '/api/analytics/sector-distribution');
+        $sectorData = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertEquals(700.0, $sectorData[0]['amount']); // unchanged, not 999999 + 700
+
+        $client->request('GET', '/api/analytics/hero-stats');
+        $heroData = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame(3, $heroData['fundingRecords']); // unchanged, not 4
+    }
 }
