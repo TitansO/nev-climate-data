@@ -109,6 +109,29 @@ layer(base);
   @apply text-white bg-primary hover:bg-primary-dark;
 }
 
+/* #navbarCollapse's mobile dropdown panel (data-i18n... see data.html) is
+ * always solid white (bg-white, on its own <nav> element), regardless of
+ * whether .sticky is active on the header - but its content (nav links,
+ * search/notifications/login, A2.11/A2.12) was only ever styled dark
+ * *when* .sticky was also present (the rules above), so on a fresh page
+ * load - not yet scrolled - every one of those was white-on-white:
+ * present, clickable, and completely invisible. A real bug only surfaced
+ * once A2.12 fixed a *different* one (the dropdown failing to paint at
+ * all below "lg", which is what hid this one in turn).
+ * lg and up this is moot: #navbarCollapse stops being a dropdown
+ * (lg:static) and sits inline in the actually-transparent/sticky header
+ * instead, where the original white styling is correct - so this is
+ * capped to below Tailwind's lg breakpoint (1024px).
+ */
+@media (max-width: 1023.98px) {
+  #navbarCollapse li > a,
+  #navbarCollapse .loginBtn,
+  #navbarCollapse #notif-bell-btn,
+  #navbarCollapse #lang-switch-btn {
+    @apply text-dark-3 hover:text-primary;
+  }
+}
+
 /* Mobile hamburger -> close icon animation */
 .navbarTogglerActive > span:nth-child(1) {
   @apply top-[7px] rotate-45 transform;
