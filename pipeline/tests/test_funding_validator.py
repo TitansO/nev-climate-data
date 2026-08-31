@@ -294,3 +294,103 @@ def test_all_three_sources_stay_separate_for_the_same_dedup_key(db_cursor):
         """,
     )
     assert db_cursor.fetchone()[0] == 3
+
+
+def _opec_sample_message(amount_usd: int, climate_dimension: str = "adaptation",
+                          sector_label_raw: str = "Agriculture and Livelihoods",
+                          project_name: str = "Test Project") -> dict:
+    return {
+        "source": "opec_fund_pdf",
+        "project_id": "opec-fund-climate-finance-2024:2026:Senegal:Test Project",
+        "country_iso": "SEN",
+        "year": 2026,
+        "amount_usd": amount_usd,
+        "funding_type": "multilateral",
+        "sector_label_raw": sector_label_raw,
+        "project_name": project_name,
+        "climate_dimension": climate_dimension,
+        "document_hash": "abc123",
+        "collected_at": "2026-08-29T00:00:00Z",
+    }
+
+
+def test_opec_adaptation_message_always_maps_to_the_adaptation_sector(db_cursor):
+    # Even though the raw sector label is "Agriculture and Livelihoods"
+    # (which would map to Agriculture on its own), the adaptation-dimension
+    # message must land under NEV's Adaptation sector - spec decision 7.
+    message = _opec_sample_message(1_000_000, climate_dimension="adaptation")
+
+    accepted, reason = process_message(db_cursor, message)
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Adaptation'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "multilateral")
+    assert row == (Decimal("1000000.00"), True)
+
+
+def test_opec_mitigation_message_uses_the_sector_mapping_table(db_cursor):
+    message = _opec_sample_message(
+        2_000_000, climate_dimension="mitigation", sector_label_raw="Transport"
+    )
+
+    accepted, reason = process_message(db_cursor, message)
+
+    assert accepted is True
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Sustainable Transport'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "multilateral")
+    assert row == (Decimal("2000000.00"), True)
+
+
+def test_opec_mitigation_message_energy_label_uses_the_project_name_keyword(db_cursor):
+    # Proves the project_name field actually reaches map_opec_sector through
+    # the real message -> process_message -> dispatch path, not just the
+    # isolated direct-call unit tests in test_sector_mapping_opec.py. A
+    # real bug caught during this plan's own self-review: an earlier draft
+    # hardcoded an empty string here, which would have silently quarantined
+    # every real hydropower/wind/solar OPEC Fund project instead of
+    # classifying it as Renewable Energy.
+    message = _opec_sample_message(
+        3_000_000, climate_dimension="mitigation", sector_label_raw="Energy",
+        project_name="Nachtigal Hydropower Company (NHPC)",
+    )
+
+    accepted, reason = process_message(db_cursor, message)
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "multilateral")
+    assert row == (Decimal("3000000.00"), True)
+
+
+def test_opec_mitigation_message_with_an_unmappable_sector_is_quarantined(db_cursor):
+    message = _opec_sample_message(
+        1_000_000, climate_dimension="mitigation", sector_label_raw="Financial Intermediation"
+    )
+
+    accepted, reason = process_message(db_cursor, message)
+
+    assert accepted is False
+    assert reason == "unclassifiable_sector"
