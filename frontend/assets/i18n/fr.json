@@ -87,6 +87,7 @@
   "dataPage.type": "Type",
   "dataPage.amount": "Montant",
   "dataPage.currency": "Devise",
+  "dataPage.localAmount": "Montant (devise locale)",
   "dataPage.source": "Source",
   "dataPage.status": "Statut",
   "dataPage.previous": "Précédent",

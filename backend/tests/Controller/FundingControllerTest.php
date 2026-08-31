@@ -57,7 +57,7 @@ final class FundingControllerTest extends WebTestCase
         $this->entityManager = $container->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
 
-        $senegal = new Country('Senegal', 'SEN', "Afrique de l'Ouest");
+        $senegal = new Country('Senegal', 'SEN', "Afrique de l'Ouest", 'XOF');
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
         $renewableEnergy = new Sector('Renewable Energy');
         $agriculture = new Sector('Agriculture');
@@ -82,7 +82,7 @@ final class FundingControllerTest extends WebTestCase
             $name = 9 === $i ? 'Test Source' : "Test Source A{$i}";
             $source = new Source($name, SourceType::InternalDemo, SourceReliability::Medium);
             $this->entityManager->persist($source);
-            $this->entityManager->persist(new Funding(
+            $funding = new Funding(
                 $senegal,
                 $renewableEnergy,
                 2025,
@@ -91,7 +91,14 @@ final class FundingControllerTest extends WebTestCase
                 $source,
                 new \DateTimeImmutable('2025-03-15'),
                 ValidationStatus::Demo,
-            ));
+            );
+            // Only on the exact row testResponseShapeMatchesContractAndHidesInternalFields
+            // asserts on (the "Test Source" one, i === 9) - every other row in this suite
+            // is checked by count/filter only, never by originalAmount/originalCurrency value.
+            if (9 === $i) {
+                $funding->setOriginalAmount('600000000.00')->setOriginalCurrency('XOF');
+            }
+            $this->entityManager->persist($funding);
         }
 
         for ($i = 0; $i < 5; ++$i) {
@@ -374,23 +381,31 @@ final class FundingControllerTest extends WebTestCase
         $item = $data['data'][0];
 
         self::assertSame(
-            ['id', 'country', 'sector', 'year', 'amount', 'fundingType', 'source', 'collectionDate', 'validationStatus'],
+            ['id', 'country', 'sector', 'year', 'amount', 'originalAmount', 'originalCurrency', 'fundingType', 'source', 'collectionDate', 'validationStatus'],
             array_keys($item),
         );
-        self::assertSame(['name', 'isoCode'], array_keys($item['country']));
+        self::assertSame(['name', 'isoCode', 'currency'], array_keys($item['country']));
         self::assertSame('Senegal', $item['country']['name']);
         self::assertSame('SEN', $item['country']['isoCode']);
+        self::assertSame('XOF', $item['country']['currency']);
         self::assertSame(['id', 'name'], array_keys($item['sector']));
         self::assertSame('Renewable Energy', $item['sector']['name']);
         self::assertSame(['id', 'name'], array_keys($item['source']));
         self::assertSame('Test Source', $item['source']['name']);
         self::assertSame('1000000.00', $item['amount']);
+        // Same amount, in Senegal's own currency (A2.x's "Montant (devise
+        // locale)" data.html column) - see the seedDataset() row this
+        // request resolves to (i === 9, the only one with these set).
+        self::assertSame('600000000.00', $item['originalAmount']);
+        self::assertSame('XOF', $item['originalCurrency']);
         self::assertSame('public', $item['fundingType']);
         self::assertSame('2025-03-15', $item['collectionDate']);
         self::assertSame('demo', $item['validationStatus']);
 
-        // Internal/Volet-B-reserved fields must never be exposed here.
-        foreach (['originalAmount', 'originalCurrency', 'exchangeRate', 'validFrom', 'validTo', 'isCurrent', 'createdAt', 'updatedAt'] as $internalField) {
+        // exchangeRate is raw pivot-conversion metadata, not meant for display -
+        // stays internal even though originalAmount/originalCurrency (above) are
+        // now exposed for it. Timestamps/historization fields likewise never leak.
+        foreach (['exchangeRate', 'validFrom', 'validTo', 'isCurrent', 'createdAt', 'updatedAt'] as $internalField) {
             self::assertArrayNotHasKey($internalField, $item);
         }
 

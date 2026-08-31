@@ -10,6 +10,7 @@ use App\Entity\Enum\ValidationStatus;
 use App\Entity\Funding;
 use App\Entity\Sector;
 use App\Entity\Source;
+use App\Reference\AfricanCurrencies;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
@@ -88,15 +89,25 @@ final class FundingFixtures extends Fixture implements DependentFixtureInterface
                         ValidationStatus::Demo,
                     );
 
-                    // Illustrative currency-conversion metadata (Volet B's
-                    // pivot-currency fields) on Multilateral records only —
-                    // GCF ("gcf-pdf-report" source) commonly reports in EUR.
-                    if (FundingType::Multilateral === $fundingType) {
-                        $exchangeRate = '1.080000'; // illustrative fixed USD-per-EUR rate
-                        $originalAmount = number_format((float) $amount / 1.08, 2, '.', '');
+                    // Currency-conversion metadata (Volet B's pivot-currency
+                    // fields): $amount above is always the pivot (USD)
+                    // figure; these three fields record what that same
+                    // amount is in the funded country's own national
+                    // currency (data.html's "Montant (devise locale)"
+                    // column, A2.x) - see App\Reference\AfricanCurrencies
+                    // for the country->currency map and the illustrative
+                    // exchange rates used here.
+                    $currency = AfricanCurrencies::currencyForCountry($isoCode);
+                    $localUnitsPerUsd = null === $currency ? null : AfricanCurrencies::localUnitsPerUsd($currency);
+                    if (null !== $currency && null !== $localUnitsPerUsd) {
+                        $originalAmount = number_format((float) $amount * $localUnitsPerUsd, 2, '.', '');
                         $funding->setOriginalAmount($originalAmount);
-                        $funding->setOriginalCurrency('EUR');
-                        $funding->setExchangeRate($exchangeRate);
+                        $funding->setOriginalCurrency($currency);
+                        // Funding::$exchangeRate's established meaning (see the
+                        // now-removed EUR-only stub this replaced): USD value of
+                        // ONE unit of the original currency - the inverse of
+                        // $localUnitsPerUsd above, not the same number.
+                        $funding->setExchangeRate(number_format(1 / $localUnitsPerUsd, 6, '.', ''));
                     }
 
                     $manager->persist($funding);

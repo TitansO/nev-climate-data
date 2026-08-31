@@ -91,6 +91,26 @@
     return value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  /**
+   * "Montant (devise locale)" column: item.originalAmount/originalCurrency
+   * (backend/src/Entity/Funding.php) hold the same figure as item.amount,
+   * expressed in the funded country's own national currency instead of the
+   * USD pivot - see App\Reference\AfricanCurrencies for how the demo
+   * dataset populates them. Both are nullable (a record can predate this
+   * metadata, or its country's currency isn't in the reference table), so
+   * this renders a plain dash rather than a misleading "0" in that case.
+   */
+  function formatLocalAmount(item) {
+    if (!item.originalAmount || !item.originalCurrency) {
+      return "-";
+    }
+    const value = Number(item.originalAmount);
+    if (Number.isNaN(value)) {
+      return "-";
+    }
+    return value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + item.originalCurrency;
+  }
+
   function formatDate(isoDate) {
     const date = new Date(isoDate + "T00:00:00");
     if (Number.isNaN(date.getTime())) {
@@ -158,6 +178,7 @@
         '<td class="px-5 py-4"></td>' +
         '<td class="px-5 py-4 font-semibold text-deep-3"></td>' +
         '<td class="px-5 py-4"></td>' +
+        '<td class="px-5 py-4 text-dark-4"></td>' +
         '<td class="px-5 py-4"></td>' +
         '<td class="px-5 py-4"></td>';
 
@@ -168,12 +189,13 @@
       cells[3].textContent = FUNDING_TYPE_LABELS[item.fundingType] || item.fundingType;
       cells[4].textContent = formatAmount(item.amount);
       cells[5].textContent = DISPLAY_CURRENCY;
-      cells[6].textContent = item.source.name;
+      cells[6].textContent = formatLocalAmount(item);
+      cells[7].textContent = item.source.name;
 
       const badge = document.createElement("span");
       badge.className = "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold " + statusBadgeClasses(item.validationStatus);
       badge.textContent = VALIDATION_STATUS_LABELS[item.validationStatus] || item.validationStatus;
-      cells[7].appendChild(badge);
+      cells[8].appendChild(badge);
 
       els.tableBody.appendChild(row);
     });

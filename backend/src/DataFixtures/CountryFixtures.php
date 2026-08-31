@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\DataFixtures;
 
 use App\Entity\Country;
+use App\Reference\AfricanCurrencies;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
 
@@ -109,7 +110,8 @@ final class CountryFixtures extends Fixture
     public function load(ObjectManager $manager): void
     {
         foreach (self::COUNTRIES as [$name, $isoCode, $region]) {
-            $country = new Country($name, $isoCode, $region);
+            $currency = AfricanCurrencies::currencyForCountry($isoCode);
+            $country = new Country($name, $isoCode, $region, $currency);
             $manager->persist($country);
             $this->addReference(self::countryReference($isoCode), $country);
         }
