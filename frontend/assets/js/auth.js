@@ -231,10 +231,18 @@
     // from NevI18n.t() rather than data-i18n alone; the attribute keeps it
     // correct if the user switches language afterwards. See NevI18n.refresh().
     const logoutLabel = global.NevI18n ? global.NevI18n.t("profilePage.logout") : "Déconnexion";
+    // Both elements carry "loginBtn" too - not for its own styles (its
+    // rules target bg/text combos neither element uses) but so the plain
+    // mobile-dropdown dark-text rule in input.css (`#navbarCollapse
+    // .loginBtn`) reaches them the same way it reaches the logged-out
+    // "Connexion" link (see input.css - without this hook, the email
+    // link and logout button stayed white-on-white in the mobile
+    // dropdown even after that fix, since they're injected here rather
+    // than present in the page's own markup).
     slot.outerHTML =
       '<div class="flex items-center gap-3">' +
-      '<a href="account-profile.html" class="text-sm font-medium text-white/90 hover:text-white">' + escapeHtml(user.email) + "</a>" +
-      '<button type="button" id="auth-logout-btn" data-i18n="profilePage.logout" class="rounded-md bg-white/15 px-4 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark">' + escapeHtml(logoutLabel) + "</button>" +
+      '<a href="account-profile.html" class="loginBtn text-sm font-medium text-white/90 hover:text-white">' + escapeHtml(user.email) + "</a>" +
+      '<button type="button" id="auth-logout-btn" data-i18n="profilePage.logout" class="loginBtn rounded-md bg-white/15 px-4 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark">' + escapeHtml(logoutLabel) + "</button>" +
       "</div>";
 
     document.getElementById("auth-logout-btn").addEventListener("click", async function () {
