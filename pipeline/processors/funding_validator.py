@@ -101,13 +101,16 @@ def lookup_sector_id(cursor, sector_name: str) -> int | None:
 
 
 def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, year: int,
-                    funding_type: str, amount: Decimal, collection_date: str,
+                    funding_type: str, delta: Decimal, collection_date: str,
                     original_amount: Decimal | None = None,
                     original_currency: str | None = None,
                     exchange_rate: Decimal | None = None) -> None:
-    """Sums `amount` into the current row for this dedup key if one
-    exists (closing it out and inserting a new historized version), or
-    inserts a fresh row otherwise - see B1.1 spec decision 6.
+    """Applies `delta` (can be negative - see apply_project_contribution's
+    sector/year-change case) to the current row for this dedup key,
+    historizing the previous version, or inserts a fresh row if none
+    exists yet. A zero delta is a genuine no-op - see the 2026-08-31
+    idempotency fix spec: it must never create a needless new historized
+    version (that was the exact shape of the real double-counting bug).
     `original_amount`/`original_currency`/`exchange_rate` describe the
     latest contributing message's raw figures (not accumulated across
     historized versions, same treatment as `collection_date`) - only
@@ -115,6 +118,9 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
     AfDB connector is the first; World Bank/GCF never pass them, so they
     stay NULL as before).
     """
+    if delta == 0:
+        return
+
     cursor.execute(
         """
         SELECT id, amount FROM funding
@@ -127,13 +133,13 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
 
     if existing is not None:
         existing_id, existing_amount = existing
-        new_amount = existing_amount + amount
+        new_amount = existing_amount + delta
         cursor.execute(
             "UPDATE funding SET is_current = false, valid_to = now() WHERE id = %s",
             (existing_id,),
         )
     else:
-        new_amount = amount
+        new_amount = delta
 
     cursor.execute(
         """
@@ -154,27 +160,119 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
     )
 
 
+def apply_project_contribution(cursor, *, source_id: int, project_id: str, country_id: int,
+                                sector_id: int, year: int, funding_type: str, amount: Decimal,
+                                collection_date: str,
+                                original_amount: Decimal | None = None,
+                                original_currency: str | None = None,
+                                exchange_rate: Decimal | None = None) -> None:
+    """Applies one project's real, current contribution to the `funding`
+    aggregate for its dedup key - idempotently. Fixes a real production
+    bug (2026-08-31): every collection DAG re-publishes its entire current
+    portfolio on every run, not just new/changed projects, so summing each
+    incoming message's amount blindly (the old upsert_funding contract)
+    double-counted every project on every re-run. This function tracks
+    each project's last-known contribution in `funding_project_contribution`
+    and applies only the real delta: a project reported again with the
+    exact same amount contributes nothing (delta 0 - the bug scenario); a
+    project reported with a genuinely different amount contributes only
+    the difference (a real revision, kept traceable in `funding`'s own
+    SCD2 history); a project whose dedup key itself changed (e.g. a
+    sector-mapping fix between two runs) is moved from its old key's
+    aggregate to its new one rather than guessing which aggregate a raw
+    delta belongs to.
+    """
+    cursor.execute(
+        """
+        SELECT sector_id, year, funding_type, amount FROM funding_project_contribution
+        WHERE source_id = %s AND project_id = %s AND country_id = %s
+        """,
+        (source_id, project_id, country_id),
+    )
+    existing = cursor.fetchone()
+
+    if existing is None:
+        upsert_funding(
+            cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
+            year=year, funding_type=funding_type, delta=amount, collection_date=collection_date,
+            original_amount=original_amount, original_currency=original_currency,
+            exchange_rate=exchange_rate,
+        )
+        cursor.execute(
+            """
+            INSERT INTO funding_project_contribution
+                (source_id, project_id, country_id, sector_id, year, funding_type, amount, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+            """,
+            (source_id, project_id, country_id, sector_id, year, funding_type, amount),
+        )
+        return
+
+    old_sector_id, old_year, old_funding_type, old_amount = existing
+    same_key = (old_sector_id == sector_id and old_year == year and old_funding_type == funding_type)
+
+    if same_key:
+        delta = amount - old_amount
+        upsert_funding(
+            cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
+            year=year, funding_type=funding_type, delta=delta, collection_date=collection_date,
+            original_amount=original_amount, original_currency=original_currency,
+            exchange_rate=exchange_rate,
+        )
+    else:
+        upsert_funding(
+            cursor, source_id=source_id, country_id=country_id, sector_id=old_sector_id,
+            year=old_year, funding_type=old_funding_type, delta=-old_amount,
+            collection_date=collection_date,
+        )
+        upsert_funding(
+            cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
+            year=year, funding_type=funding_type, delta=amount, collection_date=collection_date,
+            original_amount=original_amount, original_currency=original_currency,
+            exchange_rate=exchange_rate,
+        )
+
+    cursor.execute(
+        """
+        UPDATE funding_project_contribution
+        SET sector_id = %s, year = %s, funding_type = %s, amount = %s, updated_at = now()
+        WHERE source_id = %s AND project_id = %s AND country_id = %s
+        """,
+        (sector_id, year, funding_type, amount, source_id, project_id, country_id),
+    )
+
+
 def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
-    """Applies source-specific sector mapping and, on success, upserts.
-    Returns (accepted, reason) - `reason` is None when accepted, or a
-    short machine-readable string explaining rejection when not.
+    """Applies source-specific sector mapping and, on success, applies the
+    project's contribution idempotently. Returns (accepted, reason) -
+    `reason` is None when accepted, or a short machine-readable string
+    explaining rejection when not.
     """
     source = message["source"]
     if source == "world_bank":
         nev_sector = map_to_nev_sector(message["raw_sectors"], message["raw_theme"])
         ensure_source = ensure_world_bank_source
+        contribution_project_id = message["project_id"]
     elif source == "gcf":
         nev_sector = map_gcf_sector(message["raw_sector_codes"], message["raw_sector_percentages"])
         ensure_source = ensure_gcf_source
+        contribution_project_id = message["project_id"]
     elif source == "afdb":
         nev_sector = map_afdb_sector(message["raw_sector_codes"])
         ensure_source = ensure_afdb_source
+        contribution_project_id = message["project_id"]
     elif source == "opec_fund_pdf":
         if message["climate_dimension"] == "adaptation":
             nev_sector = "Adaptation"
         else:
             nev_sector = map_opec_sector(message["sector_label_raw"], message["project_name"])
         ensure_source = ensure_opec_fund_source
+        # A single OPEC Fund table row can produce two payloads (adaptation +
+        # mitigation, decision 7 of the B1.5 spec) sharing the same
+        # message["project_id"] - the dimension must be folded in here so
+        # each is tracked as its own contribution, not one overwriting the
+        # other.
+        contribution_project_id = f"{message['project_id']}:{message['climate_dimension']}"
     else:
         return False, "unknown_source"
 
@@ -195,9 +293,10 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
     # (floats, from JSON) - convert via str() to avoid binary float
     # artifacts in the Decimal conversion (e.g. Decimal(1.370818) != 1.370818).
     # World Bank/GCF messages don't have these keys at all.
-    upsert_funding(
+    apply_project_contribution(
         cursor,
         source_id=source_id,
+        project_id=contribution_project_id,
         country_id=country_id,
         sector_id=sector_id,
         year=message["year"],
