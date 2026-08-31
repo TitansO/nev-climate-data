@@ -37,10 +37,10 @@ def _funding_row(cursor, source_id, country_id, sector_id, year, funding_type):
     return cursor.fetchone()
 
 
-def _sample_message(amount_usd: int) -> dict:
+def _sample_message(amount_usd: int, project_id: str = "P-TEST") -> dict:
     return {
         "source": "world_bank",
-        "project_id": "P-TEST",
+        "project_id": project_id,
         "country_iso": "SEN",
         "year": 2026,
         "amount_usd": amount_usd,
@@ -69,9 +69,9 @@ def test_first_message_inserts_a_new_funding_row(db_cursor):
     assert row == (Decimal("1000000.00"), True)
 
 
-def test_second_message_same_key_sums_and_historizes(db_cursor):
-    process_message(db_cursor, _sample_message(1_000_000))
-    process_message(db_cursor, _sample_message(500_000))
+def test_two_different_projects_same_dedup_key_sum_and_historize(db_cursor):
+    process_message(db_cursor, _sample_message(1_000_000, project_id="P-TEST-1"))
+    process_message(db_cursor, _sample_message(500_000, project_id="P-TEST-2"))
 
     db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
     source_id = db_cursor.fetchone()[0]
@@ -394,3 +394,113 @@ def test_opec_mitigation_message_with_an_unmappable_sector_is_quarantined(db_cur
 
     assert accepted is False
     assert reason == "unclassifiable_sector"
+
+
+def test_republishing_the_same_project_eight_times_does_not_inflate_the_total(db_cursor):
+    # Reproduces the real bug found live in production: World Bank's DAG
+    # re-publishes its entire current portfolio on every run (not a delta),
+    # and the old upsert_funding summed every message blindly - Senegal/
+    # Agriculture/1989 was summed 8 times in a row with the exact same
+    # increment (16.1M -> 128.8M) before this fix. Re-publishing the exact
+    # same project 8 times must now produce exactly one project's worth of
+    # funding, not eight.
+    message = _sample_message(2_012_500, project_id="P-BUG-REPRO")
+    for _ in range(8):
+        process_message(db_cursor, message)
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    current_row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "multilateral")
+    assert current_row == (Decimal("2012500.00"), True)
+
+    db_cursor.execute(
+        """
+        SELECT count(*) FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = false
+        """,
+        (source_id, country_id, sector_id, 2026, "multilateral"),
+    )
+    assert db_cursor.fetchone()[0] == 0  # every repeat after the first was a genuine no-op
+
+
+def test_republishing_the_same_project_with_a_revised_amount_applies_only_the_delta(db_cursor):
+    process_message(db_cursor, _sample_message(1_000_000, project_id="P-REVISED"))
+    process_message(db_cursor, _sample_message(1_500_000, project_id="P-REVISED"))
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    current_row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "multilateral")
+    assert current_row == (Decimal("1500000.00"), True)
+
+    db_cursor.execute(
+        """
+        SELECT count(*) FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = false
+        """,
+        (source_id, country_id, sector_id, 2026, "multilateral"),
+    )
+    assert db_cursor.fetchone()[0] == 1  # the original 1,000,000 version, real revision kept traceable
+
+
+def test_same_project_reclassified_to_a_different_sector_moves_its_contribution(db_cursor):
+    message = _sample_message(1_000_000, project_id="P-RECLASSIFIED")
+    process_message(db_cursor, message)  # raw_sectors -> Renewable Energy
+
+    message["raw_sectors"] = ["Agriculture"]
+    process_message(db_cursor, message)  # same project, now maps to Agriculture
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    old_sector_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Agriculture'")
+    new_sector_id = db_cursor.fetchone()[0]
+
+    old_row = _funding_row(db_cursor, source_id, country_id, old_sector_id, 2026, "multilateral")
+    assert old_row == (Decimal("0.00"), True)
+
+    new_row = _funding_row(db_cursor, source_id, country_id, new_sector_id, 2026, "multilateral")
+    assert new_row == (Decimal("1000000.00"), True)
+
+
+def test_opec_adaptation_and_mitigation_from_the_same_row_are_tracked_as_separate_contributions(db_cursor):
+    # Both payloads share the same message["project_id"] (decision 7, B1.5
+    # spec) - re-publishing the same document (e.g. a re-triggered DAG
+    # before the cache check) must not let one dimension's contribution
+    # overwrite the other's.
+    adaptation = _opec_sample_message(1_000_000, climate_dimension="adaptation")
+    mitigation = _opec_sample_message(2_000_000, climate_dimension="mitigation", sector_label_raw="Transport")
+    process_message(db_cursor, adaptation)
+    process_message(db_cursor, mitigation)
+    # Re-publish both again unchanged (simulates a re-run) - neither must move.
+    process_message(db_cursor, adaptation)
+    process_message(db_cursor, mitigation)
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Adaptation'")
+    adaptation_sector_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Sustainable Transport'")
+    mitigation_sector_id = db_cursor.fetchone()[0]
+
+    adaptation_row = _funding_row(db_cursor, source_id, country_id, adaptation_sector_id, 2026, "multilateral")
+    assert adaptation_row == (Decimal("1000000.00"), True)
+
+    mitigation_row = _funding_row(db_cursor, source_id, country_id, mitigation_sector_id, 2026, "multilateral")
+    assert mitigation_row == (Decimal("2000000.00"), True)

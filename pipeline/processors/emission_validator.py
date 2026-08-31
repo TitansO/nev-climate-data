@@ -125,6 +125,13 @@ def run() -> None:
             with connection:
                 with connection.cursor() as cursor:
                     accepted, reason = process_message(cursor, message)
+        except Exception as exc:
+            # A malformed/unexpected message must never crash this permanent
+            # service - see the 2026-08-31 B1.6 closure spec. psycopg2's
+            # `with connection:` above already rolled back any partial
+            # transaction before this exception reached here.
+            accepted, reason = False, f"processing_error:{type(exc).__name__}"
+            print(f"[emission-validator] unexpected error processing message: {exc!r}")
         finally:
             connection.close()
 
