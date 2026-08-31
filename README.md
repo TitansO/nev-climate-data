@@ -840,3 +840,20 @@ après reconstruction : Sénégal/Agriculture/1989 affiche exactement 16 100 000
 portefeuille), et la somme totale des lignes `Funding` courantes de la Banque Mondiale correspond
 exactement à la somme des contributions individuelles suivies par projet
 (268 138 642 869,00 des deux côtés).
+
+### Isolation Kafka/MinIO et architecture Bronze/Silver/Gold (B1.8, 2026-08-31)
+
+Vérifié en direct plutôt que supposé : l'isolation NEV/CIMA (cahier des charges 6.5) est déjà
+réelle et complète - 6 topics Kafka, tous préfixés `nev.` (`nev.funding.*`, `nev.emissions.*`),
+sur un broker dédié à ce projet ; un seul bucket MinIO (`nev-climate-data`) sur une instance
+dédiée, ni l'un ni l'autre jamais connectés à l'infrastructure Observatoire CIMA. Bronze et Silver
+sont désormais réellement écrits (B1.5 pour le stockage du PDF source, le refactoring multi-tâches
+des 5 DAGs pour le transit bronze/silver entre `extraire` et `transformer`) - ce qui n'était pas
+le cas quand B1.8 a été rédigé dans le roadmap (MinIO provisionné mais vide).
+
+**Gold n'est délibérément pas un préfixe MinIO** : la spec d'architecture d'origine annote déjà
+explicitement `TimescaleDB (Gold)` dans le diagramme du flux GreenAccess (B2) - TimescaleDB
+(`funding`/`emission`, lues par l'API et le dashboard) est la couche Gold de ce projet, pas un
+export MinIO redondant. Aucun besoin réel identifié pour un tel export dans les tâches à venir
+(B1.9, B1.10, B2) - décision documentée plutôt que laissée à l'abandon :
+[`docs/superpowers/specs/2026-08-31-b18-isolation-closure-design.md`](docs/superpowers/specs/2026-08-31-b18-isolation-closure-design.md).
