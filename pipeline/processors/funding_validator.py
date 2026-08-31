@@ -16,10 +16,12 @@ from pipeline.common.kafka_client import make_consumer, make_producer
 from pipeline.processors.sector_mapping import map_to_nev_sector
 from pipeline.processors.sector_mapping_gcf import map_gcf_sector
 from pipeline.processors.sector_mapping_afdb import map_afdb_sector
+from pipeline.processors.sector_mapping_opec import map_opec_sector
 
 WORLD_BANK_SOURCE_NAME = "World Bank Data API"  # matches backend/src/DataFixtures/SourceFixtures.php - reuses that row instead of creating a duplicate
 GCF_SOURCE_NAME = "Green Climate Fund — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
 AFDB_SOURCE_NAME = "African Development Bank Group — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
+OPEC_FUND_SOURCE_NAME = "OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -67,6 +69,22 @@ def ensure_afdb_source(cursor) -> int:
         (AFDB_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (AFDB_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_opec_fund_source(cursor) -> int:
+    """Idempotently ensures the OPEC Fund (PDF, Gemini-assisted) row
+    exists in `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'pdf_report', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (OPEC_FUND_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (OPEC_FUND_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -151,6 +169,12 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
     elif source == "afdb":
         nev_sector = map_afdb_sector(message["raw_sector_codes"])
         ensure_source = ensure_afdb_source
+    elif source == "opec_fund_pdf":
+        if message["climate_dimension"] == "adaptation":
+            nev_sector = "Adaptation"
+        else:
+            nev_sector = map_opec_sector(message["sector_label_raw"], message["project_name"])
+        ensure_source = ensure_opec_fund_source
     else:
         return False, "unknown_source"
 
