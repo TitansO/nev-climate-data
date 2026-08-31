@@ -534,6 +534,16 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 28. **`docker compose exec <service> php bin/phpunit` peut ignorer le `<server name="APP_ENV" value="test" force="true"/>` de `phpunit.dist.xml`.** Le service `backend` a un vrai `APP_ENV=dev` défini dans `docker-compose.yml`, hérité par PHP dans `$_ENV`. `KernelTestCase::createKernel()` (Symfony) lit `$_ENV` **avant** `$_SERVER`, donc l'environnement réel du conteneur l'emporte silencieusement sur la valeur forcée par PHPUnit - la suite tourne alors en `dev`, où `framework.test: true` (bloc `when@test`) n'est jamais actif, d'où une cascade d'erreurs `"Could not find service test.service_container"`. Contournement : toujours lancer `docker compose exec -e APP_ENV=test backend php bin/phpunit` en local (la CI n'est pas affectée - voir point 9, elle tourne dans une image générique sans cet `APP_ENV` réel positionné). Détail complet, et un second problème pré-existant et indépendant (collisions d'isolation de test) trouvés en même temps :
     [`docs/known-issues-backend-phpunit.md`](docs/known-issues-backend-phpunit.md).
 
+29. **Un alias de modèle IA "toujours la dernière version" n'est pas fiable pour un pipeline de production - épingler une version exacte, comme pour toute autre dépendance.** Vérifié en direct pendant la conception de B1.5 : `gemini-flash-latest` a échoué de façon répétée avec de vraies erreurs `HTTP 503` ("surcharge") sur le document cible réel, alors que `gemini-3.5-flash` (une version explicitement épinglée) a fonctionné de façon fiable. `gemini-2.5-flash` (une version pourtant récente il y a peu) s'est révélée **totalement retirée** pour les nouvelles clés API (`HTTP 404`, message explicite redirigeant vers une version plus récente) - les modèles d'IA évoluent et disparaissent plus vite que les API REST classiques de ce projet.
+
+30. **Envoyer un document PDF entier à un modèle d'IA quand seule une petite section compte augmente réellement le taux d'erreur, pas seulement le coût.** Vérifié en direct : un rapport complet de 96 pages (10+ Mo) a produit des échecs `503` répétés même après plusieurs tentatives avec délai ; la même extraction limitée aux 8 pages réellement utiles (une annexe) a fonctionné de façon fiable et complète (111/111 lignes exactes). Découper le PDF à la plage de pages pertinente avant l'envoi, pas après un premier échec.
+
+31. **Un budget de timeout HTTP calibré sur un seul essai réussi peut se révéler insuffisant en conditions réelles répétées - et la boucle de nouvelle tentative doit capturer les vraies coupures réseau, pas seulement les erreurs applicatives.** Bug réel trouvé pendant la vérification bout-en-bout de B1.5 : un premier run réussi (hors Airflow) avait pris 168s, ce qui semblait valider un budget de 180s ; en conditions réelles via le conteneur `airflow`, deux tentatives consécutives ont échoué avec une vraie `httpx.ReadTimeout` à 180s puis 300s - une coupure réseau générique, pas une erreur `503` de Gemini. La boucle de nouvelle tentative ne capturait que `google.genai.errors.ServerError`, donc ce timeout crashait la tâche entière au lieu d'être réessayé. Corrigé en élargissant la capture à `httpx.TimeoutException`/`TransportError` et en portant le budget à 600s. Une seule mesure réussie ne suffit jamais à calibrer un budget de production - et une boucle de retry doit couvrir toute la famille d'erreurs transitoires réalistes, pas seulement celle observée en premier.
+
+32. **Une même ligne source peut légitimement contribuer à deux catégories NEV à la fois plutôt qu'une seule.** Contrairement aux connecteurs précédents (une ligne source = un secteur NEV), la méthodologie du rapport OPEC Fund calcule séparément une part "adaptation" et une part "mitigation" (souvent toutes deux non nulles) pour un même projet réel - forcer un seul secteur aurait soit perdu de l'argent réel, soit mal attribué une partie du financement. Ce connecteur publie jusqu'à deux messages `nev.funding.raw` par ligne réelle du tableau source plutôt qu'un seul - à garder en tête pour toute future source dont la méthodologie ventile déjà les montants entre plusieurs dimensions.
+
+33. **Un champ requis par une règle de classification en aval doit être transporté explicitement dans le message publié, pas recalculé plus tard.** Bug réel trouvé pendant l'auto-relecture du plan B1.5 (avant toute exécution) : une première ébauche appelait `map_opec_sector(sector_label, "")` dans `funding_validator.py`, avec une chaîne vide à la place du vrai nom du projet - ce qui aurait rendu la règle mot-clé "Energy + Wind/Solar/Hydro" totalement inopérante en production (tout projet hydroélectrique/éolien/solaire réel aurait été mis en quarantaine au lieu d'être classé en Renewable Energy). Corrigé en ajoutant un champ `project_name` au message publié, avec un test qui vérifie ce chemin de bout en bout (pas seulement la fonction de mapping appelée isolément) - confirmé en direct après correction : 3 lignes réelles, 110 M$, correctement classées en Renewable Energy.
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -692,3 +702,34 @@ pays NEV ; les 19 pays restants n'ont aucune donnée pour cet indicateur dans la
 couverture de la source, pas un bug. Périmètre : collecte uniquement -
 `AnalyticsService::getCo2Reduction()` (endpoint `/api/analytics/co2-reduction`) reste
 volontairement non rebranché sur cette nouvelle table dans le cadre de B1.4.
+
+### Extracteur PDF — OPEC Fund (B1.5)
+
+Cinquième connecteur du Volet B, et premier à extraire des données structurées directement d'un
+rapport PDF via une IA (Gemini), plutôt que via une API. Cible réelle : le rapport OPEC Fund
+Climate Finance Report 2024, Annexe 2 (tableau de 111 projets réels, 2018-2023) - choisi après
+avoir écarté trois autres candidats réels vérifiés en direct (rapport annuel GCF sans donnée par
+projet, AFD qui a en fait sa propre API, CCDR Sénégal trop agrégé). Décisions de conception
+complètes : [`docs/superpowers/specs/2026-08-29-b15-pdf-extractor-design.md`](docs/superpowers/specs/2026-08-29-b15-pdf-extractor-design.md).
+
+```bash
+docker compose exec airflow airflow dags trigger extraction_pdf
+```
+
+Nécessite `GEMINI_API_KEY` dans le `.env` racine (clé gratuite, palier "Free tier" sans carte
+bancaire, `aistudio.google.com` → "Get API key"). Réutilise le topic `nev.funding.raw` et
+`funding_validator.py` existants (contrairement à B1.4, ce n'est pas un nouveau domaine de
+données) - aucun nouveau topic, aucun nouveau service de validation. Première utilisation réelle
+de MinIO dans ce projet (provisionné depuis B1.1, resté vide jusqu'ici) : le PDF brut est stocké
+dans le bucket `nev-climate-data`, préfixe `bronze/opec-fund-climate-finance-2024/`. Le cache par
+hash SHA-256 (table `processed_document`) garantit qu'un même document n'est jamais ré-extrait
+deux fois - vérifié en direct : un second déclenchement sur le même document a publié `0`
+message en ~2 minutes (juste le téléchargement + hash), contre ~26 minutes pour la première
+extraction réelle.
+
+Vérifié en direct : 111 lignes réelles extraites intégralement et exactement (aucune valeur
+inventée), 145 messages publiés vers `nev.funding.raw`, 48 lignes `Funding` réellement acceptées
+après validation (le reste en quarantaine pour cause de secteur non mappable - comportement
+attendu, voir la spec). Deux vrais bugs trouvés et corrigés pendant cette vérification bout-en-bout
+(voir les points d'attention 30 et 32 ci-dessous) : un budget de délai HTTP trop juste et une
+boucle de nouvelle tentative qui ne capturait pas les vraies coupures réseau.
