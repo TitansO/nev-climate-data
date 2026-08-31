@@ -7,6 +7,7 @@ import hashlib
 import io
 from unittest.mock import MagicMock, patch
 
+import httpx
 from google.genai import errors
 from pypdf import PdfReader, PdfWriter
 
@@ -83,6 +84,31 @@ def test_extract_json_via_gemini_gives_up_after_max_retries():
             assert "5 attempts" in str(exc)
 
     assert mock_client.models.generate_content.call_count == 5
+
+
+def test_extract_json_via_gemini_retries_on_a_genuine_network_timeout_too():
+    # Real bug found during B1.5's end-to-end verification: a real
+    # httpx.ReadTimeout against the actual target document crashed the
+    # whole Airflow task immediately, because an earlier version of this
+    # function only caught errors.ServerError - a genuine network timeout
+    # is a different exception type entirely and was never retried.
+    mock_uploaded = MagicMock(uri="https://generativelanguage.googleapis.com/v1beta/files/abc123")
+    mock_success_response = MagicMock(text='[{"year": 2020}]')
+    mock_client = MagicMock()
+    mock_client.files.upload.return_value = mock_uploaded
+    mock_client.models.generate_content.side_effect = [
+        httpx.ReadTimeout("The read operation timed out"),
+        mock_success_response,
+    ]
+
+    with patch("pipeline.common.pdf_extraction.genai.Client", return_value=mock_client), \
+         patch("pipeline.common.pdf_extraction.time.sleep") as mock_sleep, \
+         patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
+        result = extract_json_via_gemini(b"fake pdf bytes", "extract this")
+
+    assert result == '[{"year": 2020}]'
+    assert mock_client.models.generate_content.call_count == 2
+    assert mock_sleep.call_count == 1
 
 
 def test_upload_to_minio_creates_the_bucket_if_missing():
