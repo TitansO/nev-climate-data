@@ -87,6 +87,7 @@
   "dataPage.type": "Type",
   "dataPage.amount": "Amount",
   "dataPage.currency": "Currency",
+  "dataPage.localAmount": "Local currency amount",
   "dataPage.source": "Source",
   "dataPage.status": "Status",
   "dataPage.previous": "Previous",

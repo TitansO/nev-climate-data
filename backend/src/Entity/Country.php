@@ -24,11 +24,21 @@ class Country
     #[ORM\Column(length: 255)]
     private string $region;
 
-    public function __construct(string $name, string $isoCode, string $region)
+    // ISO 4217 code of the country's own national currency (e.g. "XOF" for
+    // Senegal, "ZAR" for South Africa) - not the pivot currency Funding
+    // amounts are normalized into (always USD, see Funding::$amount vs
+    // Funding::$originalAmount/$originalCurrency). Nullable only because a
+    // handful of pre-A2.x rows may predate this column; every row seeded by
+    // CountryFixtures has one.
+    #[ORM\Column(length: 3, nullable: true)]
+    private ?string $currency = null;
+
+    public function __construct(string $name, string $isoCode, string $region, ?string $currency = null)
     {
         $this->name = $name;
         $this->isoCode = $isoCode;
         $this->region = $region;
+        $this->currency = $currency;
     }
 
     public function getId(): ?int
@@ -68,6 +78,18 @@ class Country
     public function setRegion(string $region): static
     {
         $this->region = $region;
+
+        return $this;
+    }
+
+    public function getCurrency(): ?string
+    {
+        return $this->currency;
+    }
+
+    public function setCurrency(?string $currency): static
+    {
+        $this->currency = $currency;
 
         return $this;
     }

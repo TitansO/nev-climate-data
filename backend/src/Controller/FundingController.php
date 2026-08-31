@@ -75,13 +75,16 @@ final class FundingController extends AbstractController
                                     new OA\Property(property: 'country', properties: [
                                         new OA\Property(property: 'name', type: 'string', example: 'Senegal'),
                                         new OA\Property(property: 'isoCode', type: 'string', example: 'SEN'),
+                                        new OA\Property(property: 'currency', type: 'string', nullable: true, example: 'XOF'),
                                     ], type: 'object'),
                                     new OA\Property(property: 'sector', properties: [
                                         new OA\Property(property: 'id', type: 'integer', example: 1),
                                         new OA\Property(property: 'name', type: 'string', example: 'Renewable Energy'),
                                     ], type: 'object'),
                                     new OA\Property(property: 'year', type: 'integer', example: 2025),
-                                    new OA\Property(property: 'amount', type: 'string', example: '4032000.00'),
+                                    new OA\Property(property: 'amount', type: 'string', example: '4032000.00', description: 'Pivot currency (always USD)'),
+                                    new OA\Property(property: 'originalAmount', type: 'string', nullable: true, example: '2419200000.00', description: "Same amount in the country's own national currency"),
+                                    new OA\Property(property: 'originalCurrency', type: 'string', nullable: true, example: 'XOF'),
                                     new OA\Property(property: 'fundingType', type: 'string', example: 'public'),
                                     new OA\Property(property: 'source', properties: [
                                         new OA\Property(property: 'id', type: 'integer', example: 1),
@@ -288,10 +291,12 @@ final class FundingController extends AbstractController
     /**
      * @return array{
      *     id: int|null,
-     *     country: array{name: string, isoCode: string},
+     *     country: array{name: string, isoCode: string, currency: string|null},
      *     sector: array{id: int|null, name: string},
      *     year: int,
      *     amount: string,
+     *     originalAmount: string|null,
+     *     originalCurrency: string|null,
      *     fundingType: string,
      *     source: array{id: int|null, name: string},
      *     collectionDate: string,
@@ -305,6 +310,7 @@ final class FundingController extends AbstractController
             'country' => [
                 'name' => $funding->getCountry()->getName(),
                 'isoCode' => $funding->getCountry()->getIsoCode(),
+                'currency' => $funding->getCountry()->getCurrency(),
             ],
             'sector' => [
                 'id' => $funding->getSector()->getId(),
@@ -312,6 +318,12 @@ final class FundingController extends AbstractController
             ],
             'year' => $funding->getYear(),
             'amount' => $funding->getAmount(),
+            // Same amount, in the funded country's own national currency
+            // rather than the USD pivot above - data.html's "Montant
+            // (devise locale)" column. Null when a record predates this
+            // metadata (see Funding::$originalAmount's own docblock).
+            'originalAmount' => $funding->getOriginalAmount(),
+            'originalCurrency' => $funding->getOriginalCurrency(),
             'fundingType' => $funding->getFundingType()->value,
             'source' => [
                 'id' => $funding->getSource()->getId(),
