@@ -24,6 +24,9 @@
   // all), so this resolves independently rather than depending on it.
   const API_BASE_URL = resolveApiBaseUrl();
 
+  // See assets/js/api.js's own resolveApiBaseUrl() docblock - same
+  // function, duplicated here rather than imported (no bundler in this
+  // project, and script load order differs across pages, see above).
   function resolveApiBaseUrl() {
     const host = global.location.hostname;
     if (host === "localhost" || host === "127.0.0.1") {
@@ -33,7 +36,7 @@
     if (codespaceMatch) {
       return "https://" + codespaceMatch[1] + "-8080.app.github.dev";
     }
-    return "http://localhost:8080";
+    return "";
   }
   const STORAGE_TOKEN_KEY = "nev_token";
   const STORAGE_REFRESH_TOKEN_KEY = "nev_refresh_token";

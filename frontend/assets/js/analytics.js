@@ -26,7 +26,10 @@
     if (codespaceMatch) {
       return "https://" + codespaceMatch[1] + "-8080.app.github.dev";
     }
-    return "http://localhost:8080";
+    // Production (Netlify): relative URLs, proxied server-side by the
+    // host's own routing to the real backend - see api.js's
+    // resolveApiBaseUrl() docblock for the full reasoning.
+    return "";
   }
 
   const API_BASE_URL = resolveApiBaseUrl();

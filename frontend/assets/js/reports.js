@@ -127,7 +127,7 @@
     els.pagination.classList.add("hidden");
     els.pagination.classList.remove("flex", "flex-wrap");
 
-    const url = new URL(window.NevApi.API_BASE_URL + "/api/reports");
+    const url = new URL(window.NevApi.API_BASE_URL + "/api/reports", window.location.origin);
     url.searchParams.set("page", String(state.page));
     url.searchParams.set("limit", String(PAGE_SIZE));
     if (state.type) {
