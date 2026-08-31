@@ -411,4 +411,39 @@ final class FundingControllerTest extends WebTestCase
 
         self::assertSame(['page', 'limit', 'total', 'totalPages'], array_keys($data['meta']));
     }
+
+    public function testHistorizedRowsAreExcludedFromListingsAndCounts(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        // A superseded (historized) row satisfying the same sector filter as
+        // Group C (Kenya/Agriculture/2024/private, 10 records) - must never be
+        // counted or listed, even though it matches every filter below.
+        $kenya = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'KEN']);
+        $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
+        $source = new Source('Test Source Historized', SourceType::InternalDemo, SourceReliability::Medium);
+        $this->entityManager->persist($source);
+        $historized = new Funding(
+            $kenya,
+            $agriculture,
+            2024,
+            '9999999.00',
+            FundingType::Private,
+            $source,
+            new \DateTimeImmutable('2024-06-01'),
+            ValidationStatus::Demo,
+        );
+        $historized->setIsCurrent(false);
+        $this->entityManager->persist($historized);
+        $this->entityManager->flush();
+
+        $client->request('GET', '/api/funding?sector='.$this->sectorId('Agriculture').'&limit=100');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame(10, $data['meta']['total']); // unchanged - the historized row never counts
+        foreach ($data['data'] as $item) {
+            self::assertNotSame('9999999.00', $item['amount']);
+        }
+    }
 }
