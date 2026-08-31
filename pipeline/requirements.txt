@@ -3,3 +3,6 @@ psycopg2-binary==2.9.9
 requests==2.32.3
 pycountry==24.6.1
 pytest==8.3.3
+google-genai==2.20.0
+minio==7.2.20
+pypdf==6.16.2

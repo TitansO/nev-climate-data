@@ -148,7 +148,7 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/pipeline/dags
-      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python-ng==2.2.3 psycopg2-binary==2.9.9 requests==2.32.3 pycountry==24.6.1"
+      _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python-ng==2.2.3 psycopg2-binary==2.9.9 requests==2.32.3 pycountry==24.6.1 google-genai==2.20.0 minio==7.2.20 pypdf==6.16.2"
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
       # Airflow puts DAGS_FOLDER itself (.../pipeline/dags) on sys.path, not its parent - a DAG
       # importing `from pipeline.collectors... import ...` (a package one level above DAGS_FOLDER)
@@ -158,6 +158,10 @@ services:
       # and pipeline-tools images (PYTHONPATH=/app there, via pipeline/Dockerfile).
       PYTHONPATH: /opt/airflow
       IATI_API_KEY: ${IATI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - ./pipeline:/opt/airflow/pipeline
       - airflow_logs:/opt/airflow/logs
@@ -217,6 +221,10 @@ services:
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       IATI_API_KEY: ${IATI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     command: python -m pipeline.processors.funding_validator
     depends_on:
       - database
