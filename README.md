@@ -543,6 +543,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 32. **Une même ligne source peut légitimement contribuer à deux catégories NEV à la fois plutôt qu'une seule.** Contrairement aux connecteurs précédents (une ligne source = un secteur NEV), la méthodologie du rapport OPEC Fund calcule séparément une part "adaptation" et une part "mitigation" (souvent toutes deux non nulles) pour un même projet réel - forcer un seul secteur aurait soit perdu de l'argent réel, soit mal attribué une partie du financement. Ce connecteur publie jusqu'à deux messages `nev.funding.raw` par ligne réelle du tableau source plutôt qu'un seul - à garder en tête pour toute future source dont la méthodologie ventile déjà les montants entre plusieurs dimensions.
 
 33. **Un champ requis par une règle de classification en aval doit être transporté explicitement dans le message publié, pas recalculé plus tard.** Bug réel trouvé pendant l'auto-relecture du plan B1.5 (avant toute exécution) : une première ébauche appelait `map_opec_sector(sector_label, "")` dans `funding_validator.py`, avec une chaîne vide à la place du vrai nom du projet - ce qui aurait rendu la règle mot-clé "Energy + Wind/Solar/Hydro" totalement inopérante en production (tout projet hydroélectrique/éolien/solaire réel aurait été mis en quarantaine au lieu d'être classé en Renewable Energy). Corrigé en ajoutant un champ `project_name` au message publié, avec un test qui vérifie ce chemin de bout en bout (pas seulement la fonction de mapping appelée isolément) - confirmé en direct après correction : 3 lignes réelles, 110 M$, correctement classées en Renewable Energy.
+34. **Un fichier de test qui importe un module de DAG hérite de toutes ses dépendances au niveau module - y compris `airflow` lui-même, qui n'est installé que dans l'image `airflow`, pas dans `funding-validator`.** Découverte réelle pendant le refactoring multi-tâches des DAGs (2026-08-31) : les premiers `pipeline/tests/test_dag_*_tasks.py` écrits pour tester les nouvelles fonctions `_extraire`/`_transformer`/`_publier` de chaque DAG ont échoué en collection avec `ModuleNotFoundError: No module named 'airflow'` dans `funding-validator` - cette image n'a jamais eu besoin d'Airflow pour son propre rôle de consommateur Kafka. Il a fallu router ces tests vers le conteneur `airflow` à la place, qui lui-même n'avait pas `pytest` installé (jamais eu besoin de faire tourner de tests avant que les DAGs n'aient leur propre logique testable). Résolu en ajoutant `pytest==8.3.3` à `_PIP_ADDITIONAL_REQUIREMENTS` du service `airflow`. Un projet à plusieurs images Docker n'a pas une seule "suite de tests" mais potentiellement plusieurs, une par image ayant les dépendances du code qu'elle teste.
 
 ## État d'avancement
 
@@ -633,6 +634,20 @@ docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m
 Le test marqué `live` (`pipeline/tests/test_world_bank_collector_live.py`) appelle la vraie
 API Banque Mondiale - à exécuter séparément (`-m live`) plutôt qu'en routine, pour ne pas rendre
 la suite dépendante du réseau.
+
+Exception depuis le refactoring multi-tâches des DAGs (voir ci-dessous) : les fichiers
+`pipeline/tests/test_dag_*_tasks.py` importent directement les modules de DAG, qui importent
+`airflow` - ils ne peuvent donc pas tourner dans l'image `funding-validator` (qui n'a pas Airflow
+installé, et n'en a pas besoin pour son propre rôle de consommateur Kafka). Ils s'exécutent dans
+le conteneur `airflow` lui-même :
+
+```bash
+docker compose exec airflow pytest pipeline/tests/test_dag_worldbank_tasks.py -v
+```
+
+`pytest` a été ajouté à `_PIP_ADDITIONAL_REQUIREMENTS` du service `airflow` dans
+`docker-compose.yml` pour cette raison (il n'y était pas nécessaire avant, les DAGs n'ayant
+jamais eu leur propre suite de tests jusqu'ici).
 
 ### Connecteur GCF (B1.2)
 
@@ -733,3 +748,35 @@ après validation (le reste en quarantaine pour cause de secteur non mappable - 
 attendu, voir la spec). Deux vrais bugs trouvés et corrigés pendant cette vérification bout-en-bout
 (voir les points d'attention 30 et 32 ci-dessous) : un budget de délai HTTP trop juste et une
 boucle de nouvelle tentative qui ne capturait pas les vraies coupures réseau.
+
+### Refactoring multi-tâches des 5 DAGs (2026-08-31)
+
+Chacun des 5 DAGs ci-dessus (B1.1 à B1.5) exécutait initialement toute sa logique - récupération,
+transformation, publication - dans une seule tâche `PythonOperator`, ce qui n'affichait aucune
+liaison de dépendance dans la vue "Graph" d'Airflow. Suite à une demande de Serge après relecture
+des graphes réels, chaque DAG a été découpé en 3 tâches réellement reliées : `extraire >>
+transformer >> publier`. Décisions de conception complètes :
+[`docs/superpowers/specs/2026-08-31-airflow-multi-task-dags-design.md`](docs/superpowers/specs/2026-08-31-airflow-multi-task-dags-design.md).
+Plan d'implémentation détaillé :
+[`docs/superpowers/plans/2026-08-31-airflow-multi-task-dags.md`](docs/superpowers/plans/2026-08-31-airflow-multi-task-dags.md).
+
+Les données intermédiaires transitent exclusivement par MinIO (préfixes `bronze/` puis `silver/`,
+distincts de ceux de B1.5) - seul un chemin d'objet (texte court) circule en XCom entre les
+tâches, jamais les enregistrements bruts eux-mêmes (AfDB seul en récupère plus de 5000 par
+exécution, un volume qu'Airflow lui-même déconseille de faire transiter par XCom). Nouveau module
+partagé `pipeline/common/minio_staging.py`, désormais réutilisé aussi par `pdf_extraction.py`
+(B1.5). `extraction_pdf` gère son court-circuit de cache via un simple indicateur `cache_hit`
+propagé en XCom entre les 3 tâches, sans branchement Airflow dynamique - chaque tâche suivante ne
+fait rien si l'indicateur est vrai.
+
+Aucun changement de résultat final : mêmes topics Kafka, mêmes clés de payload, même
+dédoublonnage. `funding_validator.py`/`emission_validator.py` restent des services Kafka
+permanents, hors Airflow, inchangés - intégrer la validation dans Airflow était une option
+explicitement écartée par Serge.
+
+Vérifié en direct : les 5 DAGs déclenchés réellement affichent chacun 3 tâches `success` reliées
+dans la vue Graph (`extraire → transformer → publier`) - `collecte_worldbank` : 4427 messages
+publiés ; `collecte_gcf` : 999 ; `collecte_afdb` : 3615 ; `collecte_pnue` : 840 ;
+`extraction_pdf` : cache hit sur le document déjà traité depuis la vérification B1.5, `0` message
+publié comme attendu - le court-circuit de cache fonctionne bout-en-bout, pas seulement dans les
+tests mockés.
