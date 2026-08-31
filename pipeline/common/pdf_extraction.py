@@ -12,6 +12,7 @@ import io
 import os
 import time
 
+import httpx
 from google import genai
 from google.genai import errors, types
 from minio import Minio
@@ -21,7 +22,14 @@ from pypdf import PdfReader, PdfWriter
 # HTTP 503s on the real target document, "gemini-2.5-flash" is fully retired
 # (HTTP 404: "no longer available to new users") for new API keys.
 GEMINI_MODEL = "gemini-3.5-flash"
-GEMINI_REQUEST_TIMEOUT_MS = 180_000
+# Real finding during B1.5's end-to-end verification: genuine
+# httpx.ReadTimeouts occurred against the real target document at 180s and
+# even 300s budgets, running inside the `airflow` container specifically
+# (a real successful call from the `funding-validator` container earlier in
+# this same connector's design work took 168s) - pointing to real, variable
+# local network conditions in this environment rather than a fixed
+# processing time. Raised to 600s for real headroom.
+GEMINI_REQUEST_TIMEOUT_MS = 600_000
 GEMINI_MAX_RETRIES = 5
 # Real transient overload delay observed live during this connector's design
 # work - not a documented rate limit, an empirically-sized backoff.
@@ -52,10 +60,14 @@ def slice_pdf_pages(pdf_bytes: bytes, start_page: int, end_page: int) -> bytes:
 
 def extract_json_via_gemini(pdf_bytes: bytes, prompt: str) -> str:
     """Uploads `pdf_bytes` to Gemini's File API and asks `GEMINI_MODEL` to
-    answer `prompt`, retrying real transient HTTP 503 ("high demand")
-    errors - confirmed live during this connector's design work, up to
-    GEMINI_MAX_RETRIES times. Returns the raw response text; the caller
-    parses it as JSON.
+    answer `prompt`, retrying real transient errors - HTTP 503 ("high
+    demand", a `google.genai.errors.ServerError`) and genuine network
+    read/connect timeouts (raw `httpx` exceptions, NOT wrapped as a
+    `ServerError` - a real gap found during B1.5's end-to-end verification:
+    an earlier version of this function only caught `ServerError`, so a
+    real `httpx.ReadTimeout` crashed the whole task immediately instead of
+    retrying) - up to GEMINI_MAX_RETRIES times. Returns the raw response
+    text; the caller parses it as JSON.
     """
     client = genai.Client(
         api_key=os.environ["GEMINI_API_KEY"],
@@ -76,7 +88,7 @@ def extract_json_via_gemini(pdf_bytes: bytes, prompt: str) -> str:
                 ],
             )
             return response.text
-        except errors.ServerError as exc:
+        except (errors.ServerError, httpx.TimeoutException, httpx.TransportError) as exc:
             last_error = exc
             if attempt < GEMINI_MAX_RETRIES - 1:
                 time.sleep(GEMINI_RETRY_DELAY_SECONDS)
