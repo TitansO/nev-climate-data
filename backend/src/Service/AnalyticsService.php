@@ -12,7 +12,7 @@ use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
 /**
- * Server-side aggregates for the 3 analytics charts on visualizations.html
+ * Server-side aggregates for the analytics charts on visualizations.html
  * (A2.5) and the Hero stats strip on index.html (A2.7). Controllers stay
  * thin (App\Controller\AnalyticsController just calls these methods) and
  * every aggregate is computed in SQL via App\Repository\FundingRepository
@@ -29,7 +29,7 @@ use Symfony\Contracts\Cache\ItemInterface;
  * A2.5 describes, expressed through the framework's own cache contract
  * rather than manual Redis calls.
  *
- * No query parameters exist on any of the three endpoints (visualizations.html
+ * No query parameters exist on any of these endpoints (visualizations.html
  * has no filter UI to drive them - see the A2.5/A2.6 report), so every cache
  * key here is a fixed string; nothing user-supplied ever enters a key.
  */
@@ -40,6 +40,7 @@ final class AnalyticsService
 
     private const CACHE_KEY_FINANCING_TRENDS = 'analytics_financing_trends';
     private const CACHE_KEY_SECTOR_DISTRIBUTION = 'analytics_sector_distribution';
+    private const CACHE_KEY_COUNTRY_DISTRIBUTION = 'analytics_country_distribution';
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
     private const CACHE_KEY_HERO_STATS = 'analytics_hero_stats';
 
@@ -72,6 +73,18 @@ final class AnalyticsService
             $item->expiresAfter(self::CACHE_TTL_SECONDS);
 
             return $this->computeSectorDistribution();
+        });
+    }
+
+    /**
+     * @return list<array{isoCode: string, country: string, amount: float, percentage: float}>
+     */
+    public function getCountryDistribution(): array
+    {
+        return $this->cache->get(self::CACHE_KEY_COUNTRY_DISTRIBUTION, function (ItemInterface $item): array {
+            $item->expiresAfter(self::CACHE_TTL_SECONDS);
+
+            return $this->computeCountryDistribution();
         });
     }
 
@@ -162,6 +175,27 @@ final class AnalyticsService
 
             return [
                 'sector' => $row['sectorName'],
+                'amount' => $amount,
+                'percentage' => $grandTotal > 0.0 ? round($amount / $grandTotal * 100, 1) : 0.0,
+            ];
+        }, $rows);
+    }
+
+    /**
+     * @return list<array{isoCode: string, country: string, amount: float, percentage: float}>
+     */
+    private function computeCountryDistribution(): array
+    {
+        $rows = $this->fundingRepository->findCountryDistributionAggregate();
+
+        $grandTotal = array_sum(array_map(static fn (array $row): float => (float) $row['total'], $rows));
+
+        return array_map(static function (array $row) use ($grandTotal): array {
+            $amount = (float) $row['total'];
+
+            return [
+                'isoCode' => $row['isoCode'],
+                'country' => $row['countryName'],
                 'amount' => $amount,
                 'percentage' => $grandTotal > 0.0 ? round($amount / $grandTotal * 100, 1) : 0.0,
             ];

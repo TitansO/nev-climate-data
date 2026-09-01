@@ -8,7 +8,10 @@
     <meta name="description" content="Tendances de financement, répartition sectorielle et indicateurs climatiques." />
     <link rel="shortcut icon" href="assets/images/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./src/css/tailwind.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsvectormap@1.5.3/dist/css/jsvectormap.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.5.3/dist/js/jsvectormap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.5.3/dist/maps/world.js"></script>
   </head>
 
   <body class="bg-surface text-dark-3">
@@ -143,15 +146,15 @@
         </div>
       </section>
 
+      <!-- Country map: real data (/api/analytics/country-distribution) -->
       <section class="mb-16">
         <div class="rounded-2xl border border-stroke bg-white p-5 shadow-2 sm:p-6">
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-lg font-bold text-dark" data-i18n="vizPage.byRegion">Répartition par région (M USD)</h3>
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-status-demo-bg px-3 py-1 text-xs font-semibold text-status-demo shadow-1">
-              <span class="h-1.5 w-1.5 rounded-full bg-status-demo"></span> <span data-i18n="vizPage.demoData">Données de démonstration</span>
-            </span>
+          <h3 class="mb-3 text-lg font-bold text-dark" data-i18n="vizPage.byCountry">Financement par pays (Afrique)</h3>
+          <div id="countryMap-state" class="min-h-[200px] flex-col items-center justify-center gap-3 text-center text-sm text-body-color"></div>
+          <div class="hidden" id="countryMap-wrapper">
+            <div id="country-map" class="h-80 w-full"></div>
+            <div id="country-map-legend" class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-dark-4"></div>
           </div>
-          <div class="relative h-64"><canvas id="regionChart"></canvas></div>
         </div>
       </section>
 
@@ -175,7 +178,7 @@
           </div>
         </div>
         <p class="mt-6 text-xs text-dark-5" data-i18n="vizPage.disclaimer">
-          Financement par année et répartition par secteur/type : données réelles (GET /api/analytics/*, A2.5), mises en cache 15 minutes. Répartition par région, "Projets actifs" et "Pays avec données validées" : hors périmètre A2.5/A2.6, restent en données de démonstration ou en indicateur à venir.
+          Bandeau d'indicateurs, répartition par type/secteur/pays et financement par année : données réelles (GET /api/analytics/*, A2.5), mises en cache 15 minutes. "Projets actifs" et "Pays avec données validées" : hors périmètre A2.5/A2.6, restent en indicateur à venir.
         </p>
       </section>
     </div>
@@ -227,26 +230,10 @@
     <script>
       Chart.defaults.font.family = "Inter, sans-serif";
       Chart.defaults.color = "#52616a";
-
-      // financingChart and sectorChart: real data, loaded by assets/js/analytics.js
-      // from GET /api/analytics/financing-trends and /sector-distribution (A2.5/A2.6).
-
-      // regionChart: out of the A2.5 perimeter (which lists financing trends,
-      // sector distribution and CO2 reduction - not a region breakdown), so
-      // this stays on illustrative demo data, explicitly labeled as such above.
-      new Chart(document.getElementById("regionChart"), {
-        type: "bar",
-        data: {
-          labels: ["Afrique de l'Ouest", "Afrique centrale", "Afrique de l'Est", "Afrique australe", "Afrique du Nord"],
-          datasets: [{ label: "Financement (M USD)", data: [420, 260, 380, 190, 310], backgroundColor: "#16a34a", borderRadius: 6 }],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, grid: { color: "rgba(5,46,28,0.06)" } }, x: { grid: { display: false } } },
-        },
-      });
+      // Every chart on this page (financingChart, typeChart, sectorChart)
+      // and the country map are loaded by assets/js/analytics.js from the
+      // real /api/analytics/* aggregates (A2.5, extended with
+      // country-distribution) - nothing left on illustrative demo data.
     </script>
   </body>
 </html>

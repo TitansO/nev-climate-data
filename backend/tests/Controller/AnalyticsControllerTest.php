@@ -41,6 +41,7 @@ final class AnalyticsControllerTest extends WebTestCase
 {
     private const CACHE_KEY_FINANCING_TRENDS = 'analytics_financing_trends';
     private const CACHE_KEY_SECTOR_DISTRIBUTION = 'analytics_sector_distribution';
+    private const CACHE_KEY_COUNTRY_DISTRIBUTION = 'analytics_country_distribution';
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
 
     private EntityManagerInterface $entityManager;
@@ -182,6 +183,35 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertEquals(12.5, $data[1]['percentage']);
     }
 
+    public function testCountryDistributionAggregatesAndComputesPercentage(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client); // Senegal: 300 + 100 + 400 = 800
+
+        $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $this->entityManager->persist($kenya);
+        $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
+        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
+        $this->entityManager->persist(new Funding($kenya, $renewableEnergy, 2024, '200.00', FundingType::Public, $source, new \DateTimeImmutable('2024-05-01'), ValidationStatus::Demo));
+        $this->entityManager->flush();
+        static::getContainer()->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/country-distribution');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertCount(2, $data);
+
+        // Senegal: 800, Kenya: 200, total 1000 -> largest first.
+        self::assertSame('SEN', $data[0]['isoCode']);
+        self::assertSame('Senegal', $data[0]['country']);
+        self::assertEquals(800.0, $data[0]['amount']);
+        self::assertEquals(80.0, $data[0]['percentage']);
+
+        self::assertSame('KEN', $data[1]['isoCode']);
+        self::assertEquals(200.0, $data[1]['amount']);
+        self::assertEquals(20.0, $data[1]['percentage']);
+    }
+
     public function testCo2ReductionExplicitlyReportsUnavailableRatherThanFabricatingAValue(): void
     {
         $client = static::createClient();
@@ -213,6 +243,10 @@ final class AnalyticsControllerTest extends WebTestCase
         $client->request('GET', '/api/analytics/sector-distribution');
         self::assertResponseIsSuccessful();
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
+
+        $client->request('GET', '/api/analytics/country-distribution');
+        self::assertResponseIsSuccessful();
+        self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
     }
 
     public function testAnalyticsEndpointsAreDocumentedInSwagger(): void
@@ -223,7 +257,7 @@ final class AnalyticsControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $spec = json_decode($client->getResponse()->getContent(), true);
-        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats'] as $path) {
+        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/country-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats'] as $path) {
             self::assertArrayHasKey($path, $spec['paths']);
             self::assertArrayHasKey('get', $spec['paths'][$path]);
         }
@@ -311,10 +345,12 @@ final class AnalyticsControllerTest extends WebTestCase
 
         $client->request('GET', '/api/analytics/financing-trends');
         $client->request('GET', '/api/analytics/sector-distribution');
+        $client->request('GET', '/api/analytics/country-distribution');
         $client->request('GET', '/api/analytics/co2-reduction');
 
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_FINANCING_TRENDS));
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_SECTOR_DISTRIBUTION));
+        self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_COUNTRY_DISTRIBUTION));
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_CO2_REDUCTION));
     }
 
@@ -375,6 +411,10 @@ final class AnalyticsControllerTest extends WebTestCase
         $client->request('GET', '/api/analytics/sector-distribution');
         $sectorData = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(700.0, $sectorData[0]['amount']); // unchanged, not 999999 + 700
+
+        $client->request('GET', '/api/analytics/country-distribution');
+        $countryData = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertEquals(800.0, $countryData[0]['amount']); // unchanged, not 999999 + 800
 
         $client->request('GET', '/api/analytics/hero-stats');
         $heroData = json_decode($client->getResponse()->getContent(), true);
