@@ -14,6 +14,7 @@ use App\Entity\Funding;
 use App\Entity\Sector;
 use App\Entity\Source;
 use App\Entity\User;
+use App\Service\ExportService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -348,11 +349,16 @@ final class FundingExportTest extends WebTestCase
         $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
 
-        // 25 already seeded by seedDataset(); this brings the total well past
-        // ExportService::ASYNC_THRESHOLD (500). Only the row count matters here, not any
-        // field's value, but each row still needs its own Source to satisfy the B1.1 dedup
-        // constraint (unique per source/country/sector/year/fundingType among current rows).
-        for ($i = 0; $i < 500; ++$i) {
+        // 25 already seeded by seedDataset(); this brings the total just past
+        // ExportService::ASYNC_THRESHOLD, however that constant is currently
+        // set - a hardcoded count here silently stopped exercising the async
+        // path entirely the last time the threshold changed (see that
+        // constant's own docblock for the incident). Only the row count
+        // matters here, not any field's value, but each row still needs its
+        // own Source to satisfy the B1.1 dedup constraint (unique per
+        // source/country/sector/year/fundingType among current rows).
+        $recordsNeeded = ExportService::ASYNC_THRESHOLD - 25 + 1;
+        for ($i = 0; $i < $recordsNeeded; ++$i) {
             $source = new Source("Threshold Source {$i}", SourceType::InternalDemo, SourceReliability::Medium);
             $this->entityManager->persist($source);
             $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '100.00', FundingType::Public, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Demo));

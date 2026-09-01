@@ -34,12 +34,25 @@ final class ExportService
     /**
      * Rows above this go async. PROVISIONAL (same reasoning as
      * App\Security\ApiKeyQuotaPolicy): the plan says "au-delà du seuil"
-     * without a number. 500 is chosen so a single filtered country/year
-     * view (tens of rows) always stays synchronous - the common case keeps
-     * today's one-request-one-download behavior - while "export everything"
-     * (1080 rows in the current fixtures) reliably exercises the async path.
+     * without a number.
+     *
+     * Raised from 500 to 10 000 after a real production bug: the async
+     * path requires a separate worker process consuming the `async`
+     * Messenger transport (docker-compose.yml's `backend-worker` service,
+     * `messenger:consume async`) - present locally/Codespace, but the
+     * current Render deployment only runs the web service, no worker. An
+     * export above the old threshold (every unfiltered "export everything"
+     * - 1080 rows in the current fixtures - immediately qualified) was
+     * accepted (202) and left stuck at "pending" forever, since nothing
+     * was ever going to consume that message. 10 000 keeps every export of
+     * the current dataset synchronous - same one-request-one-download
+     * behavior as the common filtered case - while still async above that.
+     * The async path itself is untouched (still real, still tested, still
+     * exercised locally) - if a Render worker is added later (see the
+     * alternative considered in this bug's discussion) or the dataset
+     * grows well past this, revisit the number rather than the design.
      */
-    public const ASYNC_THRESHOLD = 500;
+    public const ASYNC_THRESHOLD = 10_000;
 
     private const CSV_HEADER = ['id', 'country_name', 'country_iso_code', 'sector_id', 'sector_name', 'year', 'amount', 'funding_type', 'source_id', 'source_name', 'collection_date', 'validation_status'];
 
