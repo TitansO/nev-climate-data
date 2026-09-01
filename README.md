@@ -610,6 +610,32 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)
 - [`docs/superpowers/specs/2026-08-24-a14-jwt-authentication-design.md`](docs/superpowers/specs/2026-08-24-a14-jwt-authentication-design.md) + [`docs/superpowers/plans/2026-08-24-a14-jwt-authentication.md`](docs/superpowers/plans/2026-08-24-a14-jwt-authentication.md)
 
+**Fait (Phase B1 - Connecteurs sources officielles) :**
+
+| Tâche | Contenu | Statut |
+|---|---|---|
+| B1.1 | Connecteur Banque Mondiale (World Bank Data API), collecte trimestrielle | ✅ Fait |
+| B1.2 | Connecteur GCF (IATI Datastore), collecte trimestrielle | ✅ Fait |
+| B1.3 | Connecteur BAD/AfDB (IATI Datastore), conversion XDR→USD réelle, collecte trimestrielle | ✅ Fait |
+| B1.4 | Connecteur PNUE (API SDG ONU, émissions CO2), topic/table dédiés, collecte trimestrielle | ✅ Fait |
+| B1.5 | Extracteur PDF OPEC Fund (Gemini), cache SHA-256, collecte trimestrielle | ✅ Fait |
+| B1.6 | Processor de validation et normalisation | ✅ Fait - essentiel déjà livré avec B1.1-B1.5 ; un vrai manque de robustesse trouvé et corrigé (message malformé → quarantaine au lieu de planter le service) |
+| B1.7 | Gestion des conflits entre sources et historisation | ✅ Fait - un vrai bug de lecture trouvé et corrigé (`isCurrent` jamais filtré côté API, dashboard gonflé d'environ 65%) |
+| B1.8 | Isolation Kafka/MinIO et architecture Bronze/Silver/Gold vis-à-vis de CIMA | ✅ Fait - isolation vérifiée en direct ; Gold = TimescaleDB par design (pas d'export MinIO redondant) |
+| B1.9 | Orchestration Airflow : DAGs robustes (retries), alerting email réel sur échec | ✅ Fait - vérifié en conditions réelles, confirmé par Serge |
+| B1.10 | Recette Phase B1 (voir [`docs/superpowers/specs/2026-09-01-b110-phase-b1-recette.md`](docs/superpowers/specs/2026-09-01-b110-phase-b1-recette.md)) | ✅ Fait - toutes catégories vertes ; un écart mineur non bloquant trouvé et documenté ; en attente de la signature formelle du Product Owner |
+
+**Travaux supplémentaires réalisés hors plan officiel (Phase B1)** :
+
+| Bloc | Contenu | Dans le plan ? |
+|---|---|---|
+| Refactoring multi-tâches des 5 DAGs | Chaque DAG passe d'une tâche unique à 3 tâches réellement reliées (`extraire >> transformer >> publier`), transit par MinIO Bronze/Silver | Non |
+| Correction du double comptage Funding | Bug réel de production trouvé en creusant B1.7 : idempotence par projet (`funding_project_contribution`), données corrompues reconstruites | Non |
+| Fréquence de collecte unifiée trimestrielle | Décision de gouvernance de Serge (2026-09-01) : GCF (était mensuel) et PNUE/OPEC Fund (étaient annuels) alignés sur la même cadence que les autres connecteurs | Non |
+
+**Phase B1 (B1.1 à B1.10) fonctionnellement complète.** Prochaine étape : Phase B2 (connecteur
+GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
+
 ## Pipeline (Volet B)
 
 Premier connecteur du Volet B (données réelles) : collecte trimestrielle des financements
