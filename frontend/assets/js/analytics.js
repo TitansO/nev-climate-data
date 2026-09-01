@@ -213,6 +213,7 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: { legend: { position: "bottom" } },
         scales: {
           y: { beginAtZero: true, grid: { color: "rgba(5,46,28,0.06)" }, title: { display: true, text: "USD" } },
@@ -296,6 +297,7 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         cutout: "72%",
         plugins: {
           legend: { position: "bottom" },
@@ -350,6 +352,7 @@
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
             tooltip: {
