@@ -3,7 +3,7 @@
 Split into 3 linked tasks (extraire >> transformer >> publier) - see the
 2026-08-31 multi-task DAG refactor spec.
 """
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -13,14 +13,9 @@ from pipeline.collectors.afdb import (
     fetch_xdr_to_usd_rate,
     parse_activity,
 )
+from pipeline.common.alerting import default_args
 from pipeline.common.kafka_client import make_producer
 from pipeline.common.minio_staging import download_json, make_minio_client, upload_json
-
-default_args = {
-    "owner": "nev-climate-data",
-    "retries": 3,
-    "retry_delay": timedelta(minutes=5),
-}
 
 
 def _extraire(**context) -> None:
