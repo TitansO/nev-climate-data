@@ -2,22 +2,20 @@
   "name": "nev-climate-data-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "NEV Climate Data — frontend en migration progressive vers React (A3.1/A3.2). Chaque page HTML est migrée un lot à la fois (voir le plan de migration) ; les pages non encore migrées restent en HTML statique + JS simple, servies telles quelles. Tailwind CSS v4.",
+  "description": "NEV Climate Data — frontend React (migration A3.1/A3.2 terminée, les 13 pages sont migrées). Chaque page HTML reste sa propre URL (Vite en mode multi-page, build en place). Tailwind CSS v4 via @tailwindcss/vite.",
   "scripts": {
     "dev": "vite",
-    "dev:tailwind": "npx @tailwindcss/cli -i ./src/input.css -o ./src/css/tailwind.css --watch",
-    "build": "npm run build:tailwind && npm run build:vite",
-    "build:tailwind": "npx @tailwindcss/cli -i ./src/input.css -o ./src/css/tailwind.css --minify",
-    "build:vite": "rm -rf assets/react && vite build"
+    "build": "rm -rf assets/react && vite build"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "^4.0.9",
     "@tailwindcss/vite": "^4.0.9",
     "@vitejs/plugin-react": "^4.3.4",
     "tailwindcss": "^4.0.9",
     "vite": "^6.0.7"
   },
   "dependencies": {
+    "chart.js": "^4.4.0",
+    "jsvectormap": "^1.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   }
