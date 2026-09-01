@@ -1,7 +1,11 @@
-"""Airflow DAG: annual extraction of the OPEC Fund Climate Finance Report
-(B1.5) - see the B1.5 spec, decision 12. Split into 3 linked tasks (extraire
->> transformer >> publier) with a cache short-circuit propagated via XCom -
-see the 2026-08-31 multi-task DAG refactor spec, decision 5.
+"""Airflow DAG: quarterly extraction of the OPEC Fund Climate Finance Report
+(B1.5). Split into 3 linked tasks (extraire >> transformer >> publier) with
+a cache short-circuit propagated via XCom - see the 2026-08-31 multi-task
+DAG refactor spec, decision 5. Schedule unified to quarterly across every
+Volet B connector (was annual, per B1.5 spec decision 12) - see the
+2026-09-01 spec. The document-hash cache (decision 9 of the B1.5 spec)
+still means a quarterly re-run is a real no-op until the source actually
+publishes a new edition.
 """
 import json
 from datetime import date, datetime
@@ -145,7 +149,7 @@ def _publier(**context) -> None:
 with DAG(
     dag_id="extraction_pdf",
     default_args=default_args,
-    schedule_interval="0 3 1 1 *",  # 1er janvier, 03h00 - annuel, cf. spec decision 12
+    schedule_interval="0 3 1 1,4,7,10 *",  # 1er jour de chaque trimestre, 03h00
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["b1.5", "extraction", "pdf", "opec-fund"],

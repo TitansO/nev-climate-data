@@ -562,6 +562,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 34. **Un fichier de test qui importe un module de DAG hérite de toutes ses dépendances au niveau module - y compris `airflow` lui-même, qui n'est installé que dans l'image `airflow`, pas dans `funding-validator`.** Découverte réelle pendant le refactoring multi-tâches des DAGs (2026-08-31) : les premiers `pipeline/tests/test_dag_*_tasks.py` écrits pour tester les nouvelles fonctions `_extraire`/`_transformer`/`_publier` de chaque DAG ont échoué en collection avec `ModuleNotFoundError: No module named 'airflow'` dans `funding-validator` - cette image n'a jamais eu besoin d'Airflow pour son propre rôle de consommateur Kafka. Il a fallu router ces tests vers le conteneur `airflow` à la place, qui lui-même n'avait pas `pytest` installé (jamais eu besoin de faire tourner de tests avant que les DAGs n'aient leur propre logique testable). Résolu en ajoutant `pytest==8.3.3` à `_PIP_ADDITIONAL_REQUIREMENTS` du service `airflow`. Un projet à plusieurs images Docker n'a pas une seule "suite de tests" mais potentiellement plusieurs, une par image ayant les dépendances du code qu'elle teste.
 35. **Un connecteur qui republie l'intégralité de son portefeuille à chaque exécution rend un validateur qui "additionne chaque message reçu" dangereux, pas seulement redondant.** Bug réel de production trouvé le 2026-08-31 en creusant B1.7 : chaque DAG de collecte (World Bank, GCF, AfDB) re-télécharge et republie tout son portefeuille courant à chaque run - pas seulement les nouveautés. `upsert_funding()` additionnait pourtant aveuglément chaque message reçu au total courant, sans jamais vérifier si le `project_id` avait déjà contribué lors d'un run précédent. Résultat vérifié en base réelle : Sénégal/Agriculture/1989 (Banque Mondiale) a été additionné 8 fois de suite avec exactement le même incrément (16,1M → 128,8M), et jusqu'à 92% des lignes `Funding` réelles de ces 3 sources étaient des versions historisées par ce bug, pas de vraies révisions. PNUE (sémantique remplacement, pas addition) et OPEC Fund PDF (protégé par son cache SHA-256 de document) n'étaient pas affectés. Corrigé par une vraie idempotence par projet (`funding_project_contribution`, décisions complètes : [`docs/superpowers/specs/2026-08-31-funding-project-idempotency-design.md`](docs/superpowers/specs/2026-08-31-funding-project-idempotency-design.md)) plutôt qu'un correctif superficiel - les données corrompues des 3 sources ont été supprimées et reconstruites à partir d'un run propre chacune : Sénégal/Agriculture/1989 affiche maintenant exactement 16 100 000 (au lieu de 128 800 000), et une vérification croisée confirme que la somme totale des lignes `Funding` courantes correspond exactement à la somme des contributions individuelles suivies par projet (268 138 642 869,00 des deux côtés pour la Banque Mondiale). Avant de faire sommer un validateur, toujours vérifier ce que fait réellement le collecteur en amont à chaque exécution - "récupère les nouveautés" et "récupère tout l'état courant" ont des implications d'idempotence radicalement différentes en aval.
 36. **Une colonne d'historisation (`isCurrent`) ne protège rien si aucune requête de lecture ne la filtre.** Bug réel de production trouvé le 2026-08-31 en creusant B1.7 (le pendant lecture du bug de double comptage du point 35) : `FundingRepository` ne filtrait `isCurrent = true` nulle part - ni dans le listing/recherche/export (`FundingController`), ni dans les agrégats analytics (`findFinancingTrendsAggregate`, `findSectorDistributionAggregate`), ni dans les stats du Hero (`countDistinctCountries`, `count([])`, `countDistinctSources`). Aucun filtre Doctrine global ne le faisait non plus. Résultat mesuré en direct : la somme de toutes les lignes `Funding` (courantes + historisées) était de 526 614 769 743, contre 319 543 983 336 pour les lignes courantes seules - un gonflement d'environ 65% sur tous les chiffres affichés par le dashboard (graphiques, stats du Hero, tableau/export). Corrigé en ajoutant `->where('funding.isCurrent = true')` (ou `count(['isCurrent' => true])`) à chaque requête de lecture de `Funding` - décisions complètes : [`docs/superpowers/specs/2026-08-31-b17-current-funding-filter-design.md`](docs/superpowers/specs/2026-08-31-b17-current-funding-filter-design.md). Vérifié en direct après correctif : `GET /api/analytics/financing-trends` retourne désormais exactement 319 543 983 336, identique à la somme SQL directe des lignes courantes. Une colonne d'historisation SCD2 n'est une garantie que si elle est appliquée aux deux bouts - l'écriture (qui la peuple) ET la lecture (qui doit la respecter) - vérifier systématiquement les deux avant de considérer un mécanisme d'historisation "terminé".
+37. **Décision de gouvernance (2026-09-01) : fréquence de collecte unifiée à trimestrielle pour tous les connecteurs Volet B, présents et futurs.** Sur demande explicite de Serge, `collecte_gcf` (mensuel à l'origine) et `collecte_pnue`/`extraction_pdf` (annuels à l'origine, B1.4/B1.5 spec decision 12) sont repassés à `0 3 1 1,4,7,10 *` (1er jour de chaque trimestre), comme `collecte_worldbank`/`collecte_afdb` qui l'étaient déjà. Décisions complètes : [`docs/superpowers/specs/2026-09-01-unified-quarterly-schedule-design.md`](docs/superpowers/specs/2026-09-01-unified-quarterly-schedule-design.md). **Tout futur DAG de collecte (B2 et au-delà) doit utiliser cette même fréquence par défaut**, sauf décision contraire explicite - ne pas réintroduire une cadence différente par réflexe de "coller à la fréquence de publication de la source" comme le faisaient B1.4/B1.5 à l'origine.
 
 ## État d'avancement
 
@@ -611,6 +612,32 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 **Documentation de conception disponible** pour tout ce qui est fait jusqu'ici (décisions prises, alternatives écartées, justifications) :
 - [`docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md`](docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md) + [`docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md`](docs/superpowers/plans/2026-08-22-a13-timescaledb-schema.md)
 - [`docs/superpowers/specs/2026-08-24-a14-jwt-authentication-design.md`](docs/superpowers/specs/2026-08-24-a14-jwt-authentication-design.md) + [`docs/superpowers/plans/2026-08-24-a14-jwt-authentication.md`](docs/superpowers/plans/2026-08-24-a14-jwt-authentication.md)
+
+**Fait (Phase B1 - Connecteurs sources officielles) :**
+
+| Tâche | Contenu | Statut |
+|---|---|---|
+| B1.1 | Connecteur Banque Mondiale (World Bank Data API), collecte trimestrielle | ✅ Fait |
+| B1.2 | Connecteur GCF (IATI Datastore), collecte trimestrielle | ✅ Fait |
+| B1.3 | Connecteur BAD/AfDB (IATI Datastore), conversion XDR→USD réelle, collecte trimestrielle | ✅ Fait |
+| B1.4 | Connecteur PNUE (API SDG ONU, émissions CO2), topic/table dédiés, collecte trimestrielle | ✅ Fait |
+| B1.5 | Extracteur PDF OPEC Fund (Gemini), cache SHA-256, collecte trimestrielle | ✅ Fait |
+| B1.6 | Processor de validation et normalisation | ✅ Fait - essentiel déjà livré avec B1.1-B1.5 ; un vrai manque de robustesse trouvé et corrigé (message malformé → quarantaine au lieu de planter le service) |
+| B1.7 | Gestion des conflits entre sources et historisation | ✅ Fait - un vrai bug de lecture trouvé et corrigé (`isCurrent` jamais filtré côté API, dashboard gonflé d'environ 65%) |
+| B1.8 | Isolation Kafka/MinIO et architecture Bronze/Silver/Gold vis-à-vis de CIMA | ✅ Fait - isolation vérifiée en direct ; Gold = TimescaleDB par design (pas d'export MinIO redondant) |
+| B1.9 | Orchestration Airflow : DAGs robustes (retries), alerting email réel sur échec | ✅ Fait - vérifié en conditions réelles, confirmé par Serge |
+| B1.10 | Recette Phase B1 (voir [`docs/superpowers/specs/2026-09-01-b110-phase-b1-recette.md`](docs/superpowers/specs/2026-09-01-b110-phase-b1-recette.md)) | ✅ Fait - toutes catégories vertes ; un écart mineur non bloquant trouvé et documenté ; en attente de la signature formelle du Product Owner |
+
+**Travaux supplémentaires réalisés hors plan officiel (Phase B1)** :
+
+| Bloc | Contenu | Dans le plan ? |
+|---|---|---|
+| Refactoring multi-tâches des 5 DAGs | Chaque DAG passe d'une tâche unique à 3 tâches réellement reliées (`extraire >> transformer >> publier`), transit par MinIO Bronze/Silver | Non |
+| Correction du double comptage Funding | Bug réel de production trouvé en creusant B1.7 : idempotence par projet (`funding_project_contribution`), données corrompues reconstruites | Non |
+| Fréquence de collecte unifiée trimestrielle | Décision de gouvernance de Serge (2026-09-01) : GCF (était mensuel) et PNUE/OPEC Fund (étaient annuels) alignés sur la même cadence que les autres connecteurs | Non |
+
+**Phase B1 (B1.1 à B1.10) fonctionnellement complète.** Prochaine étape : Phase B2 (connecteur
+GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 
 ## Pipeline (Volet B)
 
@@ -669,7 +696,8 @@ jamais eu leur propre suite de tests jusqu'ici).
 
 ### Connecteur GCF (B1.2)
 
-Deuxième connecteur du Volet B : collecte mensuelle des financements du Fonds Vert pour le
+Deuxième connecteur du Volet B : collecte trimestrielle (fréquence unifiée pour tous les
+connecteurs le 2026-09-01 - était mensuelle à l'origine) des financements du Fonds Vert pour le
 Climat, via l'API IATI Datastore (pas l'API/dashboard propre du GCF, injoignable au moment de
 la conception — voir la spec). Décisions de conception complètes :
 [`docs/superpowers/specs/2026-08-28-b12-gcf-connector-design.md`](docs/superpowers/specs/2026-08-28-b12-gcf-connector-design.md).
@@ -705,7 +733,8 @@ limite de débit de l'offre gratuite IATI ci-dessous.
 
 ### Connecteur PNUE (B1.4)
 
-Quatrième connecteur du Volet B : collecte annuelle des émissions de CO2 par pays, via l'API SDG
+Quatrième connecteur du Volet B : collecte trimestrielle (fréquence unifiée pour tous les
+connecteurs le 2026-09-01 - était annuelle à l'origine) des émissions de CO2 par pays, via l'API SDG
 des Nations Unies (indicateur 9.4.1, série `EN_ATM_CO2`) - **pas** une API PNUE native : une
 recherche approfondie (12+ vérifications réelles) a confirmé qu'aucune API PNUE vivante et
 alimentée avec une granularité par pays n'existe (API historique de 2016 morte, portail SDG
@@ -860,3 +889,20 @@ explicitement `TimescaleDB (Gold)` dans le diagramme du flux GreenAccess (B2) - 
 export MinIO redondant. Aucun besoin réel identifié pour un tel export dans les tâches à venir
 (B1.9, B1.10, B2) - décision documentée plutôt que laissée à l'abandon :
 [`docs/superpowers/specs/2026-08-31-b18-isolation-closure-design.md`](docs/superpowers/specs/2026-08-31-b18-isolation-closure-design.md).
+
+### Alerting réel sur échec des DAGs (B1.9, 2026-09-01)
+
+Les 5 DAGs Volet B envoient désormais un vrai email (Gmail SMTP,
+`AIRFLOW_ALERT_EMAIL`/`AIRFLOW_SMTP_PASSWORD` dans `.env`) quand une tâche épuise ses 3 tentatives
+et échoue pour de bon - jamais à chaque tentative individuelle (`email_on_retry: False`), pour ne
+pas noyer une vraie panne sous des alertes de lenteur transitoire déjà couvertes par le retry
+existant. Un changement de structure d'une source (champ renommé/retiré côté API) n'a pas de
+détection dédiée - il se manifeste déjà comme une exception Python réelle pendant le parsing, que
+`email_on_failure` couvre au même titre que n'importe quel autre échec. Décisions complètes :
+[`docs/superpowers/specs/2026-09-01-b19-airflow-alerting-design.md`](docs/superpowers/specs/2026-09-01-b19-airflow-alerting-design.md).
+
+Vérifié en direct en deux temps : un email de test SMTP direct (`airflow.utils.email.send_email`)
+et un DAG jetable systématiquement en échec (`retries: 0`) ont chacun généré un vrai email reçu et
+confirmé par Serge - le second correspond exactement à la tâche, au sujet
+(`Airflow alert: <TaskInstance: ...>`) et à l'exception attendus. Le DAG de test a été supprimé
+après vérification (jamais commité).
