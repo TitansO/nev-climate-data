@@ -4,7 +4,7 @@
 see the 2026-08-31 multi-task DAG refactor spec, decision 5.
 """
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 import requests
 from airflow import DAG
@@ -20,6 +20,7 @@ from pipeline.collectors.opec_fund_climate_finance import (
     SOURCE_URL,
     build_payloads,
 )
+from pipeline.common.alerting import default_args
 from pipeline.common.db import get_connection
 from pipeline.common.kafka_client import make_producer
 from pipeline.common.minio_staging import (
@@ -36,12 +37,6 @@ from pipeline.common.pdf_extraction import (
     sha256_hash,
     slice_pdf_pages,
 )
-
-default_args = {
-    "owner": "nev-climate-data",
-    "retries": 3,
-    "retry_delay": timedelta(minutes=5),
-}
 
 
 def _extraire(**context) -> None:
