@@ -71,9 +71,8 @@
               </div>
             </dl>
 
-            <div class="mt-8 flex flex-wrap gap-3">
+            <div id="profile-actions" class="mt-8 flex flex-wrap gap-3">
               <a href="account-api-keys.html" class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark" data-i18n="profilePage.myApiKeys">Mes clés API</a>
-              <a href="account-users.html" id="manage-users-link" class="hidden inline-flex items-center justify-center gap-2 rounded-md border border-primary px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-surface-alt" data-i18n="profilePage.manageUsers">Gérer les utilisateurs</a>
               <button id="profile-logout-btn" type="button" class="rounded-md border border-stroke px-6 py-2.5 text-sm font-semibold text-dark-4 transition hover:bg-gray-2" data-i18n="profilePage.logout">Déconnexion</button>
             </div>
           </div>
@@ -139,8 +138,16 @@
 
           document.getElementById("profile-email").textContent = user.email;
           document.getElementById("profile-role").textContent = ROLE_LABELS[user.role] || user.role;
+          // Only ever inserted into the DOM for a confirmed SuperAdmin -
+          // never present (not just visually hidden) for anyone else, so
+          // there is no class/state to accidentally leave toggled on.
           if ("super_admin" === user.role) {
-            document.getElementById("manage-users-link").classList.remove("hidden");
+            var manageUsersLink = document.createElement("a");
+            manageUsersLink.href = "account-users.html";
+            manageUsersLink.className = "inline-flex items-center justify-center gap-2 rounded-md border border-primary px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-surface-alt";
+            manageUsersLink.setAttribute("data-i18n", "profilePage.manageUsers");
+            manageUsersLink.textContent = window.NevI18n ? window.NevI18n.t("profilePage.manageUsers") : "Gérer les utilisateurs";
+            document.getElementById("profile-logout-btn").insertAdjacentElement("beforebegin", manageUsersLink);
           }
           document.getElementById("profile-loading").classList.add("hidden");
           document.getElementById("profile-content").classList.remove("hidden");
