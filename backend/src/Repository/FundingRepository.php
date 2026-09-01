@@ -116,6 +116,30 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * Country-distribution aggregate (visualizations.html's funding map, on
+     * top of the A2.5 perimeter - same shape/reasoning as
+     * findSectorDistributionAggregate(), country instead of sector). One
+     * row per country, summed in SQL, ordered by total DESC with
+     * country.id ASC as a deterministic tiebreaker.
+     *
+     * @return list<array{isoCode: string, countryName: string, total: string}>
+     */
+    public function findCountryDistributionAggregate(): array
+    {
+        return $this->createQueryBuilder('funding')
+            ->select('country.isoCode AS isoCode', 'country.name AS countryName', 'SUM(funding.amount) AS total')
+            ->join('funding.country', 'country')
+            ->where('funding.isCurrent = true')
+            ->groupBy('country.id')
+            ->addGroupBy('country.isoCode')
+            ->addGroupBy('country.name')
+            ->orderBy('total', 'DESC')
+            ->addOrderBy('country.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Shared WHERE-clause builder for findByCriteria()/countByCriteria(), so
      * the two queries can never apply a different set of filters. `country`
      * is always joined (needed to filter on Country.isoCode, and it's a

@@ -11,8 +11,9 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Server-side aggregates for the 3 analytics charts on the frontend's
- * visualizations page (A2.5) and the Hero stats strip on index.html (A2.7).
+ * Server-side aggregates for the analytics charts on the frontend's
+ * visualizations page (A2.5, extended with country-distribution for the
+ * funding map) and the Hero stats strip on index.html (A2.7).
  * Deliberately PUBLIC_ACCESS, like GET /api/funding (see security.yaml):
  * neither page has a login requirement, so there is no reason for the data
  * feeding them to require one either. No query parameters - neither page
@@ -108,6 +109,35 @@ final class AnalyticsController extends AbstractController
     public function sectorDistribution(): JsonResponse
     {
         return $this->json(['data' => $this->analyticsService->getSectorDistribution()]);
+    }
+
+    #[Route('/api/analytics/country-distribution', name: 'api_analytics_country_distribution', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Répartition des financements par pays (mis en cache 15 min)',
+        description: 'Montants agrégés (SUM) par pays réel, triés du plus grand au plus petit (ordre déterministe : égalité départagée par id de pays). Le pourcentage est calculé côté serveur sur le total agrégé. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
+        tags: ['Analytics'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Répartition par pays',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'isoCode', type: 'string', example: 'SEN'),
+                                new OA\Property(property: 'country', type: 'string', example: 'Senegal'),
+                                new OA\Property(property: 'amount', type: 'number', format: 'float', example: 2500000),
+                                new OA\Property(property: 'percentage', type: 'number', format: 'float', example: 8.2),
+                            ]
+                        )),
+                    ]
+                )
+            ),
+        ]
+    )]
+    public function countryDistribution(): JsonResponse
+    {
+        return $this->json(['data' => $this->analyticsService->getCountryDistribution()]);
     }
 
     #[Route('/api/analytics/co2-reduction', name: 'api_analytics_co2_reduction', methods: ['GET'])]

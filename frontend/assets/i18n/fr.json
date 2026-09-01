@@ -95,7 +95,7 @@
   "dataPage.disclaimer": "Données réelles issues de <code class=\"font-mono\">GET /api/funding</code> (A2.1). Le jeu de données provient actuellement des fixtures de démonstration (A1.6) et porte le statut « Démonstration ».",
 
   "vizPage.title": "Visualisations et tendances",
-  "vizPage.subtitle": "Analysez l'évolution du financement climatique et sa répartition par secteur et par région.",
+  "vizPage.subtitle": "Analysez l'évolution du financement climatique et sa répartition par secteur et par pays.",
   "vizPage.kpiTotalFunding": "Financement total",
   "vizPage.kpiCountries": "Pays couverts",
   "vizPage.kpiSectors": "Secteurs suivis",
@@ -103,7 +103,7 @@
   "vizPage.fundingByType": "Répartition par type de financement",
   "vizPage.financingByYear": "Financement par année et type (USD)",
   "vizPage.bySector": "Répartition par secteur",
-  "vizPage.byRegion": "Répartition par région (M USD)",
+  "vizPage.byCountry": "Financement par pays (Afrique)",
   "vizPage.demoData": "Données de démonstration",
   "vizPage.tableYear": "Année",
   "vizPage.tablePublic": "Public",
@@ -115,7 +115,7 @@
   "vizPage.activeProjects": "Projets actifs",
   "vizPage.comingIndicator": "Indicateur à venir (Volet B)",
   "vizPage.validatedCountries": "Pays avec données validées",
-  "vizPage.disclaimer": "Bandeau d'indicateurs, répartition par type/secteur et financement par année : données réelles (GET /api/analytics/*, A2.5), mises en cache 15 minutes. Répartition par région, \"Projets actifs\" et \"Pays avec données validées\" : hors périmètre A2.5/A2.6, restent en données de démonstration ou en indicateur à venir.",
+  "vizPage.disclaimer": "Bandeau d'indicateurs, répartition par type/secteur/pays et financement par année : données réelles (GET /api/analytics/*, A2.5), mises en cache 15 minutes. \"Projets actifs\" et \"Pays avec données validées\" : hors périmètre A2.5/A2.6, restent en indicateur à venir.",
 
   "reportsPage.title": "Rapports & analyses",
   "reportsPage.subtitle": "Rapports annuels, études sectorielles et publications régionales sur le financement climatique.",
