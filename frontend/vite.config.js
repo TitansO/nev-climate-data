@@ -27,7 +27,7 @@ import { resolve } from "path";
  * before. Lot 0: 404.html, login.html. Lot 1: about.html, sources.html,
  * api-docs.html. Lot 2: account-profile.html, account-api-keys.html,
  * account-users.html, notifications.html. Lot 3: data.html, reports.html.
- * Lot 4 (this commit): index.html.
+ * Lot 4: index.html. Lot 5 (this commit, final page): visualizations.html.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -49,6 +49,7 @@ export default defineConfig({
         data: resolve(__dirname, "data.html"),
         reports: resolve(__dirname, "reports.html"),
         index: resolve(__dirname, "index.html"),
+        visualizations: resolve(__dirname, "visualizations.html"),
       },
     },
   },
