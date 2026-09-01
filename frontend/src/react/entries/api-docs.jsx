@@ -4,15 +4,15 @@ import { AuthProvider } from "../providers/AuthProvider";
 import { I18nProvider } from "../providers/I18nProvider";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import LoginPage from "../pages/LoginPage";
+import ApiDocsPage from "../pages/ApiDocsPage";
 import "../../input.css";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <I18nProvider>
       <AuthProvider>
-        <Navbar variant="bare" />
-        <LoginPage />
+        <Navbar activeHref="api-docs.html" />
+        <ApiDocsPage />
         <Footer />
       </AuthProvider>
     </I18nProvider>
