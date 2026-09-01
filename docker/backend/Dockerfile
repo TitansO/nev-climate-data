@@ -39,4 +39,9 @@ RUN composer dump-autoload --optimize \
     && mkdir -p var/cache var/log \
     && chown -R www-data:www-data var
 
+RUN chmod +x docker/backend/entrypoint.sh
+
 EXPOSE 80
+
+ENTRYPOINT ["docker/backend/entrypoint.sh"]
+CMD ["apache2-foreground"]
