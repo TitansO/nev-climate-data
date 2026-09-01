@@ -99,7 +99,7 @@
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div class="rounded-2xl border border-stroke bg-white p-5 shadow-2 sm:p-6">
             <h3 class="mb-3 text-lg font-bold text-dark" data-i18n="vizPage.fundingByType">Répartition par type de financement</h3>
-            <div id="typeChart-state" class="flex min-h-[200px] flex-col items-center justify-center gap-3 text-center text-sm text-body-color"></div>
+            <div id="typeChart-state" class="min-h-[200px] flex-col items-center justify-center gap-3 text-center text-sm text-body-color"></div>
             <div class="relative hidden h-56" id="typeChart-wrapper">
               <canvas id="typeChart"></canvas>
               <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -110,7 +110,7 @@
           </div>
           <div class="rounded-2xl border border-stroke bg-white p-5 shadow-2 sm:p-6">
             <h3 class="mb-3 text-lg font-bold text-dark" data-i18n="vizPage.bySector">Répartition par secteur</h3>
-            <div id="sectorChart-state" class="flex min-h-[200px] flex-col items-center justify-center gap-3 text-center text-sm text-body-color"></div>
+            <div id="sectorChart-state" class="min-h-[200px] flex-col items-center justify-center gap-3 text-center text-sm text-body-color"></div>
             <div class="hidden grid-cols-1 items-center gap-4 sm:grid-cols-2" id="sectorChart-wrapper">
               <div class="relative h-56"><canvas id="sectorChart"></canvas></div>
               <div id="sector-ranking" class="space-y-3"></div>
@@ -123,7 +123,7 @@
       <section class="mb-8">
         <div class="rounded-2xl border border-stroke bg-white p-5 shadow-2 sm:p-6">
           <h3 class="mb-3 text-lg font-bold text-dark" data-i18n="vizPage.financingByYear">Financement par année et type (USD)</h3>
-          <div id="financingChart-state" class="flex min-h-[200px] flex-col items-center justify-center gap-3 text-center text-sm text-body-color"></div>
+          <div id="financingChart-state" class="min-h-[200px] flex-col items-center justify-center gap-3 text-center text-sm text-body-color"></div>
           <div class="relative hidden h-64" id="financingChart-wrapper"><canvas id="financingChart"></canvas></div>
 
           <div id="financingTable-wrapper" class="mt-6 hidden overflow-x-auto">
