@@ -99,6 +99,19 @@
     }
 
     contentEl.classList.toggle("hidden", "success" !== state);
+    // stateEl carries its own min-h-[...] (so the loading/error message
+    // isn't cramped) - clearing its text alone left that min-height
+    // reserved as dead empty space once the real chart was showing
+    // underneath it. Hide the element itself, not just its content.
+    // "flex" is toggled here rather than sitting statically in the HTML
+    // alongside "hidden" - two utility classes that both set `display`
+    // race on CSS source order, not DOM class order, so whichever one
+    // Tailwind happened to emit last would always win regardless of which
+    // is actually applied. Adding/removing "flex" together with "hidden"
+    // sidesteps that entirely - same convention as data.js's
+    // exportControls (classList.remove("hidden") + classList.add("flex")).
+    stateEl.classList.toggle("hidden", "success" === state);
+    stateEl.classList.toggle("flex", "success" !== state);
 
     if ("success" === state) {
       stateEl.innerHTML = "";
