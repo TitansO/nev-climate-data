@@ -76,6 +76,26 @@
     BWA: "BW", SWZ: "SZ", LSO: "LS", NAM: "NA", ZAF: "ZA",
   };
 
+  /**
+   * setFocus({regions}) fits the map's zoom to the bounding box of every
+   * code passed in - it has no separate "zoom in further" multiplier once
+   * regions are given (verified in the library's own setFocus() source:
+   * scale is only honored together with coords, ignored whenever regions
+   * is also set). Far-offshore island nations (Cabo Verde in the open
+   * Atlantic, Seychelles/Mauritius deep in the Indian Ocean) stretched that
+   * bounding box far past continental Africa, which was the real cause of
+   * the map looking zoomed too far out - not a missing zoom feature. These
+   * stay fully colored/interactive on the map (AFRICA_ISO_ALPHA3_TO_ALPHA2
+   * above is untouched); only the camera framing excludes them.
+   */
+  const AFRICA_FOCUS_ALPHA2 = Object.entries(AFRICA_ISO_ALPHA3_TO_ALPHA2)
+    .filter(function ([alpha3]) {
+      return !["CPV", "STP", "SYC", "MUS", "COM"].includes(alpha3);
+    })
+    .map(function ([, alpha2]) {
+      return alpha2;
+    });
+
   // Light -> dark, all 5 already defined in src/input.css's @theme (accent,
   // primary-light, primary, primary-dark, deep-3) - no new colors invented
   // for the map, same palette as every other chart on this page.
@@ -515,7 +535,7 @@
           }
         },
         onLoaded: function (mapInstance) {
-          mapInstance.setFocus({ regions: Object.values(AFRICA_ISO_ALPHA3_TO_ALPHA2), animate: false });
+          mapInstance.setFocus({ regions: AFRICA_FOCUS_ALPHA2, animate: false });
         },
       });
 
