@@ -37,6 +37,13 @@ final class UserTest extends TestCase
         self::assertSame(UserRole::Admin, $user->getRole());
     }
 
+    public function testGetRolesMapsSuperAdminRole(): void
+    {
+        $user = new User('Amina Diallo', 'amina@example.com', 'hashed-password', UserRole::SuperAdmin);
+
+        self::assertSame(['ROLE_SUPER_ADMIN', 'ROLE_USER'], $user->getRoles());
+    }
+
     public function testGetRolesMapsAdminRole(): void
     {
         $user = new User('Amina Diallo', 'amina@example.com', 'hashed-password', UserRole::Admin);

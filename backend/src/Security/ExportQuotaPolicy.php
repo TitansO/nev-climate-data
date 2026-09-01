@@ -46,7 +46,11 @@ final class ExportQuotaPolicy
     private function limiterForRole(UserRole $role): RateLimiterFactory
     {
         return match ($role) {
-            UserRole::Admin => $this->adminLimiter,
+            // Shares Admin's limiter (same bucket policy, not the same
+            // bucket state - the limiter is created keyed by user id, see
+            // consume() above): SuperAdmin is Admin plus account
+            // management, not a distinct export usage tier.
+            UserRole::SuperAdmin, UserRole::Admin => $this->adminLimiter,
             UserRole::InternalAnalyst => $this->internalAnalystLimiter,
             UserRole::ExternalPartner => $this->externalPartnerLimiter,
         };
