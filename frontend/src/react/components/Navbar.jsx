@@ -1,20 +1,26 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "../providers/I18nProvider";
+import GlobalSearch from "./GlobalSearch";
+import NotificationBell from "./NotificationBell";
+import AuthSlot from "./AuthSlot";
 
 /**
- * React port of the "standard" header (assets/js/main.js's sticky-on-
- * scroll + mobile-toggle behavior, ported to React state instead of direct
- * classList manipulation) as it appears on login.html - logo, nav links,
- * language switch. Search box / notification bell / auth-nav-slot are NOT
- * included yet: login.html itself doesn't carry them, and other pages that
- * do haven't been migrated yet (later lots will extend this component
- * rather than guessing their shape now).
+ * React port of the shared header (assets/js/main.js's sticky-on-scroll +
+ * mobile-toggle behavior, ported to React state instead of direct
+ * classList manipulation).
  *
- * DOM ids (#navbarToggler, #navbarCollapse, #lang-switch-btn) are kept
- * identical to the static-HTML version on purpose: src/input.css's
- * `.sticky #navbarCollapse li > a` (and siblings) select by these exact
- * ids - dropping them would silently break styling that already shipped
- * and was hand-verified earlier this project.
+ * Two variants, matching what the static pages actually carried:
+ * - "standard" (default): search box + notification bell + auth slot,
+ *   used by every page except login.html/404.html.
+ * - "bare": just nav links + language switch, login.html's own header.
+ *
+ * DOM ids (#navbarToggler, #navbarCollapse, #lang-switch-btn,
+ * #global-search-input, #notif-bell-btn, #auth-nav-slot - the last two
+ * rendered by NotificationBell/AuthSlot themselves) are kept identical to
+ * the static-HTML version on purpose: src/input.css targets several of
+ * them directly by id (the mobile-dropdown text-color fix, in
+ * particular) - dropping them would silently break styling that already
+ * shipped and was hand-verified earlier this project.
  */
 const NAV_LINKS = [
   { href: "index.html", key: "nav.home", fallback: "Accueil" },
@@ -26,7 +32,7 @@ const NAV_LINKS = [
   { href: "api-docs.html", key: "nav.apiDocs", fallback: "Documentation API" },
 ];
 
-export default function Navbar({ activeHref }) {
+export default function Navbar({ activeHref, variant = "standard" }) {
   const { t, toggleLang } = useI18n();
   const [sticky, setSticky] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -46,6 +52,18 @@ export default function Navbar({ activeHref }) {
   function closeMobileMenu() {
     setMobileOpen(false);
   }
+
+  const langSwitchButton = (
+    <button
+      id="lang-switch-btn"
+      type="button"
+      className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+      aria-label="Changer de langue"
+      onClick={toggleLang}
+    >
+      {t("lang.switchTo", "EN")}
+    </button>
+  );
 
   return (
     <header className={"ud-header absolute left-0 top-0 z-40 flex w-full items-center bg-transparent" + (sticky ? " sticky" : "")}>
@@ -92,17 +110,17 @@ export default function Navbar({ activeHref }) {
                     </li>
                   ))}
                 </ul>
-                <div className="mt-4 lg:mt-0">
-                  <button
-                    id="lang-switch-btn"
-                    type="button"
-                    className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
-                    aria-label="Changer de langue"
-                    onClick={toggleLang}
-                  >
-                    {t("lang.switchTo", "EN")}
-                  </button>
-                </div>
+
+                {"bare" === variant ? (
+                  <div className="mt-4 lg:mt-0">{langSwitchButton}</div>
+                ) : (
+                  <div className="mt-4 flex flex-col items-start gap-3 border-t border-stroke px-6 pt-4 lg:mt-0 lg:flex-row lg:items-center lg:gap-4 lg:border-t-0 lg:px-0 lg:pt-0">
+                    <GlobalSearch />
+                    <NotificationBell />
+                    {langSwitchButton}
+                    <AuthSlot />
+                  </div>
+                )}
               </nav>
             </div>
           </div>

@@ -8,7 +8,7 @@
     "dev:tailwind": "npx @tailwindcss/cli -i ./src/input.css -o ./src/css/tailwind.css --watch",
     "build": "npm run build:tailwind && npm run build:vite",
     "build:tailwind": "npx @tailwindcss/cli -i ./src/input.css -o ./src/css/tailwind.css --minify",
-    "build:vite": "vite build"
+    "build:vite": "rm -rf assets/react && vite build"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.0.9",

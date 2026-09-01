@@ -24,7 +24,8 @@ import { resolve } from "path";
  *
  * Pages are added to `input` one at a time as they're migrated - a page
  * not listed here is still the old static HTML, served exactly as
- * before. Lot 0 (this commit): 404.html, login.html.
+ * before. Lot 0: 404.html, login.html. Lot 1 (this commit): about.html,
+ * sources.html, api-docs.html.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -36,6 +37,9 @@ export default defineConfig({
       input: {
         404: resolve(__dirname, "404.html"),
         login: resolve(__dirname, "login.html"),
+        about: resolve(__dirname, "about.html"),
+        sources: resolve(__dirname, "sources.html"),
+        "api-docs": resolve(__dirname, "api-docs.html"),
       },
     },
   },
