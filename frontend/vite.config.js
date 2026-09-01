@@ -26,8 +26,8 @@ import { resolve } from "path";
  * not listed here is still the old static HTML, served exactly as
  * before. Lot 0: 404.html, login.html. Lot 1: about.html, sources.html,
  * api-docs.html. Lot 2: account-profile.html, account-api-keys.html,
- * account-users.html, notifications.html. Lot 3 (this commit):
- * data.html, reports.html.
+ * account-users.html, notifications.html. Lot 3: data.html, reports.html.
+ * Lot 4 (this commit): index.html.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -48,6 +48,7 @@ export default defineConfig({
         notifications: resolve(__dirname, "notifications.html"),
         data: resolve(__dirname, "data.html"),
         reports: resolve(__dirname, "reports.html"),
+        index: resolve(__dirname, "index.html"),
       },
     },
   },
