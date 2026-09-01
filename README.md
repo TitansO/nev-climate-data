@@ -857,3 +857,20 @@ explicitement `TimescaleDB (Gold)` dans le diagramme du flux GreenAccess (B2) - 
 export MinIO redondant. Aucun besoin réel identifié pour un tel export dans les tâches à venir
 (B1.9, B1.10, B2) - décision documentée plutôt que laissée à l'abandon :
 [`docs/superpowers/specs/2026-08-31-b18-isolation-closure-design.md`](docs/superpowers/specs/2026-08-31-b18-isolation-closure-design.md).
+
+### Alerting réel sur échec des DAGs (B1.9, 2026-09-01)
+
+Les 5 DAGs Volet B envoient désormais un vrai email (Gmail SMTP,
+`AIRFLOW_ALERT_EMAIL`/`AIRFLOW_SMTP_PASSWORD` dans `.env`) quand une tâche épuise ses 3 tentatives
+et échoue pour de bon - jamais à chaque tentative individuelle (`email_on_retry: False`), pour ne
+pas noyer une vraie panne sous des alertes de lenteur transitoire déjà couvertes par le retry
+existant. Un changement de structure d'une source (champ renommé/retiré côté API) n'a pas de
+détection dédiée - il se manifeste déjà comme une exception Python réelle pendant le parsing, que
+`email_on_failure` couvre au même titre que n'importe quel autre échec. Décisions complètes :
+[`docs/superpowers/specs/2026-09-01-b19-airflow-alerting-design.md`](docs/superpowers/specs/2026-09-01-b19-airflow-alerting-design.md).
+
+Vérifié en direct en deux temps : un email de test SMTP direct (`airflow.utils.email.send_email`)
+et un DAG jetable systématiquement en échec (`retries: 0`) ont chacun généré un vrai email reçu et
+confirmé par Serge - le second correspond exactement à la tâche, au sujet
+(`Airflow alert: <TaskInstance: ...>`) et à l'exception attendus. Le DAG de test a été supprimé
+après vérification (jamais commité).
