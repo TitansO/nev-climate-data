@@ -167,6 +167,16 @@ services:
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # B1.9: real email alerting on DAG task failure - see
+      # pipeline/common/alerting.py and the 2026-09-01 spec.
+      AIRFLOW_ALERT_EMAIL: ${AIRFLOW_ALERT_EMAIL}
+      AIRFLOW__SMTP__SMTP_HOST: smtp.gmail.com
+      AIRFLOW__SMTP__SMTP_STARTTLS: "True"
+      AIRFLOW__SMTP__SMTP_SSL: "False"
+      AIRFLOW__SMTP__SMTP_PORT: "587"
+      AIRFLOW__SMTP__SMTP_USER: ${AIRFLOW_ALERT_EMAIL}
+      AIRFLOW__SMTP__SMTP_PASSWORD: ${AIRFLOW_SMTP_PASSWORD}
+      AIRFLOW__SMTP__SMTP_MAIL_FROM: ${AIRFLOW_ALERT_EMAIL}
     volumes:
       - ./pipeline:/opt/airflow/pipeline
       - airflow_logs:/opt/airflow/logs
