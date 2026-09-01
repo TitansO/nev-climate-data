@@ -545,8 +545,12 @@
           // (mapInstance.scale/transX/transY - real instance properties,
           // verified against the library's own setScale() source, not
           // guessed), pushes the rest of the world further out of view
-          // without having to re-derive the fit math ourselves.
-          mapInstance.setScale(mapInstance.scale * 1.6, mapInstance.transX, mapInstance.transY, true, false);
+          // without having to re-derive the fit math ourselves. The method
+          // is mixed onto the instance as "_setScale" (leading underscore -
+          // core/index.js's own internal export name for this one, unlike
+          // the public "setFocus" above), confirmed live: "setScale is not
+          // a function" was the first, wrong guess.
+          mapInstance._setScale(mapInstance.scale * 1.6, mapInstance.transX, mapInstance.transY, true, false);
         },
       });
 
