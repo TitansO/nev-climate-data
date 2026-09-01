@@ -12,7 +12,9 @@ use Doctrine\Persistence\ObjectManager;
 /**
  * One demonstration user per UserRole case (cahier des charges 5.2: Admin,
  * Internal Analyst, External Partner — "Visitor" has no account by design,
- * see README's Authentification section). Dev/demo only: the password is
+ * see README's Authentification section — plus SuperAdmin, added on top of
+ * the cahier des charges list for account management, see
+ * App\Controller\UserController). Dev/demo only: the password is
  * a fixed, publicly-documented placeholder (see README A1.6 section), never
  * a real credential, and this fixture is never registered for the `prod`
  * environment (DoctrineFixturesBundle is `dev`+`test` only in bundles.php).
@@ -34,6 +36,7 @@ final class UserFixtures extends Fixture
      * @var list<array{0: string, 1: string, 2: UserRole}>
      */
     private const USERS = [
+        ['Nev SuperAdmin', 'superadmin@nev-climate-data.demo', UserRole::SuperAdmin],
         ['Amina Diallo', 'admin@nev-climate-data.demo', UserRole::Admin],
         ['Kwame Mensah', 'analyste@nev-climate-data.demo', UserRole::InternalAnalyst],
         ['Fatou Ndiaye', 'partenaire@nev-climate-data.demo', UserRole::ExternalPartner],

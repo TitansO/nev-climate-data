@@ -108,6 +108,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getRoles(): array
     {
         $roleName = match ($this->role) {
+            UserRole::SuperAdmin => 'ROLE_SUPER_ADMIN',
             UserRole::Admin => 'ROLE_ADMIN',
             UserRole::InternalAnalyst => 'ROLE_INTERNAL_ANALYST',
             UserRole::ExternalPartner => 'ROLE_EXTERNAL_PARTNER',

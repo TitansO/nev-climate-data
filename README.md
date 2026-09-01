@@ -397,9 +397,12 @@ docker compose exec backend php bin/console doctrine:fixtures:load --no-interact
 
 | Rôle | Email | Mot de passe |
 |---|---|---|
+| SuperAdmin | `superadmin@nev-climate-data.demo` | `ClimateDemo2026!` |
 | Admin | `admin@nev-climate-data.demo` | `ClimateDemo2026!` |
 | Analyste interne | `analyste@nev-climate-data.demo` | `ClimateDemo2026!` |
 | Partenaire externe | `partenaire@nev-climate-data.demo` | `ClimateDemo2026!` |
+
+**SuperAdmin** : seul rôle habilité à gérer les comptes (créer un utilisateur, changer un rôle, supprimer un compte) via `/api/users` (backend) et `account-users.html` (frontend, accessible depuis "Gérer les utilisateurs" sur `account-profile.html` quand on est connecté en SuperAdmin). Un SuperAdmin ne peut ni modifier son propre rôle ni supprimer son propre compte (protection anti-verrouillage - voir la docblock d'`App\Controller\UserController`).
 
 Mot de passe hashé via `password_hash()` (jamais stocké en clair). Les clés API de démonstration (`ApiKeyFixtures.php`) sont générées à partir de valeurs brutes fixes et non secrètes, hashées avec `ApiKeyService::hashKey()` (le même algorithme qu'en production) - **ces clés brutes ne sont pas exploitables** (non documentées, non fonctionnelles pour un usage réel) et ne sont volontairement pas reproduites ici ; pour obtenir une clé utilisable, générer la vôtre via `POST /api/api-keys` après connexion.
 

@@ -20,6 +20,10 @@ use App\Entity\Enum\UserRole;
 final class ApiKeyQuotaPolicy
 {
     private const QUOTAS = [
+        // Same ceiling as Admin: SuperAdmin is Admin plus account
+        // management (see App\Controller\UserController), not a distinct
+        // usage tier - no product/business figure exists for it either.
+        UserRole::SuperAdmin->value => 100_000,
         UserRole::Admin->value => 100_000,
         UserRole::InternalAnalyst->value => 20_000,
         UserRole::ExternalPartner->value => 5_000,

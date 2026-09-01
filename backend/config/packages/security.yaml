@@ -3,6 +3,14 @@ security:
         App\Entity\User:
             algorithm: auto
 
+    # SuperAdmin inherits every Admin permission (and everything Admin
+    # itself inherits) rather than needing every access_control/IsGranted
+    # check duplicated for both roles - App\Controller\UserController is
+    # the only place gated on ROLE_SUPER_ADMIN specifically, since only it
+    # manages other users' accounts and roles.
+    role_hierarchy:
+        ROLE_SUPER_ADMIN: [ROLE_ADMIN]
+
     providers:
         app_user_provider:
             entity:
@@ -66,6 +74,10 @@ security:
         # /api/funding (A2.1) - only published reports are ever exposed by
         # the controller itself (see App\Repository\ReportRepository).
         - { path: ^/api/reports, roles: PUBLIC_ACCESS }
+        # User management (create accounts, change roles, delete accounts)
+        # is reserved to SuperAdmin - must come before the catch-all below,
+        # same reasoning as /api/funding/export above it in this file.
+        - { path: ^/api/users, roles: ROLE_SUPER_ADMIN }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:

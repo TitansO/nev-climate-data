@@ -73,6 +73,7 @@
 
             <div class="mt-8 flex flex-wrap gap-3">
               <a href="account-api-keys.html" class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark" data-i18n="profilePage.myApiKeys">Mes clés API</a>
+              <a href="account-users.html" id="manage-users-link" class="hidden inline-flex items-center justify-center gap-2 rounded-md border border-primary px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-surface-alt" data-i18n="profilePage.manageUsers">Gérer les utilisateurs</a>
               <button id="profile-logout-btn" type="button" class="rounded-md border border-stroke px-6 py-2.5 text-sm font-semibold text-dark-4 transition hover:bg-gray-2" data-i18n="profilePage.logout">Déconnexion</button>
             </div>
           </div>
@@ -128,7 +129,7 @@
 
         NevAuth.requireAuth();
 
-        var ROLE_LABELS = { admin: "Administrateur", internal_analyst: "Analyste interne", external_partner: "Partenaire externe" };
+        var ROLE_LABELS = { super_admin: "Super administrateur", admin: "Administrateur", internal_analyst: "Analyste interne", external_partner: "Partenaire externe" };
 
         NevAuth.getCurrentUser().then(function (user) {
           if (null === user) {
@@ -138,6 +139,9 @@
 
           document.getElementById("profile-email").textContent = user.email;
           document.getElementById("profile-role").textContent = ROLE_LABELS[user.role] || user.role;
+          if ("super_admin" === user.role) {
+            document.getElementById("manage-users-link").classList.remove("hidden");
+          }
           document.getElementById("profile-loading").classList.add("hidden");
           document.getElementById("profile-content").classList.remove("hidden");
         });
