@@ -17,6 +17,14 @@ services:
       # otherwise be swallowed as (empty) variable references.
       CORS_ALLOWED_ORIGIN_REGEX: ${CORS_ALLOWED_ORIGIN_REGEX:-^https?://localhost:8123$$|^https://[a-z0-9-]+-8123\.app\.github\.dev$$}
       REDIS_DSN: ${REDIS_DSN:-redis://redis:6379}
+      # A3.1: config/packages/mercure.yaml resolves these through Symfony's
+      # own env(default::...) processor (falls back to null if unset), so
+      # this service works fine without them - only "mercure-publisher"
+      # below actually calls HubInterface::publish(). Provided here too so
+      # nothing in the main API would break if it ever did.
+      MERCURE_URL: ${MERCURE_URL:-http://mercure/.well-known/mercure}
+      MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL:-http://localhost:3000/.well-known/mercure}
+      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET}
     depends_on:
       database:
         condition: service_healthy
@@ -53,6 +61,65 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+    networks:
+      - nev-network
+
+  # A3.1: real-time hub (SSE, https://mercure.rocks/) - receives KPI
+  # snapshots from "mercure-publisher" below and pushes them live to any
+  # connected subscriber (the frontend's useMercureKpis() hook, A3.2, see
+  # frontend/src/react/hooks/useMercureKpis.js). "anonymous" + "cors_origins
+  # *": the one topic published here is already public data (same figures
+  # as GET /api/analytics/hero-stats, PUBLIC_ACCESS) - no reason to require
+  # a subscriber JWT, which a native EventSource couldn't send anyway (no
+  # custom-header support). SERVER_NAME=":80" tells Caddy (the hub's
+  # underlying server) to listen in plain HTTP on the container's own port
+  # 80 rather than attempting automatic HTTPS/ACME, which would fail with
+  # no real public domain.
+  mercure:
+    image: dunglas/mercure
+    container_name: nev-climate-data-mercure
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: ':80'
+      MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET}
+      MERCURE_SUBSCRIBER_JWT_KEY: ${MERCURE_JWT_SECRET}
+      MERCURE_EXTRA_DIRECTIVES: |
+        anonymous
+        cors_origins *
+    ports:
+      - "3000:80"
+    networks:
+      - nev-network
+
+  # A3.1: republishes a KPI snapshot to the hub above every 60s (see
+  # backend/src/Command/PublishKpiSnapshotCommand.php's docblock for why
+  # this is a periodic republish rather than a real change event). Same
+  # image as "backend", only the command differs - same pattern as
+  # "backend-worker" for messenger:consume.
+  mercure-publisher:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: nev-climate-data-mercure-publisher
+    restart: unless-stopped
+    command: php bin/console app:mercure:publish-kpis
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      APP_SECRET: ${APP_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
+      REDIS_DSN: ${REDIS_DSN:-redis://redis:6379}
+      MERCURE_URL: http://mercure/.well-known/mercure
+      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET}
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mercure:
+        condition: service_started
     volumes:
       - ./backend:/var/www/html
       - backend_vendor:/var/www/html/vendor
