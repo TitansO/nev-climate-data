@@ -1,8 +1,9 @@
-"""Airflow DAG: monthly collection of Green Climate Fund (GCF) project
+"""Airflow DAG: quarterly collection of Green Climate Fund (GCF) project
 financing via the IATI Datastore - see the B1.2 spec, decision 1 (a single
 request covers GCF's entire IATI-published portfolio). Split into 3 linked
 tasks (extraire >> transformer >> publier) - see the 2026-08-31 multi-task
-DAG refactor spec.
+DAG refactor spec. Schedule unified to quarterly across every Volet B
+connector (was monthly) - see the 2026-09-01 spec.
 """
 from datetime import datetime
 
@@ -50,7 +51,7 @@ def _publier(**context) -> None:
 with DAG(
     dag_id="collecte_gcf",
     default_args=default_args,
-    schedule_interval="0 3 1 * *",  # 1er jour de chaque mois, 03h00
+    schedule_interval="0 3 1 1,4,7,10 *",  # 1er jour de chaque trimestre, 03h00
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["b1.2", "collecte", "gcf"],

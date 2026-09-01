@@ -1,8 +1,9 @@
-"""Airflow DAG: annual collection of PNUE (UN SDG API) CO2 emissions data
-for every country NEV tracks - see the B1.4 spec, decision 12 (annual
-schedule) and decision 2 (the country list comes from NEV's own `country`
-table). Split into 3 linked tasks (extraire >> transformer >> publier) -
-see the 2026-08-31 multi-task DAG refactor spec.
+"""Airflow DAG: quarterly collection of PNUE (UN SDG API) CO2 emissions data
+for every country NEV tracks - see the B1.4 spec, decision 2 (the country
+list comes from NEV's own `country` table). Split into 3 linked tasks
+(extraire >> transformer >> publier) - see the 2026-08-31 multi-task DAG
+refactor spec. Schedule unified to quarterly across every Volet B connector
+(was annual, per B1.4 spec decision 12) - see the 2026-09-01 spec.
 """
 from datetime import datetime
 
@@ -74,7 +75,7 @@ def _publier(**context) -> None:
 with DAG(
     dag_id="collecte_pnue",
     default_args=default_args,
-    schedule_interval="0 3 1 1 *",  # 1er janvier, 03h00 - annuel
+    schedule_interval="0 3 1 1,4,7,10 *",  # 1er jour de chaque trimestre, 03h00
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["b1.4", "collecte", "pnue"],
