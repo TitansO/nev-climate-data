@@ -26,6 +26,15 @@
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
     "ghcr.io/devcontainers/features/sshd:1": {
       "version": "latest"
+    },
+    // Node was never needed on the Codespace itself before A3.1/A3.2's
+    // React migration - frontend/package.json's Tailwind CLI build always
+    // ran on a contributor's own machine, never here. The React/Vite
+    // toolchain (npm install, vite build) needs a real Node runtime
+    // in-container instead. Node 20 LTS: comfortably covers Vite 5's
+    // minimum (18+).
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
     }
   },
   "workspaceFolder": "/workspaces/nev-climate-data",
