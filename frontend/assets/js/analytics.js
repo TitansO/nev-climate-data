@@ -536,6 +536,17 @@
         },
         onLoaded: function (mapInstance) {
           mapInstance.setFocus({ regions: AFRICA_FOCUS_ALPHA2, animate: false });
+          // setFocus() fits the continent snugly to the container, but the
+          // world map is one continuous SVG - other continents still sit
+          // right at the edges of that fit and stay visible, which is what
+          // actually read as "too far away", not the container's own
+          // size/shape (already fixed once, in an earlier commit). Zooming
+          // in further, centered on the point setFocus() just computed
+          // (mapInstance.scale/transX/transY - real instance properties,
+          // verified against the library's own setScale() source, not
+          // guessed), pushes the rest of the world further out of view
+          // without having to re-derive the fit math ourselves.
+          mapInstance.setScale(mapInstance.scale * 1.6, mapInstance.transX, mapInstance.transY, true, false);
         },
       });
 
