@@ -4,6 +4,14 @@
 # same reasoning as App\Security\ApiKeyQuotaPolicy (A1.5): neither the
 # cahier des charges nor the plan gives concrete figures for export quotas
 # specifically - centralized here, easy to revise once real limits are set.
+#
+# A3.4 adds a second, distinct family below (api_*): a general request-rate
+# ceiling applied to every /api/* call (see App\EventListener\
+# ApiRateLimitListener), regardless of which endpoint - protects against
+# abuse/scraping of the platform as a whole, not a single business
+# operation's volume. Same PROVISIONAL-numbers reasoning as the export
+# limiters above: no concrete figure exists in the cahier des charges or
+# the plan for general API abuse thresholds either.
 framework:
     rate_limiter:
         export_admin:
@@ -18,3 +26,27 @@ framework:
             policy: 'sliding_window'
             limit: 5
             interval: '1 day'
+        # Keyed by client IP (App\EventListener\ApiRateLimitListener) - the
+        # only tier that applies to unauthenticated traffic, i.e. every
+        # PUBLIC_ACCESS endpoint (GET /api/funding, /api/analytics/*,
+        # /api/search, /api/reports). Tightest ceiling: no account, no
+        # accountability for who's calling.
+        api_anonymous:
+            policy: 'sliding_window'
+            limit: 30
+            interval: '1 minute'
+        # Keyed by user id. SuperAdmin shares Admin's limiter (same
+        # reasoning as ExportQuotaPolicy/ApiKeyQuotaPolicy: SuperAdmin is
+        # Admin plus account management, not a distinct usage tier).
+        api_admin:
+            policy: 'sliding_window'
+            limit: 300
+            interval: '1 minute'
+        api_internal_analyst:
+            policy: 'sliding_window'
+            limit: 120
+            interval: '1 minute'
+        api_external_partner:
+            policy: 'sliding_window'
+            limit: 60
+            interval: '1 minute'

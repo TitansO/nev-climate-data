@@ -60,6 +60,11 @@ final class ApiExceptionListener implements EventSubscriberInterface
             ? $throwable->getMessage()
             : 'Internal Server Error';
 
-        $event->setResponse(new JsonResponse(['code' => $status, 'message' => $message], $status));
+        // Preserve headers the exception itself set (A3.4: TooManyRequestsHttpException
+        // carries a real "Retry-After", lost otherwise since this listener builds a brand
+        // new Response rather than modifying Symfony's default one).
+        $headers = $throwable instanceof HttpExceptionInterface ? $throwable->getHeaders() : [];
+
+        $event->setResponse(new JsonResponse(['code' => $status, 'message' => $message], $status, $headers));
     }
 }
