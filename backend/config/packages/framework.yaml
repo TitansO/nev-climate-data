@@ -2,6 +2,19 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
+    # A3.4: App\EventListener\ApiRateLimitListener keys its anonymous-traffic
+    # limiter by Request::getClientIp() - meaningless if every request looks
+    # like it comes from the same address. Today (Apache in the "backend"
+    # container binds the host port directly, no separate reverse proxy)
+    # this is already correct without any config; "REMOTE_ADDR" is
+    # Symfony's own recommended dynamic-trust pattern for exactly this
+    # uncertainty - trust X-Forwarded-* only from whichever peer actually
+    # opens the TCP connection, so this keeps working unchanged today and
+    # becomes correct again the moment a real reverse proxy (Render, A3.8)
+    # sits in front of it, with nothing to revisit here.
+    trusted_proxies: '127.0.0.1,REMOTE_ADDR'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-port']
+
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 
