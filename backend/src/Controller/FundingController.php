@@ -50,6 +50,7 @@ final class FundingController extends AbstractController
         summary: 'Recherche paginée et filtrable dans les données de financement',
         description: 'Endpoint public (aucune authentification requise). Tous les filtres sont optionnels et cumulables. `limit` est plafonné à 100 (garde-fou de performance, cahier des charges 5.2.c) : une valeur supérieure est silencieusement ramenée à 100, jamais rejetée.',
         tags: ['Funding'],
+        security: [],
         parameters: [
             new OA\Parameter(name: 'country', in: 'query', required: false, description: "Code ISO alpha-3 du pays (Country.isoCode)", schema: new OA\Schema(type: 'string'), example: 'SEN'),
             new OA\Parameter(name: 'sector', in: 'query', required: false, description: 'Identifiant du secteur (Sector.id)', schema: new OA\Schema(type: 'integer'), example: 1),

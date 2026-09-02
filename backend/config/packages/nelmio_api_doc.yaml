@@ -2,8 +2,32 @@ nelmio_api_doc:
     documentation:
         info:
             title: NEV Climate Data API
-            description: API de la plateforme NEV Climate Data (fondations — Phase A1)
+            description: API de la plateforme NEV Climate Data
             version: 0.1.0
     areas:
-        path_patterns:
-            - ^/api(?!/doc$)
+        default:
+            path_patterns:
+                - ^/api(?!/doc$)
+            # A3.9: registers components.securitySchemes (bearerAuth/apiKeyAuth) -
+            # referenced by every controller's own `security: [...]` attribute but,
+            # until now, never actually defined anywhere Nelmio could find (the
+            # route-less App\OpenApi\SecuritySchemes class this was meant to come
+            # from is never read - NelmioApiDocBundle 5.x's describers only scan
+            # classes reachable from a real Symfony route, confirmed by reading
+            # vendor/nelmio/api-doc-bundle/src/Describer/OpenApiPhpDescriber.php's
+            # own getRoutesToParse()). This SecurityDescriber config path is the
+            # one mechanism that both registers the schemes *and* fills in a
+            # default `security` for any route that doesn't declare one itself -
+            # which is exactly why every one of this app's genuinely public
+            # endpoints now declares `security: []` explicitly (see each
+            # controller): without that, this config would have silently marked
+            # GET /api/funding, /api/analytics/*, /api/search, /api/reports* and
+            # /api/health as requiring auth, which is false.
+            security:
+                bearerAuth:
+                    type: http
+                    scheme: bearer
+                apiKeyAuth:
+                    type: apiKey
+                    in: header
+                    name: X-API-Key
