@@ -32,6 +32,7 @@ final class SearchController extends AbstractController
         summary: 'Recherche globale (pays, secteurs, sources, rapports publiés)',
         description: 'Recherche insensible à la casse et aux accents, sur le nom/titre de chaque type. `q` est requis, entre 2 et 100 caractères (espaces superflus ignorés). Au plus 5 résultats par type, triés par ordre alphabétique au sein de chaque type. Les rapports en statut "draft" ne sont jamais retournés.',
         tags: ['Search'],
+        security: [],
         parameters: [
             new OA\Parameter(name: 'q', in: 'query', required: true, description: 'Terme recherché (2 à 100 caractères)', schema: new OA\Schema(type: 'string'), example: 'senegal'),
         ],

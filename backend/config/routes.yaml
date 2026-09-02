@@ -10,16 +10,29 @@
 controllers:
     resource: routing.controllers
 
-# These two routes are never actually resolved to a controller: the "login"
-# and "api" firewalls' authenticators (json_login, refresh-jwt) intercept the
-# request at kernel.request and return a response before controller
-# resolution runs. The routes must still exist, though — routing itself
-# happens before the firewall does, so without a matching route the router
-# throws a 404 first and the authenticator never gets a chance to run.
+# These two routes are never actually resolved to a controller in practice:
+# the "login" and "api" firewalls' authenticators (json_login, refresh-jwt)
+# intercept the request at kernel.request and return a response before
+# controller resolution runs. The route itself must still exist, though —
+# routing itself happens before the firewall does, so without a matching
+# route the router throws a 404 first and the authenticator never gets a
+# chance to run.
+#
+# `controller:` below points at real (but - per the above - genuinely
+# unreachable) methods on AuthenticationController purely so
+# NelmioApiDocBundle (A3.9) has something to reflect OA attributes off of:
+# its describers only read attributes from a route's resolved controller
+# (confirmed by reading vendor/nelmio/api-doc-bundle/src/Describer/
+# OpenApiPhpDescriber.php - it skips any route with no reflectable
+# controller entirely), so a routeless/controller-less route is invisible
+# to it no matter what attributes exist elsewhere. See
+# AuthenticationController::login()/refreshToken()'s own docblocks.
 api_auth_login:
     path: /api/auth/login
     methods: [POST]
+    controller: App\Controller\AuthenticationController::login
 
 api_auth_refresh:
     path: /api/auth/refresh
     methods: [POST]
+    controller: App\Controller\AuthenticationController::refreshToken

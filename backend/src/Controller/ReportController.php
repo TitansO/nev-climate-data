@@ -42,6 +42,7 @@ final class ReportController extends AbstractController
         summary: 'Liste paginée et filtrable des rapports publiés',
         description: 'Endpoint public (aucune authentification requise). Seuls les rapports au statut "published" apparaissent - les brouillons restent invisibles. Tous les filtres sont optionnels et cumulables.',
         tags: ['Reports'],
+        security: [],
         parameters: [
             new OA\Parameter(name: 'type', in: 'query', required: false, description: 'Type de rapport exact (ex: "Annual Report", "Regional Report", "Country Report", "Sector Report")', schema: new OA\Schema(type: 'string'), example: 'Country Report'),
             new OA\Parameter(name: 'country', in: 'query', required: false, description: 'Code ISO alpha-3 du pays (Country.isoCode)', schema: new OA\Schema(type: 'string'), example: 'SEN'),
@@ -117,6 +118,7 @@ final class ReportController extends AbstractController
         summary: 'Télécharge le PDF d\'un rapport publié (comptabilisé)',
         description: 'Endpoint public. Incrémente Report.downloadCount avant de renvoyer le fichier - c\'est le compteur affiché par GET /api/reports. 404 si le rapport n\'existe pas, n\'est pas publié, ou si le fichier PDF est absent du stockage.',
         tags: ['Reports'],
+        security: [],
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'), example: 1),
         ],

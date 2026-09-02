@@ -33,6 +33,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Statistiques agrégées affichées dans le Hero de la page d\'accueil (mis en cache 15 min)',
         description: 'countriesCovered/activeSources comptent les pays/sources ayant au moins un enregistrement Funding (pas le total des tables de référence) ; sectorsTracked est le nombre total de secteurs suivis par la plateforme ; fundingRecords est le nombre total d\'enregistrements Funding. Réponse servie depuis un cache Redis dédié, TTL 900 secondes (même pool que les autres agrégats A2.5).',
         tags: ['Analytics'],
+        security: [],
         responses: [
             new OA\Response(
                 response: 200,
@@ -58,6 +59,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Tendances de financement par année et type (mis en cache 15 min)',
         description: 'Montants agrégés (SUM) par année, ventilés par type de financement (public/private/multilateral). Ordre chronologique stable. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
+        security: [],
         responses: [
             new OA\Response(
                 response: 200,
@@ -88,6 +90,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Répartition des financements par secteur (mis en cache 15 min)',
         description: 'Montants agrégés (SUM) par secteur réel, triés du plus grand au plus petit (ordre déterministe : égalité départagée par id de secteur). Le pourcentage est calculé côté serveur sur le total agrégé. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
+        security: [],
         responses: [
             new OA\Response(
                 response: 200,
@@ -116,6 +119,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Répartition des financements par pays (mis en cache 15 min)',
         description: 'Montants agrégés (SUM) par pays réel, triés du plus grand au plus petit (ordre déterministe : égalité départagée par id de pays). Le pourcentage est calculé côté serveur sur le total agrégé. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
+        security: [],
         responses: [
             new OA\Response(
                 response: 200,
@@ -145,6 +149,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Réduction CO2 estimée (mis en cache 15 min)',
         description: 'Aucune donnée d\'émissions ni facteur de conversion officiel n\'existe dans le schéma actuel (voir le rapport d\'implémentation A2.5/A2.6) - cet endpoint retourne donc systématiquement `available: false` plutôt que d\'inventer un chiffre. Structure conservée pour rester compatible avec un futur calcul réel (Volet B). Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
+        security: [],
         responses: [
             new OA\Response(
                 response: 200,

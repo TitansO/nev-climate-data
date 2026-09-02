@@ -15,6 +15,7 @@ final class HealthController extends AbstractController
     #[OA\Get(
         summary: 'Vérifie la disponibilité de l\'API',
         tags: ['Health'],
+        security: [],
         responses: [
             new OA\Response(
                 response: 200,
