@@ -47,6 +47,11 @@ phpunit:
     - apt-get update && apt-get install -y --no-install-recommends git unzip libpq-dev libicu-dev libzip-dev zip libpng-dev libjpeg-dev libfreetype6-dev
     - docker-php-ext-configure gd --with-freetype --with-jpeg
     - docker-php-ext-install pdo pdo_pgsql intl opcache zip gd
+    # A3.5: pcov (not xdebug - coverage-only, much faster) - deliberately
+    # only installed here, never in docker/backend/Dockerfile: coverage
+    # instrumentation has no business in an image that also serves live
+    # traffic (dev, prod, or otherwise).
+    - pecl install pcov && docker-php-ext-enable pcov
     - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
   script:
     - cd backend
@@ -55,7 +60,17 @@ phpunit:
     - php bin/console lexik:jwt:generate-keypair --overwrite
     - php bin/console doctrine:database:create --if-not-exists
     - php bin/console doctrine:migrations:migrate --no-interaction
-    - php bin/phpunit
+    # --colors=never: GitLab's coverage regex below matches plain text: an
+    # earlier local run with ANSI colors on made a "Lines: 77.00%" line
+    # visually clear in a terminal but wrapped it in escape codes that a
+    # simple regex has no business trying to strip.
+    - php bin/phpunit --colors=never --coverage-text --coverage-cobertura=coverage.cobertura.xml
+  coverage: '/^\s*Lines:\s*\d+\.\d+\%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: backend/coverage.cobertura.xml
 
 # Construit et publie l'image Docker sur le Container Registry GitLab.
 # Ce n'est PAS un déploiement : rien ne récupère ni ne fait tourner cette
