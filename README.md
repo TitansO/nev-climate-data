@@ -214,7 +214,7 @@ docker compose exec -e APP_ENV=test backend php bin/phpunit
 
 ### Couverture de code (A3.5)
 
-Base mesurée le 2026-09-02 (`pcov`, non installé par défaut - voir plus bas) : **193 tests, 77% de couverture en lignes** (`Lines: 77.00% (1058/1374)`, avant l'ajout des tests listés ci-dessous). Quasiment tous les contrôleurs/services/security sont à 100% - le detail complet (`bin/phpunit --coverage-text`) permet de repérer une régression de couverture avant qu'elle ne devienne un vrai trou.
+Base mesurée le 2026-09-02 (`pcov`, non installé par défaut - voir plus bas) : **186 tests, 77% de couverture en lignes** (`Lines: 77.00% (1058/1374)`, avant l'ajout des 7 tests listés ci-dessous - 193 au total ensuite). Quasiment tous les contrôleurs/services/security sont à 100% - le detail complet (`bin/phpunit --coverage-text`) permet de repérer une régression de couverture avant qu'elle ne devienne un vrai trou.
 
 **Écarts réels comblés pour A3.5** (audité en comparant `find src -name "*.php"` à l'inventaire des classes du rapport de couverture - méthode à réutiliser pour tout futur audit) :
 - `App\MessageHandler\GenerateExportMessageHandler` (l'entrée réelle que Messenger appelle en production, A2.3 "export" - un des 3 domaines explicitement cités par le plan pour A3.5) n'avait aucune couverture propre : `tests/Controller/FundingExportTest.php` appelait `ExportService::processAsyncExport()` directement, contournant le handler. Corrigé en faisant passer ce test par le vrai handler (`static::getContainer()->get(GenerateExportMessageHandler::class)(...)`) plutôt que d'ajouter un test dupliqué.
@@ -698,7 +698,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 | A3.2 | Composants React abonnés au flux Mercure (`useMercureKpis()`) | ✅ Fait - a nécessité de migrer tout le frontend en React (Lots 0-5), voir « Migration React » |
 | A3.3 | Secrets (APP_SECRET, JWT_PASSPHRASE, MERCURE_JWT_SECRET) externalisés vers le coffre-fort Symfony (`config/secrets/prod/`) | ✅ Fait - voir « A3.3 — Secrets externalisés & A3.4 — Rate limiting général » |
 | A3.4 | Rate limiting général par rôle sur tout `/api/*` (`App\EventListener\ApiRateLimitListener`) | ✅ Fait - voir la même section |
-| A3.5 | Tests automatisés sur les écarts réels trouvés (audit de couverture 193→200 tests) + couverture reportée en CI/CD | ✅ Fait - voir « Tests automatisés », section « Couverture de code (A3.5) » |
+| A3.5 | Tests automatisés sur les écarts réels trouvés (audit de couverture 186→193 tests) + couverture reportée en CI/CD | ✅ Fait - voir « Tests automatisés », section « Couverture de code (A3.5) » |
 | A3.6 | Sauvegardes automatisées de la base (`db-backup`, MinIO, rétention 30j) + restauration testée et validée | ✅ Fait - voir « Sauvegardes de la base de données (A3.6) » |
 
 **Reste en Phase A3** : A3.7 (tests de charge, optimisation <500ms), A3.8 (mise en production HTTPS réelle - dépend de A3.3/A3.4, tous deux faits), A3.9 (documentation technique/API à jour - Swagger déjà en place, à compléter), A3.10 (recette finale Volet A, verrou de gouvernance avant le Volet B). Le Volet B (pipeline de données réelles) a démarré en parallèle malgré ce verrou théorique : voir la section « Pipeline (Volet B) » plus bas. Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
