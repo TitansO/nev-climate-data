@@ -64,7 +64,17 @@ phpunit:
     # earlier local run with ANSI colors on made a "Lines: 77.00%" line
     # visually clear in a terminal but wrapped it in escape codes that a
     # simple regex has no business trying to strip.
-    - php bin/phpunit --colors=never --coverage-text --coverage-cobertura=coverage.cobertura.xml
+    #
+    # -d memory_limit=512M: php:8.4-cli's own default php.ini caps memory
+    # at 128M, which FundingExportTest::testExportBeyondTheThresholdReturns202WithAPendingJobInstead
+    # (A2.3) exhausts building its seeded dataset - "Fatal error: Allowed
+    # memory size of 134217728 bytes exhausted ... UnitOfWork.php" -
+    # confirmed live: this was already failing every CI run since
+    # 2026-09-01 (before pcov/coverage even existed here), invisible until
+    # someone actually opened a job's log rather than trusting the badge.
+    # 512M matches what this same suite peaks at locally with coverage
+    # enabled (measured live: 353MB) - comfortable headroom, not a guess.
+    - php -d memory_limit=512M bin/phpunit --colors=never --coverage-text --coverage-cobertura=coverage.cobertura.xml
   coverage: '/^\s*Lines:\s*\d+\.\d+\%/'
   artifacts:
     reports:
