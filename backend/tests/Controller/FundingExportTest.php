@@ -267,9 +267,15 @@ final class FundingExportTest extends WebTestCase
         $client->request('GET', '/api/funding/export', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
         $exportId = json_decode($client->getResponse()->getContent(), true)['exportId'];
 
-        // Runs the same code the worker container runs (App\MessageHandler\GenerateExportMessageHandler)
-        // synchronously, in-process - there is no running Messenger consumer in the test environment.
-        static::getContainer()->get(\App\Service\ExportService::class)->processAsyncExport($exportId);
+        // Invokes the real handler Messenger routes GenerateExportMessage to
+        // in the worker container (App\MessageHandler\GenerateExportMessageHandler,
+        // #[AsMessageHandler]) - synchronously, in-process, since there is no
+        // running Messenger consumer in the test environment. Going through
+        // the handler itself (A3.5 - previously called ExportService::
+        // processAsyncExport() directly here) is what actually exercises the
+        // one-line adapter Messenger calls in production, not just the
+        // service logic underneath it.
+        static::getContainer()->get(\App\MessageHandler\GenerateExportMessageHandler::class)(new \App\Message\GenerateExportMessage($exportId));
 
         $client->request('GET', '/api/funding/exports/'.$exportId, server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
         $status = json_decode($client->getResponse()->getContent(), true);
