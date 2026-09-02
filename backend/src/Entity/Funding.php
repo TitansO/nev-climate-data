@@ -15,6 +15,16 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(columns: ['sector_id'], name: 'idx_funding_sector')]
 #[ORM\Index(columns: ['year'], name: 'idx_funding_year')]
 #[ORM\Index(columns: ['collection_date'], name: 'idx_funding_collection_date')]
+// A3.7: every read query (FundingController + all 3 AnalyticsService
+// aggregates) filters `WHERE isCurrent = true` - added proactively as the
+// Volet B pipeline's SCD2 historization grows the non-current row tail
+// independently of (often faster than) the current-row count. Partial,
+// same `where` option mechanism as the UniqueConstraint just below - not
+// a flat index over every row, current and historized alike. Shares that
+// same UniqueConstraint's known Doctrine/DBAL false positive (see the
+// comment below it) - confirmed live, `doctrine:schema:update --dump-sql`
+// proposes an identical no-op DROP+CREATE for this index too.
+#[ORM\Index(columns: ['is_current'], name: 'idx_funding_is_current', options: ['where' => 'is_current = true'])]
 // Partial unique index, not a flat UniqueConstraint: historization (already on this entity
 // since A1.3 - see isCurrent/validFrom/validTo below) deliberately keeps multiple rows sharing
 // this same 5-column tuple over time, one per historical version, with is_current=true on
