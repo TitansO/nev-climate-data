@@ -7,6 +7,7 @@ namespace App\Tests\Controller;
 use App\Entity\Enum\UserRole;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -170,10 +171,9 @@ final class UserControllerTest extends WebTestCase
     }
 
     /**
-     * @dataProvider invalidCreatePayloadProvider
-     *
      * @param array<string, mixed> $payload
      */
+    #[DataProvider('invalidCreatePayloadProvider')]
     public function testCreateWithInvalidPayloadReturns400(array $payload): void
     {
         $client = static::createClient();
