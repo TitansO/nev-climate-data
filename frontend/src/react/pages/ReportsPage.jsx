@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import NevCard from "../components/ui/NevCard";
+import NevBadge from "../components/ui/NevBadge";
+import NevButton from "../components/ui/NevButton";
+import NevDataState from "../components/ui/NevDataState";
+import NevPagination from "../components/ui/NevPagination";
 
 const PAGE_SIZE = 12;
 
@@ -8,12 +13,12 @@ const PAGE_SIZE = 12;
 // color and i18n label key used across this page's filter pills and card
 // badges, so the two stay visually and textually consistent.
 const TYPE_META = {
-  "Annual Report": { badgeClass: "bg-status-validated-bg text-status-validated", iconClass: "bg-deep-3", i18nKey: "reportsPage.typeAnnual", fallback: "Rapport annuel" },
-  "Regional Report": { badgeClass: "bg-status-review-bg text-status-review", iconClass: "bg-primary", i18nKey: "reportsPage.typeRegional", fallback: "Rapport régional" },
-  "Country Report": { badgeClass: "bg-status-demo-bg text-status-demo", iconClass: "bg-status-demo", i18nKey: "reportsPage.typeCountry", fallback: "Rapport pays" },
-  "Sector Report": { badgeClass: "bg-status-review-bg text-status-review", iconClass: "bg-status-review", i18nKey: "reportsPage.typeSectorStudy", fallback: "Étude sectorielle" },
+  "Annual Report": { tone: "success", iconClass: "bg-deep-3", i18nKey: "reportsPage.typeAnnual", fallback: "Rapport annuel" },
+  "Regional Report": { tone: "info", iconClass: "bg-primary", i18nKey: "reportsPage.typeRegional", fallback: "Rapport régional" },
+  "Country Report": { tone: "warning", iconClass: "bg-status-demo", i18nKey: "reportsPage.typeCountry", fallback: "Rapport pays" },
+  "Sector Report": { tone: "info", iconClass: "bg-status-review", i18nKey: "reportsPage.typeSectorStudy", fallback: "Étude sectorielle" },
 };
-const DEFAULT_TYPE_META = { badgeClass: "bg-dark-8 text-dark-4", iconClass: "bg-deep-3", i18nKey: null, fallback: "" };
+const DEFAULT_TYPE_META = { tone: "neutral", iconClass: "bg-deep-3", i18nKey: null, fallback: "" };
 
 const FILTER_PILLS = [
   { type: "", i18nKey: "reportsPage.filterAll", fallback: "Tous" },
@@ -32,7 +37,7 @@ function ReportCard({ report, t, apiBaseUrl }) {
   const badgeLabel = meta.i18nKey ? t(meta.i18nKey, meta.fallback) : report.type;
 
   return (
-    <article className="flex flex-col rounded-2xl border border-stroke bg-white p-7 transition hover:-translate-y-1 hover:shadow-card">
+    <NevCard as="article" padding="lg" interactive className="flex flex-col">
       <div className="mb-5 flex items-start justify-between">
         <div className={"flex h-12 w-12 items-center justify-center rounded-xl text-white " + meta.iconClass}>
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
@@ -40,7 +45,7 @@ function ReportCard({ report, t, apiBaseUrl }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M14 4v5h5" />
           </svg>
         </div>
-        <span className={"rounded-full px-3 py-1 text-xs font-semibold " + meta.badgeClass}>{badgeLabel}</span>
+        <NevBadge tone={meta.tone}>{badgeLabel}</NevBadge>
       </div>
       <h3 className="mb-2 text-lg font-bold leading-snug text-dark">{report.title}</h3>
       <dl className="mb-5 flex-1 space-y-1.5 text-sm text-dark-5">
@@ -58,16 +63,13 @@ function ReportCard({ report, t, apiBaseUrl }) {
         )}
         <div className="flex justify-between gap-3">
           <dt>{t("reportsPage.downloads", "Téléchargements")}</dt>
-          <dd className="font-medium text-dark-3">{report.downloadCount}</dd>
+          <dd className="font-medium tabular-nums text-dark-3">{report.downloadCount}</dd>
         </div>
       </dl>
-      <a
-        href={apiBaseUrl + report.downloadUrl}
-        className="inline-flex items-center justify-center gap-2 rounded-md border border-primary px-5 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
-      >
+      <NevButton as="a" href={apiBaseUrl + report.downloadUrl} variant="outline" size="md">
         {t("reportsPage.view", "Consulter")}
-      </a>
-    </article>
+      </NevButton>
+    </NevCard>
   );
 }
 
@@ -131,7 +133,7 @@ export default function ReportsPage() {
 
       <div className="container mx-auto px-4">
         <section className="relative z-20 -mt-10 pb-20">
-          <div className="mb-8 flex flex-wrap items-center gap-2 rounded-2xl bg-white p-5 shadow-2">
+          <NevCard as="div" padding="md" className="mb-8 flex flex-wrap items-center gap-2 shadow-card">
             {FILTER_PILLS.map((pill) => {
               const active = pill.type === type;
               return (
@@ -139,8 +141,9 @@ export default function ReportsPage() {
                   key={pill.type}
                   type="button"
                   onClick={() => selectType(pill.type)}
+                  aria-pressed={active}
                   className={
-                    "rounded-full px-4 py-1.5 text-sm font-semibold " +
+                    "rounded-full px-4 py-1.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary " +
                     (active ? "bg-primary text-white" : "border border-stroke font-medium text-dark-4 hover:bg-gray-2")
                   }
                 >
@@ -148,34 +151,19 @@ export default function ReportsPage() {
                 </button>
               );
             })}
-          </div>
+          </NevCard>
 
-          <p className="mb-4 text-sm text-body-color">
+          <p className="mb-4 text-sm text-body-color" aria-live="polite">
             {"loading" === status ? t("hero.loading", "Chargement…") : meta.total + " rapport" + (meta.total > 1 ? "s" : "")}
           </p>
 
-          {"loading" === status && (
-            <div className="rounded-2xl border border-stroke bg-white p-16 text-center">
-              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
-              <p className="text-sm text-body-color">{t("dataPage.loadingData", "Chargement des données…")}</p>
-            </div>
-          )}
-
-          {"error" === status && (
-            <div className="rounded-2xl border border-status-demo/30 bg-status-demo-bg/40 p-16 text-center">
-              <p className="mb-1 text-base font-semibold text-status-demo">{t("dataPage.loadError", "Impossible de charger les données")}</p>
-              <p className="text-sm text-body-color">{t("dataPage.tryAgain", "Une erreur est survenue. Veuillez réessayer.")}</p>
-            </div>
-          )}
-
-          {"empty" === status && (
-            <div className="rounded-2xl border border-stroke bg-white p-16 text-center">
-              <p className="mb-1 text-base font-semibold text-dark">{t("dataPage.noData", "Aucune donnée trouvée")}</p>
-              <p className="text-sm text-body-color">{t("dataPage.widenFilters", "Essayez d'élargir vos critères de filtrage.")}</p>
-            </div>
-          )}
-
-          {"data" === status && (
+          <NevDataState
+            state={"data" === status ? "success" : status}
+            loadingText={t("dataPage.loadingData", "Chargement des données…")}
+            errorText={t("dataPage.loadError", "Impossible de charger les données") + " - " + t("dataPage.tryAgain", "Une erreur est survenue. Veuillez réessayer.")}
+            emptyText={t("dataPage.noData", "Aucune donnée trouvée") + " - " + t("dataPage.widenFilters", "Essayez d'élargir vos critères de filtrage.")}
+            onRetry={() => loadReports(type, page)}
+          >
             <>
               <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
                 {reports.map((report) => (
@@ -184,32 +172,20 @@ export default function ReportsPage() {
               </div>
 
               {meta.totalPages > 1 && (
-                <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs text-dark-5">
-                    Page {meta.page} sur {meta.totalPages}
-                  </p>
-                  <nav className="flex items-center gap-1.5" aria-label="Pagination">
-                    <button
-                      type="button"
-                      disabled={meta.page <= 1}
-                      onClick={() => setPage((p) => p - 1)}
-                      className="rounded-md border border-stroke px-3 py-1.5 text-sm text-dark-4 hover:bg-gray-2 disabled:cursor-not-allowed disabled:text-dark-6 disabled:hover:bg-transparent"
-                    >
-                      {t("dataPage.previous", "Précédent")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={meta.page >= meta.totalPages}
-                      onClick={() => setPage((p) => p + 1)}
-                      className="rounded-md border border-stroke px-3 py-1.5 text-sm text-dark-4 hover:bg-gray-2 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                    >
-                      {t("dataPage.next", "Suivant")}
-                    </button>
-                  </nav>
+                <div className="mt-8">
+                  <NevPagination
+                    pageLabel={"Page " + meta.page + " sur " + meta.totalPages}
+                    onPrevious={() => setPage((p) => p - 1)}
+                    onNext={() => setPage((p) => p + 1)}
+                    disabledPrevious={meta.page <= 1}
+                    disabledNext={meta.page >= meta.totalPages}
+                    previousLabel={t("dataPage.previous", "Précédent")}
+                    nextLabel={t("dataPage.next", "Suivant")}
+                  />
                 </div>
               )}
             </>
-          )}
+          </NevDataState>
 
           <p
             className="mt-8 text-xs text-dark-5"

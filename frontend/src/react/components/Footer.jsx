@@ -9,7 +9,7 @@ export default function Footer() {
   const { t } = useI18n();
 
   return (
-    <footer className="bg-deep pt-16 text-gray-7">
+    <footer className="border-t border-primary-light/20 bg-deep pt-16 text-gray-7">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 gap-10 pb-12 sm:grid-cols-2 lg:grid-cols-4">
           <div>
@@ -24,22 +24,22 @@ export default function Footer() {
             <h4 className="mb-5 text-sm font-semibold uppercase tracking-wide text-white">{t("footer.navHeading", "Navigation")}</h4>
             <ul className="space-y-3 text-sm">
               <li>
-                <a href="data.html" className="hover:text-white">
+                <a href="data.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
                   {t("nav.data", "Données")}
                 </a>
               </li>
               <li>
-                <a href="visualizations.html" className="hover:text-white">
+                <a href="visualizations.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
                   {t("nav.visualizations", "Visualisations")}
                 </a>
               </li>
               <li>
-                <a href="reports.html" className="hover:text-white">
+                <a href="reports.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
                   {t("nav.reports", "Rapports")}
                 </a>
               </li>
               <li>
-                <a href="sources.html" className="hover:text-white">
+                <a href="sources.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
                   {t("nav.sources", "Sources")}
                 </a>
               </li>
@@ -49,17 +49,17 @@ export default function Footer() {
             <h4 className="mb-5 text-sm font-semibold uppercase tracking-wide text-white">{t("footer.docHeading", "Documentation")}</h4>
             <ul className="space-y-3 text-sm">
               <li>
-                <a href="api-docs.html" className="hover:text-white">
+                <a href="api-docs.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
                   {t("nav.apiDocs", "Documentation API")}
                 </a>
               </li>
               <li>
-                <a href="about.html" className="hover:text-white">
+                <a href="about.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
                   {t("nav.about", "À propos")}
                 </a>
               </li>
               <li>
-                <a href="login.html" className="hover:text-white">
+                <a href="login.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
                   {t("nav.login", "Connexion")}
                 </a>
               </li>

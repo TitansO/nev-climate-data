@@ -1,4 +1,5 @@
 import { useI18n } from "../providers/I18nProvider";
+import NevCard from "../components/ui/NevCard";
 
 const CHECK_ICON = (
   <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -19,7 +20,7 @@ export default function AboutPage() {
       </section>
 
       <div className="container mx-auto px-4">
-        <section className="relative z-20 -mt-10 mb-16 rounded-2xl bg-white p-8 shadow-2 sm:p-12">
+        <NevCard as="section" padding="lg" className="relative z-20 -mt-10 mb-16 rounded-2xl shadow-card sm:p-12">
           <div className="mx-auto max-w-[820px]">
             <h2 className="mb-4 text-2xl font-bold text-dark">{t("aboutPage.missionTitle", "Notre mission")}</h2>
             <p className="mb-8 leading-relaxed text-body-color">
@@ -75,22 +76,22 @@ export default function AboutPage() {
               )}
             </p>
           </div>
-        </section>
+        </NevCard>
 
         <section className="pb-20">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <div className="rounded-2xl border border-stroke bg-white p-6 text-center">
-              <div className="mb-1 text-2xl font-extrabold text-deep-3">54</div>
+            <NevCard padding="md" className="text-center">
+              <div className="mb-1 text-3xl font-extrabold tabular-nums text-deep-3">54</div>
               <div className="text-sm text-dark-4">{t("aboutPage.statCountries", "Pays d'Afrique couverts")}</div>
-            </div>
-            <div className="rounded-2xl border border-stroke bg-white p-6 text-center">
-              <div className="mb-1 text-2xl font-extrabold text-deep-3">5</div>
+            </NevCard>
+            <NevCard padding="md" className="text-center">
+              <div className="mb-1 text-3xl font-extrabold tabular-nums text-deep-3">5</div>
               <div className="text-sm text-dark-4">{t("aboutPage.statSectors", "Secteurs de financement suivis")}</div>
-            </div>
-            <div className="rounded-2xl border border-stroke bg-white p-6 text-center">
-              <div className="mb-1 text-2xl font-extrabold text-deep-3">2</div>
+            </NevCard>
+            <NevCard padding="md" className="text-center">
+              <div className="mb-1 text-3xl font-extrabold tabular-nums text-deep-3">2</div>
               <div className="text-sm text-dark-4">{t("aboutPage.statVolets", "Volets : application et pipeline de données")}</div>
-            </div>
+            </NevCard>
           </div>
         </section>
       </div>

@@ -91,15 +91,20 @@ export default function CountryMap({ rows }) {
           }
         },
         onLoaded: (instance) => {
+          // setFocus({regions}) fits Africa's real bounding box to the
+          // container exactly (scale = min(containerW/bboxW,
+          // containerH/bboxH)) - no extra manual zoom on top of it. An
+          // earlier version multiplied the resulting scale by a flat 1.6
+          // to hide the rest of the world's other continents at the
+          // container's edges, but that overflows BOTH axes by the same
+          // ~37% once the fit is already tight (confirmed by computing
+          // Africa's true path bbox from the bundled map data: ~171x188
+          // units, aspect ratio ~0.91 - almost exactly this container's
+          // own w/h ratio, see below) - the container's own aspect ratio
+          // now matches Africa's bbox ratio, so setFocus's fit already
+          // fills it edge-to-edge on both axes with zero slack and zero
+          // overflow, no guessed multiplier needed.
           instance.setFocus({ regions: AFRICA_FOCUS_ALPHA2, animate: false });
-          // setFocus() fits the continent to the container, but the world
-          // map is one continuous SVG - other continents stay visible at
-          // the edges. Zooming in further, centered on the point
-          // setFocus() just computed, pushes the rest of the world out of
-          // view without re-deriving the fit math ourselves ("_setScale" -
-          // leading underscore is the library's own internal export name
-          // for this one, unlike the public "setFocus").
-          instance._setScale(instance.scale * 1.6, instance.transX, instance.transY, true, false);
         },
       });
 
@@ -119,7 +124,13 @@ export default function CountryMap({ rows }) {
 
   return (
     <div>
-      <div ref={containerRef} className="mx-auto h-[420px] w-full lg:h-[640px] lg:max-w-xl"></div>
+      {/* aspect-[171/188]: Africa's real path bounding box (measured from
+          the bundled jsvectormap world data, AFRICA_FOCUS_ALPHA2 union),
+          so setFocus()'s own fit-to-container math fills this box exactly
+          on both axes - zero clipping, zero wasted margin, no manual
+          zoom multiplier to get wrong. max-w-lg keeps it from becoming
+          oversized on very wide screens. */}
+      <div ref={containerRef} className="mx-auto aspect-[171/188] w-full max-w-lg"></div>
       <MapLegend rows={rows} />
     </div>
   );

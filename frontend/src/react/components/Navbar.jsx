@@ -29,7 +29,7 @@ const NAV_LINKS = [
   { href: "reports.html", key: "nav.reports", fallback: "Rapports" },
   { href: "sources.html", key: "nav.sources", fallback: "Sources" },
   { href: "about.html", key: "nav.about", fallback: "À propos" },
-  { href: "api-docs.html", key: "nav.apiDocs", fallback: "Documentation API" },
+  { href: "api-docs.html", key: "nav.apiDocsShort", fallback: "API" },
 ];
 
 export default function Navbar({ activeHref, variant = "standard" }) {
@@ -57,7 +57,7 @@ export default function Navbar({ activeHref, variant = "standard" }) {
     <button
       id="lang-switch-btn"
       type="button"
-      className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+      className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
       aria-label="Changer de langue"
       onClick={toggleLang}
     >
@@ -69,9 +69,9 @@ export default function Navbar({ activeHref, variant = "standard" }) {
     <header className={"ud-header absolute left-0 top-0 z-40 flex w-full items-center bg-transparent" + (sticky ? " sticky" : "")}>
       <div className="container mx-auto px-4">
         <div className="relative -mx-4 flex items-center justify-between">
-          <div className="w-72 max-w-full px-4">
-            <a href="index.html" className="navbar-logo block w-full py-5">
-              <img src={logoSrc} alt="NEV Climate Data" className="header-logo h-12 w-auto" />
+          <div className="w-auto shrink-0 px-4">
+            <a href="index.html" className="navbar-logo block py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
+              <img src={logoSrc} alt="NEV Climate Data" className="header-logo h-9 w-auto" />
             </a>
           </div>
           <div className="flex w-full items-center justify-between px-4">
@@ -80,7 +80,12 @@ export default function Navbar({ activeHref, variant = "standard" }) {
                 id="navbarToggler"
                 type="button"
                 aria-label="Ouvrir le menu"
-                className={"absolute right-4 top-1/2 block -translate-y-1/2 rounded-lg px-3 py-[6px] ring-primary focus:ring-2 lg:hidden" + (mobileOpen ? " navbarTogglerActive" : "")}
+                aria-expanded={mobileOpen}
+                aria-controls="navbarCollapse"
+                className={
+                  "absolute right-4 top-1/2 block -translate-y-1/2 rounded-lg px-3 py-[6px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 lg:hidden" +
+                  (mobileOpen ? " navbarTogglerActive" : "")
+                }
                 onClick={() => setMobileOpen((open) => !open)}
               >
                 <span className="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
@@ -100,9 +105,12 @@ export default function Navbar({ activeHref, variant = "standard" }) {
                       <a
                         href={link.href}
                         onClick={closeMobileMenu}
+                        aria-current={link.href === activeHref ? "page" : undefined}
                         className={
-                          "mx-6 flex py-2 text-sm lg:mx-4 lg:inline-flex lg:py-6 " +
-                          (link.href === activeHref ? "nav-link-active font-semibold text-white" : "font-medium text-white/90 hover:text-white")
+                          "mx-6 flex py-2 text-sm tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 lg:mx-2 lg:inline-flex lg:whitespace-nowrap lg:py-6 xl:mx-3 " +
+                          (link.href === activeHref
+                            ? "nav-link-active font-semibold text-white lg:border-b-2 lg:border-primary-light"
+                            : "font-medium text-white/90 hover:text-white")
                         }
                       >
                         {t(link.key, link.fallback)}
@@ -114,7 +122,7 @@ export default function Navbar({ activeHref, variant = "standard" }) {
                 {"bare" === variant ? (
                   <div className="mt-4 lg:mt-0">{langSwitchButton}</div>
                 ) : (
-                  <div className="mt-4 flex flex-col items-start gap-3 border-t border-stroke px-6 pt-4 lg:mt-0 lg:flex-row lg:items-center lg:gap-4 lg:border-t-0 lg:px-0 lg:pt-0">
+                  <div className="mt-4 flex flex-col items-start gap-3 border-t border-stroke px-6 pt-4 lg:mt-0 lg:flex-row lg:items-center lg:gap-2 lg:border-t-0 lg:px-0 lg:pt-0">
                     <GlobalSearch />
                     <NotificationBell />
                     {langSwitchButton}

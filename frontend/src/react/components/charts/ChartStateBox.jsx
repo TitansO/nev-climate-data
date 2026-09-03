@@ -22,7 +22,7 @@ export default function ChartStateBox({ state, message, onRetry, minHeight = tru
           {onRetry && (
             <button
               type="button"
-              className="rounded-md border border-stroke px-4 py-1.5 text-xs font-semibold text-dark-4 transition hover:bg-gray-2"
+              className="rounded-md border border-stroke px-4 py-1.5 text-xs font-semibold text-dark-4 transition hover:bg-gray-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               onClick={onRetry}
             >
               Réessayer

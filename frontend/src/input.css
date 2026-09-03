@@ -10,66 +10,41 @@ layer(base);
   (lisibilité/contraste) et 3 couleurs de statut (badges qualité de donnée).
 */
 
-@theme {
-  /* Screen Breakpoints (repris de Play) */
-  --breakpoint-sm: 540px;
-  --breakpoint-md: 720px;
-  --breakpoint-lg: 960px;
-  --breakpoint-xl: 1140px;
-  --breakpoint-2xl: 1320px;
-
-  --container-padding: 16px;
-
-  /* --- Identité verte NEV Climate Data --- */
-  /* Vert principal : boutons, liens actifs, éléments interactifs */
-  --color-primary: #16a34a;
-  --color-primary-dark: #15803d;
-  --color-primary-light: #22c55e;
-
-  /* Vert profond : hero, footer, sections institutionnelles */
-  --color-deep: #052e1c;
-  --color-deep-2: #0b3d24;
-  --color-deep-3: #14532d;
-
-  /* Surfaces très légèrement verdâtres (cartes, sections alternées) */
-  --color-surface: #f3faf5;
-  --color-surface-alt: #eafaf0;
-  --color-accent: #86efac;
-
-  /* Neutres pour le texte - priorité à la lisibilité/contraste */
-  --color-dark: #0f1913;
-  --color-dark-2: #1c2b22;
-  --color-dark-3: #374151;
-  --color-dark-4: #4b5563;
-  --color-dark-5: #6b7280;
-  --color-dark-6: #9ca3af;
-  --color-dark-7: #d1d5db;
-  --color-dark-8: #e5e7eb;
-  --color-body-color: #52616a;
-  --color-stroke: #dbe6df;
-  --color-gray-1: #f9fbfa;
-  --color-gray-2: #f0f5f2;
-  --color-gray-7: #ced9d3;
-
-  /* Statuts qualité de donnée (badges) - volontairement hors palette verte
-     pour rester distinguables d'un simple bouton/lien vert */
-  --color-status-demo: #d97706;
-  --color-status-demo-bg: #fef3c7;
-  --color-status-validated: #15803d;
-  --color-status-validated-bg: #dcfce7;
-  --color-status-review: #2563eb;
-  --color-status-review-bg: #dbeafe;
-
-  /* Box Shadows (repris de Play) */
-  --shadow-input: 0px 7px 20px rgba(0, 0, 0, 0.03);
-  --shadow-form: 0px 1px 55px -11px rgba(0, 0, 0, 0.01);
-  --shadow-testimonial: 0px 10px 20px 0px rgba(15, 61, 36, 0.08);
-  --shadow-1: 0px 1px 3px 0px rgba(15, 61, 36, 0.12);
-  --shadow-2: 0px 5px 12px 0px rgba(15, 61, 36, 0.1);
-  --shadow-card: 0px 4px 16px 0px rgba(15, 61, 36, 0.08);
-}
-
 @layer base {
+  /*
+    Palette sémantique NEV - source de vérité. Le bloc @theme ci-dessous
+    référence ces variables via var() au lieu de répéter des hex littéraux :
+    Tailwind v4 compile --color-* en simples custom properties consommées
+    par var() à la résolution, donc une indirection var(--nev-*) est un
+    valeur CSS valide comme un hex - zéro changement de nom de classe
+    utilitaire (bg-primary, text-dark, border-stroke... continuent de
+    fonctionner à l'identique sur les 13 pages), et --nev-* devient aussi
+    directement lisible en JS (getComputedStyle) pour les couleurs
+    Chart.js/jsvectormap.
+  */
+  :root {
+    --nev-primary: #16a34a;
+    --nev-primary-dark: #15803d;
+    --nev-primary-light: #22c55e;
+    /* Fond global neutre (était #f3faf5, légèrement verdâtre) : le vert
+       reste une identité forte via primary/deep/accent, pas via un fond de
+       page teinté partout - c'est le principal levier "vert = accent, pas
+       papier peint" demandé pour la refonte institutionnelle. */
+    --nev-background: #f7f8f7;
+    --nev-surface: #ffffff;
+    --nev-surface-muted: #f1f3f2;
+    --nev-text: #101828;
+    --nev-text-muted: #52616a;
+    --nev-border: #dfe3e0;
+    --nev-success: #15803d;
+    --nev-warning: #d97706;
+    /* N'existait pas avant cette refonte : DataPage/ReportsPage/pages de
+       compte réutilisaient la couleur "demo data" (ambre) pour de vraies
+       erreurs réseau/API - confusion sémantique corrigée ici. */
+    --nev-danger: #dc2626;
+    --nev-danger-bg: #fee2e2;
+  }
+
   *,
   ::after,
   ::before,
@@ -85,6 +60,90 @@ layer(base);
     font-family: "Inter", sans-serif;
     background-color: var(--color-surface);
   }
+
+  /* Respecte les préférences système : aucune transition/animation
+     n'ajoutée par la refonte ne doit imposer du mouvement à un visiteur
+     qui l'a désactivé. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@theme {
+  /* Screen Breakpoints (repris de Play) */
+  --breakpoint-sm: 540px;
+  --breakpoint-md: 720px;
+  --breakpoint-lg: 960px;
+  --breakpoint-xl: 1140px;
+  --breakpoint-2xl: 1320px;
+
+  --container-padding: 16px;
+
+  /* --- Identité verte NEV Climate Data --- */
+  /* Vert principal : boutons, liens actifs, éléments interactifs */
+  --color-primary: var(--nev-primary);
+  --color-primary-dark: var(--nev-primary-dark);
+  --color-primary-light: var(--nev-primary-light);
+
+  /* Vert profond : hero, footer, sections institutionnelles - inchangé,
+     usage volontairement réduit à ces 2-3 zones d'emphase seulement */
+  --color-deep: #052e1c;
+  --color-deep-2: #0b3d24;
+  --color-deep-3: #14532d;
+
+  /* Surfaces neutres (cartes, sections alternées) */
+  --color-surface: var(--nev-background);
+  --color-surface-alt: var(--nev-surface-muted);
+  /* Accent secondaire discret (puces actives, focus, points de repère sur
+     graphiques) - réutilise le vert clair existant plutôt qu'une nouvelle
+     teinte */
+  --color-accent: #86efac;
+
+  /* Neutres pour le texte - priorité à la lisibilité/contraste */
+  --color-dark: var(--nev-text);
+  --color-dark-2: #1c2b22;
+  --color-dark-3: #374151;
+  --color-dark-4: #4b5563;
+  --color-dark-5: #6b7280;
+  --color-dark-6: #9ca3af;
+  --color-dark-7: #d1d5db;
+  --color-dark-8: #e5e7eb;
+  --color-body-color: var(--nev-text-muted);
+  --color-stroke: var(--nev-border);
+  --color-gray-1: #f9fbfa;
+  --color-gray-2: #f0f5f2;
+  --color-gray-7: #ced9d3;
+
+  /* Statuts qualité de donnée (badges) - volontairement hors palette verte
+     pour rester distinguables d'un simple bouton/lien vert */
+  --color-status-demo: #d97706;
+  --color-status-demo-bg: #fef3c7;
+  --color-status-validated: #15803d;
+  --color-status-validated-bg: #dcfce7;
+  --color-status-review: #2563eb;
+  --color-status-review-bg: #dbeafe;
+
+  /* Alertes/erreurs réelles (distinct des statuts qualité de donnée ci-dessus) */
+  --color-success: var(--nev-success);
+  --color-warning: var(--nev-warning);
+  --color-danger: var(--nev-danger);
+  --color-danger-bg: var(--nev-danger-bg);
+
+  /* Box Shadows (repris de Play) */
+  --shadow-input: 0px 7px 20px rgba(0, 0, 0, 0.03);
+  --shadow-form: 0px 1px 55px -11px rgba(0, 0, 0, 0.01);
+  --shadow-testimonial: 0px 10px 20px 0px rgba(15, 61, 36, 0.08);
+  --shadow-xs: 0px 1px 2px rgba(15, 61, 36, 0.06);
+  --shadow-1: 0px 1px 3px 0px rgba(15, 61, 36, 0.12);
+  --shadow-2: 0px 5px 12px 0px rgba(15, 61, 36, 0.1);
+  --shadow-card: 0px 4px 16px 0px rgba(15, 61, 36, 0.08);
 }
 
 /* Sticky header on scroll (assets/js/main.js toggles this class) */

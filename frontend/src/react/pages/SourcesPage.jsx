@@ -1,4 +1,6 @@
 import { useI18n } from "../providers/I18nProvider";
+import NevCard from "../components/ui/NevCard";
+import NevBadge from "../components/ui/NevBadge";
 
 function ActiveBadge({ label }) {
   return (
@@ -9,13 +11,15 @@ function ActiveBadge({ label }) {
   );
 }
 
-function SourceCard({ name, typeLabel, typeClass = "bg-surface-alt text-deep-3", badge, description, dataType, updateFrequency, reliability, t }) {
+function SourceCard({ name, typeLabel, typeTone = "neutral", badge, description, dataType, updateFrequency, reliability, t }) {
   return (
-    <div className="rounded-2xl border border-stroke bg-white p-7 shadow-2 transition hover:-translate-y-1 hover:shadow-card">
-      <div className="mb-4 flex items-start justify-between">
+    <NevCard padding="lg" interactive>
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-bold text-dark">{name}</h3>
-          <span className={"mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold " + typeClass}>{typeLabel}</span>
+          <NevBadge tone={typeTone} className="mt-1.5">
+            {typeLabel}
+          </NevBadge>
         </div>
         {badge}
       </div>
@@ -34,7 +38,7 @@ function SourceCard({ name, typeLabel, typeClass = "bg-surface-alt text-deep-3",
           <dd className="font-semibold text-dark-3">{reliability}</dd>
         </div>
       </dl>
-    </div>
+    </NevCard>
   );
 }
 
@@ -92,7 +96,7 @@ export default function SourcesPage() {
             <SourceCard
               name="NEV Climate Data - Démonstration interne"
               typeLabel="Démonstration interne"
-              typeClass="bg-status-demo-bg text-status-demo"
+              typeTone="warning"
               badge={active}
               description="Jeu de données de démonstration généré pour le développement et la présentation de la plateforme (A1.6)."
               dataType="Toutes catégories"

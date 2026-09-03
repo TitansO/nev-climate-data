@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import NevCard from "../components/ui/NevCard";
+import NevButton from "../components/ui/NevButton";
+import NevBadge from "../components/ui/NevBadge";
+import NevDataState from "../components/ui/NevDataState";
+import NevPagination from "../components/ui/NevPagination";
 
 const PAGE_SIZE = 10;
 const EVENT_TYPE_LABELS = {
@@ -100,86 +105,63 @@ export default function NotificationsPage() {
       </section>
 
       <div className="container mx-auto px-4">
-        <section className="relative z-20 -mt-10 mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-6 shadow-2">
+        <NevCard as="section" padding="md" className="relative z-20 -mt-10 mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl shadow-card">
           <p className="text-sm text-body-color">{"loading" === status ? t("hero.loading", "Chargement…") : total + " notification(s) au total"}</p>
           {unreadCount > 0 && (
-            <button
-              type="button"
-              disabled={markingAll}
-              onClick={markAllAsRead}
-              className="rounded-md border border-stroke px-6 py-2.5 text-sm font-semibold text-dark-4 transition hover:bg-gray-2 disabled:opacity-70"
-            >
+            <NevButton variant="outline" size="md" disabled={markingAll} onClick={markAllAsRead}>
               {t("notifPage.markAllRead", "Tout marquer comme lu")}
-            </button>
+            </NevButton>
           )}
-        </section>
+        </NevCard>
 
         <section className="pb-20">
-          {"loading" === status && <div className="rounded-2xl border border-stroke bg-white p-16 text-center text-sm text-body-color">{t("hero.loading", "Chargement…")}</div>}
-
-          {"empty" === status && (
-            <div className="rounded-2xl border border-stroke bg-white p-16 text-center">
-              <p className="text-sm text-body-color">{t("notifPage.empty", "Vous n'avez aucune notification pour le moment.")}</p>
-            </div>
-          )}
-
-          {"error" === status && <div className="rounded-2xl border border-status-demo/30 bg-status-demo-bg/40 p-16 text-center text-sm text-status-demo">{errorMessage}</div>}
-
-          {"success" === status && (
+          <NevDataState
+            state={status}
+            loadingText={t("hero.loading", "Chargement…")}
+            emptyText={t("notifPage.empty", "Vous n'avez aucune notification pour le moment.")}
+            errorText={errorMessage}
+            onRetry={() => loadNotifications(page)}
+          >
             <div>
               <ul className="space-y-3">
                 {items.map((item) => (
-                  <li
-                    key={item.id}
-                    className={"flex items-start justify-between gap-4 rounded-2xl border p-5 " + (item.isRead ? "border-stroke bg-white" : "border-primary/30 bg-surface-alt")}
-                  >
+                  <li key={item.id} className={"flex items-start justify-between gap-4 rounded-lg border p-5 " + (item.isRead ? "border-stroke bg-white" : "border-primary/30 bg-surface-alt")}>
                     {/* The whole content block is a link to item.destination
                         (A2.10) - the real frontend page the event is about -
                         kept separate from "Marquer comme lue" so clicking to
                         navigate never silently marks it read as a side effect. */}
-                    <a href={item.destination} className="block flex-1 hover:opacity-80">
-                      <span className="mb-1 inline-block rounded-full bg-status-review-bg px-2.5 py-0.5 text-xs font-semibold text-status-review">
+                    <a
+                      href={item.destination}
+                      className="block flex-1 rounded-sm transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <NevBadge tone="info" className="mb-1.5">
                         {EVENT_TYPE_LABELS[item.eventType] || item.eventType}
-                      </span>
+                      </NevBadge>
                       <p className="text-sm text-dark">{item.content}</p>
                       <p className="mt-1 text-xs text-dark-6">{formatDate(item.createdAt)}</p>
                     </a>
                     {!item.isRead && (
-                      <button
-                        type="button"
-                        onClick={() => markAsRead(item.id)}
-                        className="shrink-0 rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-white"
-                      >
+                      <NevButton variant="outline" size="sm" className="shrink-0" onClick={() => markAsRead(item.id)}>
                         Marquer comme lue
-                      </button>
+                      </NevButton>
                     )}
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-8 flex items-center justify-between">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => loadNotifications(page - 1)}
-                  className="rounded-md border border-stroke px-4 py-2 text-sm font-medium text-dark-4 transition hover:bg-gray-2 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {t("dataPage.previous", "Précédent")}
-                </button>
-                <span className="text-sm text-body-color">
-                  Page {page} sur {totalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => loadNotifications(page + 1)}
-                  className="rounded-md border border-stroke px-4 py-2 text-sm font-medium text-dark-4 transition hover:bg-gray-2 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {t("dataPage.next", "Suivant")}
-                </button>
+              <div className="mt-8">
+                <NevPagination
+                  pageLabel={"Page " + page + " sur " + totalPages}
+                  onPrevious={() => loadNotifications(page - 1)}
+                  onNext={() => loadNotifications(page + 1)}
+                  disabledPrevious={page <= 1}
+                  disabledNext={page >= totalPages}
+                  previousLabel={t("dataPage.previous", "Précédent")}
+                  nextLabel={t("dataPage.next", "Suivant")}
+                />
               </div>
             </div>
-          )}
+          </NevDataState>
         </section>
       </div>
     </>

@@ -47,7 +47,7 @@ export default function NotificationBell() {
     <button
       type="button"
       id="notif-bell-btn"
-      className="relative rounded-md p-2 text-white/90 transition hover:bg-white/10 hover:text-white"
+      className="relative rounded-md p-2 text-white/90 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
       aria-label="Notifications"
       onClick={() => {
         window.location.href = "notifications.html";

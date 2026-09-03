@@ -35,7 +35,7 @@ export default function AuthSlot() {
       <a
         href="login.html"
         id="auth-nav-slot"
-        className="loginBtn signUpBtn rounded-md bg-white/15 px-5 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark"
+        className="loginBtn signUpBtn rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow-xs transition duration-300 ease-in-out hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
       >
         {t("nav.login", "Connexion")}
       </a>
@@ -44,13 +44,16 @@ export default function AuthSlot() {
 
   return (
     <div className="flex items-center gap-3">
-      <a href="account-profile.html" className="loginBtn text-sm font-medium text-white/90 hover:text-white">
+      <a
+        href="account-profile.html"
+        className="loginBtn rounded-sm text-sm font-medium text-white/90 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+      >
         {user.email}
       </a>
       <button
         type="button"
         id="auth-logout-btn"
-        className="loginBtn rounded-md bg-white/15 px-4 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark"
+        className="loginBtn rounded-md bg-white/15 px-4 py-2 text-sm font-semibold text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
         onClick={async () => {
           await logout();
           window.location.href = "index.html";
