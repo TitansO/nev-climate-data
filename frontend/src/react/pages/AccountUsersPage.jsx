@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import NevCard from "../components/ui/NevCard";
+import NevInput from "../components/ui/NevInput";
+import NevSelect from "../components/ui/NevSelect";
+import NevButton from "../components/ui/NevButton";
+import NevBadge from "../components/ui/NevBadge";
+import NevDataState from "../components/ui/NevDataState";
+import NevTable from "../components/ui/NevTable";
+import NevConfirmDialog from "../components/ui/NevConfirmDialog";
 
 const ROLE_LABEL_KEYS = {
   super_admin: ["usersPage.roleSuperAdmin", "Super administrateur"],
@@ -8,11 +16,11 @@ const ROLE_LABEL_KEYS = {
   internal_analyst: ["usersPage.roleInternalAnalyst", "Analyste interne"],
   external_partner: ["usersPage.roleExternalPartner", "Partenaire externe"],
 };
-const ROLE_BADGE_CLASSES = {
-  super_admin: "bg-primary/10 text-primary-dark",
-  admin: "bg-status-validated-bg text-status-validated",
-  internal_analyst: "bg-status-review-bg text-status-review",
-  external_partner: "bg-dark-8 text-dark-4",
+const ROLE_BADGE_TONES = {
+  super_admin: "success",
+  admin: "info",
+  internal_analyst: "neutral",
+  external_partner: "neutral",
 };
 const ROLE_ORDER = ["super_admin", "admin", "internal_analyst", "external_partner"];
 
@@ -39,6 +47,7 @@ export default function AccountUsersPage() {
   const [form, setForm] = useState(CREATE_FORM_DEFAULTS);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   async function loadUsers() {
     setStatus("loading");
@@ -113,11 +122,9 @@ export default function AccountUsersPage() {
     }
   }
 
-  async function deleteUser(id) {
-    if (!window.confirm(t("usersPage.deleteConfirm", "Supprimer ce compte ? Cette action est irréversible."))) {
-      return;
-    }
-
+  async function confirmDelete() {
+    const id = deleteTarget;
+    setDeleteTarget(null);
     try {
       const response = await authorizedFetch(API_BASE_URL + "/api/users/" + id, { method: "DELETE" });
       if (!response.ok && 204 !== response.status) {
@@ -162,6 +169,40 @@ export default function AccountUsersPage() {
     }
   }
 
+  const columns = [
+    { key: "name", label: t("usersPage.name", "Nom") },
+    { key: "email", label: t("usersPage.email", "Email") },
+    { key: "role", label: t("usersPage.role", "Rôle"), render: (user) => <NevBadge tone={ROLE_BADGE_TONES[user.role] || "neutral"}>{roleLabel(user.role)}</NevBadge> },
+    { key: "createdAt", label: t("usersPage.createdOn", "Créé le"), render: (user) => formatDate(user.createdAt) },
+    {
+      key: "actions",
+      label: t("usersPage.actions", "Actions"),
+      align: "right",
+      render: (user) =>
+        user.email === currentUserEmail ? (
+          <span className="text-xs italic text-dark-6">{t("usersPage.you", "vous")}</span>
+        ) : (
+          <div className="flex items-center justify-end gap-2">
+            <select
+              value={user.role}
+              onChange={(event) => changeRole(user.id, event.target.value)}
+              aria-label={t("usersPage.role", "Rôle") + " - " + user.email}
+              className="role-select rounded-md border border-stroke px-2 py-1.5 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {ROLE_ORDER.map((role) => (
+                <option key={role} value={role}>
+                  {roleLabel(role)}
+                </option>
+              ))}
+            </select>
+            <NevButton variant="outline" size="sm" onClick={() => setDeleteTarget(user.id)}>
+              {t("usersPage.delete", "Supprimer")}
+            </NevButton>
+          </div>
+        ),
+    },
+  ];
+
   return (
     <>
       <section className="bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-16 pt-[140px] text-center text-white lg:pt-[160px]">
@@ -173,148 +214,73 @@ export default function AccountUsersPage() {
 
       <div className="container mx-auto px-4">
         {!authorized ? (
-          <div className="relative z-20 -mt-10 mb-6 rounded-2xl bg-white p-16 text-center text-sm text-body-color shadow-2">{t("hero.loading", "Chargement…")}</div>
+          <NevCard as="div" padding="lg" className="relative z-20 -mt-10 mb-6 rounded-2xl text-center text-sm text-body-color shadow-card">
+            {t("hero.loading", "Chargement…")}
+          </NevCard>
         ) : (
           <>
-            <section className="relative z-20 -mt-10 mb-6 rounded-2xl bg-white p-6 shadow-2">
-              <h2 className="mb-5 text-base font-semibold text-dark">{t("usersPage.createTitle", "Créer un utilisateur")}</h2>
+            <NevCard as="section" padding="md" className="relative z-20 -mt-10 mb-6 rounded-2xl shadow-card">
+              <h2 className="mb-5 text-lg font-semibold text-dark">{t("usersPage.createTitle", "Créer un utilisateur")}</h2>
               <form onSubmit={handleCreateSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
-                <div className="lg:col-span-1">
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark-5">{t("usersPage.name", "Nom")}</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder={t("usersPage.namePlaceholder", "Nom complet")}
-                    value={form.name}
-                    onChange={(event) => setForm({ ...form, name: event.target.value })}
-                    className="w-full rounded-md border border-stroke px-3.5 py-2.5 text-sm outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="lg:col-span-1">
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark-5">{t("usersPage.email", "Email")}</label>
-                  <input
-                    type="email"
-                    required
-                    value={form.email}
-                    onChange={(event) => setForm({ ...form, email: event.target.value })}
-                    className="w-full rounded-md border border-stroke px-3.5 py-2.5 text-sm outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="lg:col-span-1">
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark-5">{t("usersPage.password", "Mot de passe")}</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={form.password}
-                    onChange={(event) => setForm({ ...form, password: event.target.value })}
-                    className="w-full rounded-md border border-stroke px-3.5 py-2.5 text-sm outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="lg:col-span-1">
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark-5">{t("usersPage.role", "Rôle")}</label>
-                  <select
-                    value={form.role}
-                    onChange={(event) => setForm({ ...form, role: event.target.value })}
-                    className="w-full rounded-md border border-stroke px-3.5 py-2.5 text-sm outline-none focus:border-primary"
-                  >
-                    {ROLE_ORDER.map((role) => (
-                      <option key={role} value={role}>
-                        {roleLabel(role)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="lg:col-span-1">
-                  <button
-                    type="submit"
-                    disabled={creating}
-                    className="w-full rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark disabled:opacity-70"
-                  >
-                    {creating ? t("usersPage.creating", "Création…") : t("usersPage.submitCreate", "Créer le compte")}
-                  </button>
-                </div>
+                <NevInput
+                  id="new-user-name"
+                  label={t("usersPage.name", "Nom")}
+                  type="text"
+                  required
+                  placeholder={t("usersPage.namePlaceholder", "Nom complet")}
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                />
+                <NevInput
+                  id="new-user-email"
+                  label={t("usersPage.email", "Email")}
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                />
+                <NevInput
+                  id="new-user-password"
+                  label={t("usersPage.password", "Mot de passe")}
+                  type="password"
+                  required
+                  minLength={8}
+                  value={form.password}
+                  onChange={(event) => setForm({ ...form, password: event.target.value })}
+                />
+                <NevSelect id="new-user-role" label={t("usersPage.role", "Rôle")} value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
+                  {ROLE_ORDER.map((role) => (
+                    <option key={role} value={role}>
+                      {roleLabel(role)}
+                    </option>
+                  ))}
+                </NevSelect>
+                <NevButton type="submit" disabled={creating} className="w-full">
+                  {creating ? t("usersPage.creating", "Création…") : t("usersPage.submitCreate", "Créer le compte")}
+                </NevButton>
               </form>
-              {createError && <p className="mt-4 text-sm text-status-demo">{createError}</p>}
-            </section>
+              {createError && <p className="mt-4 text-sm text-danger">{createError}</p>}
+            </NevCard>
 
             <section className="pb-20">
-              {"loading" === status && (
-                <div className="rounded-2xl border border-stroke bg-white p-16 text-center text-sm text-body-color">{t("hero.loading", "Chargement…")}</div>
-              )}
-
-              {"empty" === status && (
-                <div className="rounded-2xl border border-stroke bg-white p-16 text-center">
-                  <p className="text-sm text-body-color">{t("usersPage.empty", "Aucun utilisateur pour le moment.")}</p>
-                </div>
-              )}
-
-              {"error" === status && <div className="rounded-2xl border border-status-demo/30 bg-status-demo-bg/40 p-16 text-center text-sm text-status-demo">{errorMessage}</div>}
-
-              {"success" === status && (
-                <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-1">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[800px] text-left text-sm">
-                      <thead className="bg-surface-alt text-xs font-semibold uppercase tracking-wide text-dark-4">
-                        <tr>
-                          <th className="px-5 py-4">{t("usersPage.name", "Nom")}</th>
-                          <th className="px-5 py-4">{t("usersPage.email", "Email")}</th>
-                          <th className="px-5 py-4">{t("usersPage.role", "Rôle")}</th>
-                          <th className="px-5 py-4">{t("usersPage.createdOn", "Créé le")}</th>
-                          <th className="px-5 py-4">{t("usersPage.actions", "Actions")}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-stroke">
-                        {users.map((user) => {
-                          const isSelf = user.email === currentUserEmail;
-                          return (
-                            <tr key={user.id}>
-                              <td className="px-5 py-4 font-medium text-dark">{user.name}</td>
-                              <td className="px-5 py-4">{user.email}</td>
-                              <td className="px-5 py-4">
-                                <span className={"inline-flex rounded-full px-2.5 py-1 text-xs font-semibold " + (ROLE_BADGE_CLASSES[user.role] || "bg-dark-8 text-dark-4")}>
-                                  {roleLabel(user.role)}
-                                </span>
-                              </td>
-                              <td className="px-5 py-4">{formatDate(user.createdAt)}</td>
-                              <td className="px-5 py-4 text-right">
-                                {isSelf ? (
-                                  <span className="text-xs italic text-dark-6">{t("usersPage.you", "vous")}</span>
-                                ) : (
-                                  <>
-                                    <select
-                                      value={user.role}
-                                      onChange={(event) => changeRole(user.id, event.target.value)}
-                                      className="role-select rounded-md border border-stroke px-2 py-1.5 text-xs"
-                                    >
-                                      {ROLE_ORDER.map((role) => (
-                                        <option key={role} value={role}>
-                                          {roleLabel(role)}
-                                        </option>
-                                      ))}
-                                    </select>{" "}
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteUser(user.id)}
-                                      className="ml-2 rounded-md border border-status-demo/40 px-3 py-1.5 text-xs font-semibold text-status-demo hover:bg-status-demo-bg"
-                                    >
-                                      {t("usersPage.delete", "Supprimer")}
-                                    </button>
-                                  </>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              <NevDataState state={status} loadingText={t("hero.loading", "Chargement…")} emptyText={t("usersPage.empty", "Aucun utilisateur pour le moment.")} errorText={errorMessage} onRetry={loadUsers}>
+                <NevTable columns={columns} rows={users} rowKey={(user) => user.id} />
+              </NevDataState>
             </section>
           </>
         )}
       </div>
+
+      <NevConfirmDialog
+        open={null !== deleteTarget}
+        title="Supprimer ce compte ?"
+        description={t("usersPage.deleteConfirm", "Cette action est irréversible.")}
+        confirmLabel={t("usersPage.delete", "Supprimer")}
+        cancelLabel="Annuler"
+        tone="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </>
   );
 }

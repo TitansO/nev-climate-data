@@ -1,4 +1,5 @@
 import { useI18n } from "../providers/I18nProvider";
+import NevButton from "../components/ui/NevButton";
 
 export default function NotFoundPage() {
   const { t } = useI18n();
@@ -10,9 +11,9 @@ export default function NotFoundPage() {
       <p className="mx-auto mb-10 max-w-[480px] text-white/80">
         {t("notFoundPage.subtitle", "La page que vous recherchez n'existe pas ou a été déplacée.")}
       </p>
-      <a href="index.html" className="rounded-md bg-primary px-7 py-3.5 text-base font-semibold text-white transition hover:bg-primary-dark">
+      <NevButton as="a" href="index.html" variant="primary" size="md" className="px-7 py-3.5 text-base">
         {t("notFoundPage.backHome", "Retour à l'accueil")}
-      </a>
+      </NevButton>
     </section>
   );
 }

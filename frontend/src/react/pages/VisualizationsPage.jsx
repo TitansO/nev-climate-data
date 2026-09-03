@@ -10,6 +10,11 @@ import FinancingBarChart from "../components/charts/FinancingBarChart";
 import FinancingTable from "../components/charts/FinancingTable";
 import CountryMap from "../components/charts/CountryMap";
 import { formatCompactUsd, formatCount } from "../data/analyticsConstants";
+import NevKpi from "../components/ui/NevKpi";
+import NevChartCard from "../components/ui/NevChartCard";
+
+const DATA_SOURCE_LABEL = "Source : API NEV Climate Data (GET /api/analytics/*)";
+const DATA_PERIOD_LABEL = "Mise à jour toutes les 15 minutes";
 
 function sumTotals(rows) {
   return rows.reduce(
@@ -128,53 +133,44 @@ export default function VisualizationsPage() {
         {/* KPI band */}
         <section className="relative z-20 -mt-10 mb-8">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <div className="relative rounded-2xl border border-stroke border-t-4 border-t-primary bg-white p-5 shadow-2">
-              <div className="text-2xl font-extrabold text-dark">{null === fundingTotalUsd ? "…" : formatCompactUsd(fundingTotalUsd)}</div>
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-dark-5">{t("vizPage.kpiTotalFunding", "Financement total")}</div>
-              {mercureKpis.connected && (
-                <span className="absolute right-3 top-3 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-primary" title="Mis à jour en direct via Mercure">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary"></span>
-                  Direct
-                </span>
-              )}
-            </div>
-            <div className="rounded-2xl border border-stroke border-t-4 border-t-primary bg-white p-5 shadow-2">
-              <div className="text-2xl font-extrabold text-dark">{mercureKpis.snapshot ? formatCount(mercureKpis.snapshot.countriesCovered) : heroKpis.countries}</div>
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-dark-5">{t("vizPage.kpiCountries", "Pays couverts")}</div>
-            </div>
-            <div className="rounded-2xl border border-stroke border-t-4 border-t-primary bg-white p-5 shadow-2">
-              <div className="text-2xl font-extrabold text-dark">{heroKpis.sectors}</div>
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-dark-5">{t("vizPage.kpiSectors", "Secteurs suivis")}</div>
-            </div>
-            <div className="rounded-2xl border border-stroke border-t-4 border-t-primary bg-white p-5 shadow-2">
-              <div className="text-2xl font-extrabold text-dark">{heroKpis.sources}</div>
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-dark-5">{t("vizPage.kpiSources", "Sources actives")}</div>
-            </div>
+            <NevKpi
+              label={t("vizPage.kpiTotalFunding", "Financement total")}
+              value={null === fundingTotalUsd ? undefined : formatCompactUsd(fundingTotalUsd)}
+              state={null === fundingTotalUsd ? "loading" : "success"}
+              liveBadge={mercureKpis.connected}
+              liveLabel="Direct"
+              className="border-t-4 border-t-primary"
+            />
+            <NevKpi
+              label={t("vizPage.kpiCountries", "Pays couverts")}
+              value={mercureKpis.snapshot ? formatCount(mercureKpis.snapshot.countriesCovered) : heroKpis.countries}
+              state="success"
+              className="border-t-4 border-t-primary"
+            />
+            <NevKpi label={t("vizPage.kpiSectors", "Secteurs suivis")} value={heroKpis.sectors} state="success" className="border-t-4 border-t-primary" />
+            <NevKpi label={t("vizPage.kpiSources", "Sources actives")} value={heroKpis.sources} state="success" className="border-t-4 border-t-primary" />
           </div>
         </section>
 
         {/* Financing type donut + sector distribution */}
         <section className="mb-8">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-stroke bg-white p-5 shadow-2 sm:p-6">
-              <h3 className="mb-3 text-lg font-bold text-dark">{t("vizPage.fundingByType", "Répartition par type de financement")}</h3>
+            <NevChartCard title={t("vizPage.fundingByType", "Répartition par type de financement")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
               <ChartStateBox state={financing.state} message={financing.message} onRetry={financing.reload}>
                 {financingTotals && <TypeDonutChart totals={financingTotals} />}
               </ChartStateBox>
-            </div>
-            <div className="rounded-2xl border border-stroke bg-white p-5 shadow-2 sm:p-6">
-              <h3 className="mb-3 text-lg font-bold text-dark">{t("vizPage.bySector", "Répartition par secteur")}</h3>
+            </NevChartCard>
+            <NevChartCard title={t("vizPage.bySector", "Répartition par secteur")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
               <ChartStateBox state={sectors.state} message={sectors.message} onRetry={sectors.reload}>
                 {sectors.data && <SectorDonutChart rows={sectors.data.data} />}
               </ChartStateBox>
-            </div>
+            </NevChartCard>
           </div>
         </section>
 
         {/* Financing by year and type */}
         <section className="mb-8">
-          <div className="rounded-2xl border border-stroke bg-white p-5 shadow-2 sm:p-6">
-            <h3 className="mb-3 text-lg font-bold text-dark">{t("vizPage.financingByYear", "Financement par année et type (USD)")}</h3>
+          <NevChartCard title={t("vizPage.financingByYear", "Financement par année et type (USD)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
             <ChartStateBox state={financing.state} message={financing.message} onRetry={financing.reload}>
               {financing.data && financingTotals && (
                 <>
@@ -183,38 +179,25 @@ export default function VisualizationsPage() {
                 </>
               )}
             </ChartStateBox>
-          </div>
+          </NevChartCard>
         </section>
 
         {/* Country map */}
         <section className="mb-16">
-          <div className="rounded-2xl border border-stroke bg-white p-5 shadow-2 sm:p-6">
-            <h3 className="mb-3 text-lg font-bold text-dark">{t("vizPage.byCountry", "Financement par pays (Afrique)")}</h3>
+          <NevChartCard title={t("vizPage.byCountry", "Financement par pays (Afrique)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
             <ChartStateBox state={countries.state} message={countries.message} onRetry={countries.reload} minHeight={false}>
               {countries.data && <CountryMap rows={countries.data.data} />}
             </ChartStateBox>
-          </div>
+          </NevChartCard>
         </section>
 
         {/* Other indicators */}
         <section className="pb-20">
           <h2 className="mb-6 text-xl font-bold text-dark">{t("vizPage.otherIndicators", "Autres indicateurs climatiques")}</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <div className="rounded-2xl border border-stroke bg-white p-6 text-center shadow-1">
-              <div className="mb-1 text-2xl font-extrabold text-deep-3">{co2.value}</div>
-              <div className="text-sm font-medium text-dark-4">{t("vizPage.co2Reduction", "Réduction CO2 (M tonnes/an)")}</div>
-              <div className="mt-2 text-xs text-dark-5">{co2.note}</div>
-            </div>
-            <div className="rounded-2xl border border-stroke bg-white p-6 text-center shadow-1">
-              <div className="mb-1 text-2xl font-extrabold text-deep-3">-</div>
-              <div className="text-sm font-medium text-dark-4">{t("vizPage.activeProjects", "Projets actifs")}</div>
-              <div className="mt-2 text-xs text-dark-5">{t("vizPage.comingIndicator", "Indicateur à venir (Volet B)")}</div>
-            </div>
-            <div className="rounded-2xl border border-stroke bg-white p-6 text-center shadow-1">
-              <div className="mb-1 text-2xl font-extrabold text-deep-3">-</div>
-              <div className="text-sm font-medium text-dark-4">{t("vizPage.validatedCountries", "Pays avec données validées")}</div>
-              <div className="mt-2 text-xs text-dark-5">{t("vizPage.comingIndicator", "Indicateur à venir (Volet B)")}</div>
-            </div>
+            <NevKpi label={t("vizPage.co2Reduction", "Réduction CO2 (M tonnes/an)")} value={co2.value} context={co2.note} state="success" />
+            <NevKpi label={t("vizPage.activeProjects", "Projets actifs")} state="empty" context={t("vizPage.comingIndicator", "Indicateur à venir (Volet B)")} />
+            <NevKpi label={t("vizPage.validatedCountries", "Pays avec données validées")} state="empty" context={t("vizPage.comingIndicator", "Indicateur à venir (Volet B)")} />
           </div>
           <p className="mt-6 text-xs text-dark-5">
             {t(

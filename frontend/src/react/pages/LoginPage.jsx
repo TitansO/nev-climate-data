@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import NevCard from "../components/ui/NevCard";
+import NevInput from "../components/ui/NevInput";
+import NevButton from "../components/ui/NevButton";
+import NevAlert from "../components/ui/NevAlert";
 
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth();
@@ -35,60 +39,50 @@ export default function LoginPage() {
   return (
     <section className="flex min-h-screen items-center bg-gradient-to-br from-deep via-deep-2 to-deep-3 px-4 pb-16 pt-[110px]">
       <div className="container mx-auto">
-        <div className="mx-auto w-full max-w-[440px] rounded-2xl bg-white p-8 shadow-2 sm:p-10">
+        <NevCard as="div" padding="lg" className="mx-auto w-full max-w-[440px] rounded-2xl shadow-card">
           <div className="mb-8 text-center">
             <img src="assets/images/logo/logo.svg" alt="NEV Climate Data" className="mx-auto mb-6 h-8 w-auto" />
             <h1 className="mb-2 text-xl font-bold text-dark">{t("nav.login", "Connexion")}</h1>
             <p className="text-sm text-body-color">{t("loginPage.subtitle", "Accédez à votre espace NEV Climate Data.")}</p>
           </div>
 
-          {error && (
-            <div className="mb-5 rounded-md border border-status-demo/30 bg-status-demo-bg/40 px-4 py-3 text-sm text-status-demo">{error}</div>
-          )}
+          {error ? (
+            <NevAlert tone="danger" className="mb-5">
+              {error}
+            </NevAlert>
+          ) : null}
 
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="mb-5">
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-dark-3">
-                {t("profilePage.email", "Adresse e-mail")}
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="vous@organisation.org"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="w-full rounded-md border border-stroke bg-white px-4 py-3 text-sm text-dark shadow-input placeholder:text-dark-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-            <div className="mb-2">
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-dark-3">
-                {t("loginPage.password", "Mot de passe")}
-              </label>
-              <input
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            <NevInput
+              id="email"
+              type="email"
+              label={t("profilePage.email", "Adresse e-mail")}
+              required
+              autoComplete="email"
+              placeholder="vous@organisation.org"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+            <div>
+              <NevInput
                 id="password"
                 type="password"
+                label={t("loginPage.password", "Mot de passe")}
                 required
                 autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded-md border border-stroke bg-white px-4 py-3 text-sm text-dark shadow-input placeholder:text-dark-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
+              <div className="mt-2 text-right">
+                <a href="#" className="text-xs font-medium text-dark-5 transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded-sm">
+                  {t("loginPage.forgotPassword", "Mot de passe oublié ?")}
+                </a>
+              </div>
             </div>
-            <div className="mb-6 text-right">
-              <a href="#" className="text-xs font-medium text-dark-5 hover:text-primary">
-                {t("loginPage.forgotPassword", "Mot de passe oublié ?")}
-              </a>
-            </div>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-md bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary-dark disabled:opacity-70"
-            >
+            <NevButton type="submit" variant="primary" size="md" disabled={submitting} className="w-full py-3">
               {submitting ? "Connexion…" : t("loginPage.submit", "Se connecter")}
-            </button>
+            </NevButton>
           </form>
 
           <p
@@ -97,7 +91,7 @@ export default function LoginPage() {
               __html: t("loginPage.disclaimer", 'Authentification JWT réelle (<code class="font-mono">POST /api/auth/login</code>).'),
             }}
           />
-        </div>
+        </NevCard>
       </div>
     </section>
   );
