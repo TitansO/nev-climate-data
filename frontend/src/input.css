@@ -43,6 +43,13 @@ layer(base);
        erreurs réseau/API - confusion sémantique corrigée ici. */
     --nev-danger: #dc2626;
     --nev-danger-bg: #fee2e2;
+    /* Ardoise neutre pour les grandes surfaces sombres (footer) - le vert
+       profond ("--color-deep") reste réservé au hero, seule zone
+       d'emphase verte forte restante depuis l'intégration du template
+       "Climate NEV" : le footer, une grande surface, ne doit pas être
+       100% vert saturé pour respecter "le vert ne doit pas couvrir toute
+       l'interface". */
+    --nev-deep-neutral: #0f172a;
   }
 
   *,
@@ -92,11 +99,13 @@ layer(base);
   --color-primary-dark: var(--nev-primary-dark);
   --color-primary-light: var(--nev-primary-light);
 
-  /* Vert profond : hero, footer, sections institutionnelles - inchangé,
-     usage volontairement réduit à ces 2-3 zones d'emphase seulement */
+  /* Vert profond : hero uniquement désormais - le footer utilise
+     --color-deep-neutral (ardoise) depuis l'intégration du template
+     "Climate NEV", voir --nev-deep-neutral ci-dessus */
   --color-deep: #052e1c;
   --color-deep-2: #0b3d24;
   --color-deep-3: #14532d;
+  --color-deep-neutral: var(--nev-deep-neutral);
 
   /* Surfaces neutres (cartes, sections alternées) */
   --color-surface: var(--nev-background);
@@ -136,60 +145,29 @@ layer(base);
   --color-danger: var(--nev-danger);
   --color-danger-bg: var(--nev-danger-bg);
 
-  /* Box Shadows (repris de Play) */
+  /* Box Shadows - neutres (ardoise) depuis l'intégration du template
+     "Climate NEV" ; étaient teintées vert (rgba(15,61,36,...)), un
+     autre petit levier "le vert ne doit pas tout couvrir", même une
+     teinte à peine perceptible dans une ombre. */
   --shadow-input: 0px 7px 20px rgba(0, 0, 0, 0.03);
   --shadow-form: 0px 1px 55px -11px rgba(0, 0, 0, 0.01);
-  --shadow-testimonial: 0px 10px 20px 0px rgba(15, 61, 36, 0.08);
-  --shadow-xs: 0px 1px 2px rgba(15, 61, 36, 0.06);
-  --shadow-1: 0px 1px 3px 0px rgba(15, 61, 36, 0.12);
-  --shadow-2: 0px 5px 12px 0px rgba(15, 61, 36, 0.1);
-  --shadow-card: 0px 4px 16px 0px rgba(15, 61, 36, 0.08);
+  --shadow-testimonial: 0px 10px 20px 0px rgba(15, 23, 42, 0.08);
+  --shadow-xs: 0px 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-1: 0px 1px 3px 0px rgba(15, 23, 42, 0.12);
+  --shadow-2: 0px 5px 12px 0px rgba(15, 23, 42, 0.1);
+  --shadow-card: 0px 4px 16px 0px rgba(15, 23, 42, 0.08);
 }
 
-/* Sticky header on scroll (assets/js/main.js toggles this class) */
-.sticky {
-  @apply fixed transition z-9999 bg-white/90;
-  backdrop-filter: blur(6px);
-  box-shadow: inset 0 -1px 0 0 rgba(15, 61, 36, 0.1);
-}
-.sticky .navbar-logo {
-  @apply py-2;
-}
-.sticky #navbarToggler span {
-  @apply bg-dark;
-}
-.sticky #navbarCollapse li > a {
-  @apply text-dark hover:text-primary hover:opacity-100;
-}
-.sticky .loginBtn {
-  @apply text-dark hover:text-primary hover:opacity-100;
-}
-.sticky .signUpBtn {
-  @apply text-white bg-primary hover:bg-primary-dark;
-}
-
-/* #navbarCollapse's mobile dropdown panel (data-i18n... see data.html) is
- * always solid white (bg-white, on its own <nav> element), regardless of
- * whether .sticky is active on the header - but its content (nav links,
- * search/notifications/login, A2.11/A2.12) was only ever styled dark
- * *when* .sticky was also present (the rules above), so on a fresh page
- * load - not yet scrolled - every one of those was white-on-white:
- * present, clickable, and completely invisible. A real bug only surfaced
- * once A2.12 fixed a *different* one (the dropdown failing to paint at
- * all below "lg", which is what hid this one in turn).
- * lg and up this is moot: #navbarCollapse stops being a dropdown
- * (lg:static) and sits inline in the actually-transparent/sticky header
- * instead, where the original white styling is correct - so this is
- * capped to below Tailwind's lg breakpoint (1024px).
+/* Depuis l'intégration du template "Climate NEV" : le header est blanc en
+ * permanence (plus jamais transparent-sur-hero), donc l'ancien mécanisme
+ * ".sticky" (classe togglée au scroll pour rendre le header opaque avec un
+ * texte qui passait de blanc à sombre) et son correctif dédié au panneau
+ * mobile (texte blanc-sur-blanc avant le premier scroll) n'ont plus de
+ * raison d'être : le style "fond blanc, texte sombre" est désormais la
+ * classe de base de Navbar.jsx/MinimalHeader.jsx, à toutes les tailles
+ * d'écran, sans condition de scroll. Voir git history pour l'ancien
+ * mécanisme si jamais un jour la nav redevient transparente.
  */
-@media (max-width: 1023.98px) {
-  #navbarCollapse li > a,
-  #navbarCollapse .loginBtn,
-  #navbarCollapse #notif-bell-btn,
-  #navbarCollapse #lang-switch-btn {
-    @apply text-dark-3 hover:text-primary;
-  }
-}
 
 /* Mobile hamburger -> close icon animation */
 .navbarTogglerActive > span:nth-child(1) {

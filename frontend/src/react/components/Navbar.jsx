@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "../providers/I18nProvider";
 import GlobalSearch from "./GlobalSearch";
 import NotificationBell from "./NotificationBell";
 import AuthSlot from "./AuthSlot";
 
 /**
- * React port of the shared header (assets/js/main.js's sticky-on-scroll +
- * mobile-toggle behavior, ported to React state instead of direct
- * classList manipulation).
+ * Shared header - white bar, sticky, permanent (no scroll-triggered
+ * opacity toggle: since the "Climate NEV" template integration, the nav
+ * sits in normal document flow above the hero, never overlaid on it, so
+ * there is no transparent state to manage - see input.css's comment where
+ * the old ".sticky" class used to live for the prior mechanism).
  *
  * Two variants, matching what the static pages actually carried:
  * - "standard" (default): search box + notification bell + auth slot,
@@ -17,10 +19,8 @@ import AuthSlot from "./AuthSlot";
  * DOM ids (#navbarToggler, #navbarCollapse, #lang-switch-btn,
  * #global-search-input, #notif-bell-btn, #auth-nav-slot - the last two
  * rendered by NotificationBell/AuthSlot themselves) are kept identical to
- * the static-HTML version on purpose: src/input.css targets several of
- * them directly by id (the mobile-dropdown text-color fix, in
- * particular) - dropping them would silently break styling that already
- * shipped and was hand-verified earlier this project.
+ * the static-HTML version on purpose, in case any future CSS needs to
+ * target them directly again.
  */
 const NAV_LINKS = [
   { href: "index.html", key: "nav.home", fallback: "Accueil" },
@@ -34,20 +34,7 @@ const NAV_LINKS = [
 
 export default function Navbar({ activeHref, variant = "standard" }) {
   const { t, toggleLang } = useI18n();
-  const [sticky, setSticky] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    function onScroll() {
-      // Matches main.js exactly: header.offsetTop is 0 (absolute, top-0),
-      // so this is effectively "has the page scrolled at all".
-      setSticky(window.pageYOffset > 0);
-    }
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const logoSrc = sticky ? "assets/images/logo/logo.svg" : "assets/images/logo/logo-white.svg";
 
   function closeMobileMenu() {
     setMobileOpen(false);
@@ -57,7 +44,7 @@ export default function Navbar({ activeHref, variant = "standard" }) {
     <button
       id="lang-switch-btn"
       type="button"
-      className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+      className="rounded-md px-2 py-2 text-sm font-semibold text-dark-4 transition hover:bg-gray-2 hover:text-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       aria-label="Changer de langue"
       onClick={toggleLang}
     >
@@ -66,12 +53,12 @@ export default function Navbar({ activeHref, variant = "standard" }) {
   );
 
   return (
-    <header className={"ud-header absolute left-0 top-0 z-40 flex w-full items-center bg-transparent" + (sticky ? " sticky" : "")}>
+    <header className="ud-header sticky top-0 z-40 flex w-full items-center border-b border-stroke bg-white">
       <div className="container mx-auto px-4">
         <div className="relative -mx-4 flex items-center justify-between">
           <div className="w-auto shrink-0 px-4">
-            <a href="index.html" className="navbar-logo block py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
-              <img src={logoSrc} alt="NEV Climate Data" className="header-logo h-9 w-auto" />
+            <a href="index.html" className="navbar-logo block py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded-sm">
+              <img src="assets/images/logo/logo.svg" alt="NEV Climate Data" className="header-logo h-8 w-auto" />
             </a>
           </div>
           <div className="flex w-full items-center justify-between px-4">
@@ -83,23 +70,23 @@ export default function Navbar({ activeHref, variant = "standard" }) {
                 aria-expanded={mobileOpen}
                 aria-controls="navbarCollapse"
                 className={
-                  "absolute right-4 top-1/2 block -translate-y-1/2 rounded-lg px-3 py-[6px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 lg:hidden" +
+                  "absolute right-4 top-1/2 block -translate-y-1/2 rounded-lg px-3 py-[6px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden" +
                   (mobileOpen ? " navbarTogglerActive" : "")
                 }
                 onClick={() => setMobileOpen((open) => !open)}
               >
-                <span className="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
-                <span className="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
-                <span className="relative my-[6px] block h-[2px] w-[28px] bg-white"></span>
+                <span className="relative my-[6px] block h-[2px] w-[28px] bg-dark"></span>
+                <span className="relative my-[6px] block h-[2px] w-[28px] bg-dark"></span>
+                <span className="relative my-[6px] block h-[2px] w-[28px] bg-dark"></span>
               </button>
               <nav
                 id="navbarCollapse"
                 className={
-                  "absolute right-4 top-full z-50 w-full max-w-[280px] rounded-lg bg-white py-5 shadow-lg lg:static lg:z-auto lg:flex lg:w-full lg:max-w-full lg:items-center lg:justify-between lg:bg-transparent lg:px-4 lg:py-0 lg:shadow-none xl:px-6" +
+                  "absolute right-4 top-full z-50 w-full max-w-[280px] rounded-lg bg-white py-5 shadow-lg lg:static lg:z-auto lg:flex lg:w-full lg:max-w-full lg:items-center lg:justify-between lg:px-4 lg:py-0 lg:shadow-none xl:px-6" +
                   (mobileOpen ? "" : " hidden")
                 }
               >
-                <ul className="block lg:flex lg:items-center">
+                <ul className="block lg:flex lg:items-center lg:gap-1">
                   {NAV_LINKS.map((link) => (
                     <li key={link.href}>
                       <a
@@ -107,10 +94,8 @@ export default function Navbar({ activeHref, variant = "standard" }) {
                         onClick={closeMobileMenu}
                         aria-current={link.href === activeHref ? "page" : undefined}
                         className={
-                          "mx-6 flex py-2 text-sm tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 lg:mx-2 lg:inline-flex lg:whitespace-nowrap lg:py-6 xl:mx-3 " +
-                          (link.href === activeHref
-                            ? "nav-link-active font-semibold text-white lg:border-b-2 lg:border-primary-light"
-                            : "font-medium text-white/90 hover:text-white")
+                          "mx-6 my-1 flex rounded-full px-3 py-2 text-sm font-medium tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:mx-0 lg:inline-flex lg:whitespace-nowrap " +
+                          (link.href === activeHref ? "bg-primary-light/15 font-semibold text-primary-dark" : "text-dark-4 hover:bg-gray-2 hover:text-dark")
                         }
                       >
                         {t(link.key, link.fallback)}

@@ -1,6 +1,7 @@
 import { useI18n } from "../providers/I18nProvider";
 import NevCard from "../components/ui/NevCard";
 import NevBadge from "../components/ui/NevBadge";
+import { LinkIcon } from "../components/ui/icons";
 
 function ActiveBadge({ label }) {
   return (
@@ -48,10 +49,13 @@ export default function SourcesPage() {
 
   return (
     <>
-      <section className="bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-16 pt-[140px] text-center text-white lg:pt-[160px]">
+      <section className="bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-[60px] pt-[48px] text-left text-white">
         <div className="container mx-auto px-4">
-          <h1 className="mb-3 text-3xl font-bold sm:text-4xl">{t("sourcesPage.title", "Sources de données")}</h1>
-          <p className="mx-auto max-w-[640px] text-white/80">{t("sourcesPage.subtitle", "Les origines des données collectées, structurées et diffusées par la plateforme.")}</p>
+          <span className="mb-[18px] inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
+            <LinkIcon className="h-3 w-3" /> {t("sourcesPage.pill", "Sources")}
+          </span>
+          <h1 className="mb-[14px] text-[clamp(1.7rem,4vw,2.6rem)] font-bold leading-[1.2]">{t("sourcesPage.title", "Sources de données")}</h1>
+          <p className="max-w-[520px] text-base text-white/80">{t("sourcesPage.subtitle", "Les origines des données collectées, structurées et diffusées par la plateforme.")}</p>
         </div>
       </section>
 

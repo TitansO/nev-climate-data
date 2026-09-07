@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
+import { GlobeIcon, BoltIcon, LinkIcon, DocumentIcon } from "./ui/icons";
 
 /**
  * React port of assets/js/search.js (A2.8/A2.9). Every keystroke that
@@ -21,10 +22,16 @@ const DEBOUNCE_MS = 300;
 
 const CATEGORY_ORDER = ["country", "sector", "source", "report"];
 const CATEGORY_LABELS = {
-  country: "🌍 Pays",
-  sector: "⚡ Secteurs",
-  source: "🔗 Sources",
-  report: "📄 Rapports",
+  country: "Pays",
+  sector: "Secteurs",
+  source: "Sources",
+  report: "Rapports",
+};
+const CATEGORY_ICONS = {
+  country: GlobeIcon,
+  sector: BoltIcon,
+  source: LinkIcon,
+  report: DocumentIcon,
 };
 
 const SEARCH_ICON = (
@@ -141,7 +148,7 @@ export default function GlobalSearch() {
         type="button"
         onClick={openCompact}
         aria-label="Rechercher des données"
-        className={"rounded-md p-2 text-white/90 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70" + (expanded ? " hidden" : "")}
+        className={"rounded-md p-2 text-dark-4 transition hover:bg-gray-2 hover:text-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" + (expanded ? " hidden" : "")}
       >
         {SEARCH_ICON}
       </button>
@@ -175,7 +182,7 @@ export default function GlobalSearch() {
               setPanelOpen(true);
             }
           }}
-          className="w-44 rounded-md border-0 bg-white/95 py-2 pl-9 pr-3 text-sm text-dark shadow-input placeholder:text-dark-5 focus:outline-none focus:ring-2 focus:ring-primary sm:w-56"
+          className="w-44 rounded-md border border-stroke bg-white py-2 pl-9 pr-3 text-sm text-dark shadow-input placeholder:text-dark-5 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary sm:w-56"
         />
         <div
           id="global-search-results"
@@ -186,9 +193,14 @@ export default function GlobalSearch() {
           {"message" === status && <p className="px-3 py-4 text-center text-sm text-body-color">{message}</p>}
           {"results" === status && (
             <div className="divide-y divide-stroke">
-              {groups.map((group) => (
+              {groups.map((group) => {
+                const CategoryIcon = CATEGORY_ICONS[group.type];
+                return (
                 <div key={group.type} className="py-1.5">
-                  <p className="px-3 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wide text-dark-5">{CATEGORY_LABELS[group.type] || group.type}</p>
+                  <p className="flex items-center gap-1.5 px-3 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wide text-dark-5">
+                    {CategoryIcon ? <CategoryIcon className="h-3 w-3" /> : null}
+                    {CATEGORY_LABELS[group.type] || group.type}
+                  </p>
                   <ul>
                     {group.items.map((result, index) => (
                       <li key={result.destination + index}>
@@ -203,7 +215,8 @@ export default function GlobalSearch() {
                     ))}
                   </ul>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

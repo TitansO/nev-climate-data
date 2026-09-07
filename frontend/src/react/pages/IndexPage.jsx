@@ -3,7 +3,8 @@ import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import NevButton from "../components/ui/NevButton";
 import NevCard from "../components/ui/NevCard";
-import NevKpi from "../components/ui/NevKpi";
+import HeroIllustration from "../components/HeroIllustration";
+import { GlobeIcon, BanknoteIcon, ChartBarIcon, DocumentIcon } from "../components/ui/icons";
 
 const ARROW_ICON = (
   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -80,33 +81,38 @@ export default function IndexPage() {
   return (
     <>
       {/* ====== Hero ====== */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-20 pt-[150px] lg:pb-28 lg:pt-[180px]">
+      <section className="relative overflow-hidden bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-[100px] pt-[80px]">
         <div className="pointer-events-none absolute inset-0 opacity-40" aria-hidden="true">
           <div className="absolute -left-24 -top-24 h-96 w-96 rounded-full bg-primary/20 blur-3xl"></div>
           <div className="absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-primary-light/10 blur-3xl"></div>
         </div>
         <div className="container relative mx-auto px-4">
-          <div className="mx-auto max-w-[800px] text-center">
-            <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-medium text-accent">
-              {t("hero.badge", "🌍 Plateforme de données climatiques et de financement")}
-            </span>
-            <h1
-              className="mb-6 text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl lg:leading-[1.15]"
-              dangerouslySetInnerHTML={{
-                __html: t("hero.title", 'Comprendre le climat. Structurer les données.<br class="hidden sm:block" />Éclairer les décisions.'),
-              }}
-            />
-            <p className="mx-auto mb-10 max-w-[640px] text-base leading-relaxed text-white/80 sm:text-lg">
-              {t("hero.subtitle", "Une plateforme centralisée pour explorer, structurer et diffuser les données climatiques et les données de financement.")}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <NevButton as="a" href="data.html" variant="primary" className="px-7 py-3.5 text-base shadow-1">
-                <span>{t("hero.exploreData", "Explorer les données")}</span>
-                {ARROW_ICON}
-              </NevButton>
-              <NevButton as="a" href="reports.html" variant="outline" className="border-white/30 bg-white/10 px-7 py-3.5 text-base text-white backdrop-blur hover:bg-white/20 hover:text-white">
-                <span>{t("hero.viewReports", "Consulter les rapports")}</span>
-              </NevButton>
+          <div className="grid items-start gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="text-center lg:text-left">
+              <span className="mb-[18px] inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
+                <GlobeIcon className="h-3 w-3" /> {t("hero.badge", "Plateforme de données climatiques et de financement")}
+              </span>
+              <h1
+                className="mb-[14px] text-[clamp(1.7rem,4vw,2.6rem)] font-bold leading-[1.2] text-white"
+                dangerouslySetInnerHTML={{
+                  __html: t("hero.title", 'Comprendre le climat. Structurer les données.<br class="hidden sm:block" />Éclairer les décisions.'),
+                }}
+              />
+              <p className="mx-auto mb-[28px] max-w-[520px] text-base text-white/80 lg:mx-0">
+                {t("hero.subtitle", "Une plateforme centralisée pour explorer, structurer et diffuser les données climatiques et les données de financement.")}
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                <NevButton as="a" href="data.html" variant="primary" className="px-[18px] py-[9px] text-[0.82rem] shadow-1">
+                  <span>{t("hero.exploreData", "Explorer les données")}</span>
+                  {ARROW_ICON}
+                </NevButton>
+                <NevButton as="a" href="reports.html" variant="outline" className="border-white/30 bg-white/10 px-[18px] py-[9px] text-[0.82rem] text-white backdrop-blur hover:bg-white/20 hover:text-white">
+                  <span>{t("hero.viewReports", "Consulter les rapports")}</span>
+                </NevButton>
+              </div>
+            </div>
+            <div className="mx-auto flex w-full max-w-[420px] justify-center lg:max-w-none lg:justify-end">
+              <HeroIllustration />
             </div>
           </div>
         </div>
@@ -114,19 +120,24 @@ export default function IndexPage() {
 
       {/* ====== Stats ====== */}
       <section className="relative z-20 -mt-10 px-4">
-        <NevCard as="div" padding="lg" className="container mx-auto rounded-2xl shadow-card sm:p-8">
-          <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
-            <NevKpi
-              label={t("stats.countries", "Pays couverts")}
-              value={"success" === heroState ? formatCount(heroStats.countries) : undefined}
-              state={heroState}
-            />
-            <NevKpi label={t("stats.sectors", "Secteurs suivis")} value={"success" === heroState ? formatCount(heroStats.sectors) : undefined} state={heroState} />
-            <NevKpi label={t("stats.funding", "Données de financement")} value={"success" === heroState ? formatCount(heroStats.funding) : undefined} state={heroState} />
-            <NevKpi label={t("stats.sources", "Sources actives")} value={"success" === heroState ? formatCount(heroStats.sources) : undefined} state={heroState} />
+        <div className="container mx-auto rounded-2xl bg-white p-[22px] shadow-card sm:p-8">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {[
+              { value: heroStats.countries, color: "#16a34a", label: t("stats.countries", "Pays couverts") },
+              { value: heroStats.sectors, color: "#0ea5e9", label: t("stats.sectors", "Secteurs suivis") },
+              { value: heroStats.funding, color: "#f59e0b", label: t("stats.funding", "Données de financement") },
+              { value: heroStats.sources, color: "#7c3aed", label: t("stats.sources", "Sources actives") },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className="text-[2rem] font-bold tabular-nums" style={{ color: stat.color }} aria-live="polite">
+                  {"loading" === heroState ? "…" : "success" === heroState ? formatCount(stat.value) : "-"}
+                </div>
+                <div className="mt-1 text-[0.82rem] text-dark-5">{stat.label}</div>
+              </div>
+            ))}
           </div>
           {heroStatsNote ? <p className="mt-4 text-center text-xs text-dark-5">{heroStatsNote}</p> : null}
-        </NevCard>
+        </div>
       </section>
 
       {/* ====== Value banner ====== */}
@@ -175,47 +186,36 @@ export default function IndexPage() {
             <h2 className="mb-3 text-3xl font-bold text-dark sm:text-4xl">{t("categories.title", "Catégories de données")}</h2>
             <p className="text-body-color">{t("categories.subtitle", "Accédez à des données structurées sur le financement climatique, les sources et les rapports publiés.")}</p>
           </div>
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-            <NevCard padding="lg" interactive>
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-deep-3 text-white">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 1.657 3.582 3 8 3s8-1.343 8-3V7M4 7c0 1.657 3.582 3 8 3s8-1.343 8-3M4 7c0-1.657 3.582-3 8-3s8 1.343 8 3m0 5c0 1.657-3.582 3-8 3s-8-1.343-8-3" />
-                </svg>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <NevCard padding="md" interactive>
+              <div className="mb-[10px] h-6 w-6 text-primary" aria-hidden="true">
+                <BanknoteIcon />
               </div>
-              <h3 className="mb-2 text-xl font-bold text-dark">{t("categories.funding.title", "Données de financement")}</h3>
-              <p className="mb-6 text-body-color">{t("categories.funding.desc", "Financements publics, privés et multilatéraux par pays, secteur et année.")}</p>
-              <a href="data.html" className="inline-flex items-center gap-1 rounded-sm text-sm font-semibold text-primary transition hover:text-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                <span>{t("categories.funding.cta", "Explorer")}</span> {ARROW_ICON}
-              </a>
+              <h3 className="mb-2 text-[0.95rem] font-bold text-dark">{t("categories.funding.title", "Données de financement")}</h3>
+              <p className="mb-[14px] text-[0.82rem] leading-[1.55] text-body-color">{t("categories.funding.desc", "Financements publics, privés et multilatéraux par pays, secteur et année.")}</p>
+              <NevButton as="a" href="data.html" size="sm" className="px-[13px] py-[6px] text-[0.78rem]">
+                {t("categories.funding.cta", "Explorer")}
+              </NevButton>
             </NevCard>
-            <NevCard padding="lg" interactive>
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-white">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l7 6.5L9 19z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 21V3M3 21h18" />
-                </svg>
+            <NevCard padding="md" interactive>
+              <div className="mb-[10px] h-6 w-6 text-primary" aria-hidden="true">
+                <ChartBarIcon />
               </div>
-              <h3 className="mb-2 text-xl font-bold text-dark">{t("categories.viz.title", "Visualisations et tendances")}</h3>
-              <p className="mb-6 text-body-color">{t("categories.viz.desc", "Évolution du financement, répartition sectorielle et indicateurs par région.")}</p>
-              <a
-                href="visualizations.html"
-                className="inline-flex items-center gap-1 rounded-sm text-sm font-semibold text-primary transition hover:text-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <span>{t("categories.viz.cta", "Visualiser")}</span> {ARROW_ICON}
-              </a>
+              <h3 className="mb-2 text-[0.95rem] font-bold text-dark">{t("categories.viz.title", "Visualisations et tendances")}</h3>
+              <p className="mb-[14px] text-[0.82rem] leading-[1.55] text-body-color">{t("categories.viz.desc", "Évolution du financement, répartition sectorielle et indicateurs par région.")}</p>
+              <NevButton as="a" href="visualizations.html" size="sm" className="px-[13px] py-[6px] text-[0.78rem]">
+                {t("categories.viz.cta", "Visualiser")}
+              </NevButton>
             </NevCard>
-            <NevCard padding="lg" interactive>
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-status-review text-white">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H7a2 2 0 01-2-2V6a2 2 0 012-2h7l5 5v9a2 2 0 01-2 2z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 4v5h5M9 13h6M9 17h6" />
-                </svg>
+            <NevCard padding="md" interactive>
+              <div className="mb-[10px] h-6 w-6 text-primary" aria-hidden="true">
+                <DocumentIcon />
               </div>
-              <h3 className="mb-2 text-xl font-bold text-dark">{t("categories.reports.title", "Rapports et analyses")}</h3>
-              <p className="mb-6 text-body-color">{t("categories.reports.desc", "Rapports annuels, études sectorielles et publications régionales.")}</p>
-              <a href="reports.html" className="inline-flex items-center gap-1 rounded-sm text-sm font-semibold text-primary transition hover:text-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                <span>{t("categories.reports.cta", "Consulter")}</span> {ARROW_ICON}
-              </a>
+              <h3 className="mb-2 text-[0.95rem] font-bold text-dark">{t("categories.reports.title", "Rapports et analyses")}</h3>
+              <p className="mb-[14px] text-[0.82rem] leading-[1.55] text-body-color">{t("categories.reports.desc", "Rapports annuels, études sectorielles et publications régionales.")}</p>
+              <NevButton as="a" href="reports.html" size="sm" className="px-[13px] py-[6px] text-[0.78rem]">
+                {t("categories.reports.cta", "Consulter")}
+              </NevButton>
             </NevCard>
           </div>
         </div>

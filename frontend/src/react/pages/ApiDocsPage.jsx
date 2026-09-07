@@ -1,5 +1,6 @@
 import { useI18n } from "../providers/I18nProvider";
 import NevCard from "../components/ui/NevCard";
+import { GearIcon } from "../components/ui/icons";
 
 const EXTERNAL_LINK_ICON = (
   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -12,10 +13,13 @@ export default function ApiDocsPage() {
 
   return (
     <>
-      <section className="bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-16 pt-[140px] text-center text-white lg:pt-[160px]">
+      <section className="bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-[60px] pt-[48px] text-left text-white">
         <div className="container mx-auto px-4">
-          <h1 className="mb-3 text-3xl font-bold sm:text-4xl">{t("nav.apiDocs", "Documentation API")}</h1>
-          <p className="mx-auto max-w-[640px] text-white/80">{t("apiDocsPage.subtitle", "Intégrez les données NEV Climate Data dans vos applications via l'API REST.")}</p>
+          <span className="mb-[18px] inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
+            <GearIcon className="h-3 w-3" /> {t("apiDocsPage.pill", "API REST")}
+          </span>
+          <h1 className="mb-[14px] text-[clamp(1.7rem,4vw,2.6rem)] font-bold leading-[1.2]">{t("nav.apiDocs", "Documentation API")}</h1>
+          <p className="max-w-[520px] text-base text-white/80">{t("apiDocsPage.subtitle", "Intégrez les données NEV Climate Data dans vos applications via l'API REST.")}</p>
         </div>
       </section>
 

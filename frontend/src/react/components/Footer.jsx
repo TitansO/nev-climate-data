@@ -9,7 +9,7 @@ export default function Footer() {
   const { t } = useI18n();
 
   return (
-    <footer className="border-t border-primary-light/20 bg-deep pt-16 text-gray-7">
+    <footer className="border-t border-primary-light/20 bg-deep-neutral pt-16 text-gray-7">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 gap-10 pb-12 sm:grid-cols-2 lg:grid-cols-4">
           <div>
