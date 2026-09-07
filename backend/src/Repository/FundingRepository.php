@@ -174,14 +174,25 @@ class FundingRepository extends ServiceEntityRepository
                 ->setParameter('fundingType', $criteria->fundingType);
         }
 
+        // "periodStart"/"periodEnd" filter the funding's own `year` (the
+        // period the funding actually covers), not `collectionDate` (when
+        // NEV's pipeline happened to ingest the row) - a real bug found
+        // during B3.1's real-data verification: with only demo fixtures,
+        // collectionDate and year happened to roughly line up, hiding the
+        // mismatch. Real pipeline data is all ingested "today" (collectionDate)
+        // while `year` genuinely spans 1967-2027, which made the date-range
+        // filter a near no-op against collectionDate. A date-range UI field
+        // next to a Year filter is what a user of a funding-browsing tool
+        // expects to scope by the funding's own period, not by an internal
+        // ingestion timestamp they have no reason to know about.
         if (null !== $criteria->periodStart) {
-            $qb->andWhere('funding.collectionDate >= :periodStart')
-                ->setParameter('periodStart', $criteria->periodStart);
+            $qb->andWhere('funding.year >= :periodStartYear')
+                ->setParameter('periodStartYear', (int) $criteria->periodStart->format('Y'));
         }
 
         if (null !== $criteria->periodEnd) {
-            $qb->andWhere('funding.collectionDate <= :periodEnd')
-                ->setParameter('periodEnd', $criteria->periodEnd);
+            $qb->andWhere('funding.year <= :periodEndYear')
+                ->setParameter('periodEndYear', (int) $criteria->periodEnd->format('Y'));
         }
 
         return $qb;

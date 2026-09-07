@@ -8,15 +8,44 @@ docker-compose.yml.
 """
 from __future__ import annotations
 
+import time
 from decimal import Decimal
 from typing import Any
 
 from pipeline.common.db import get_connection
+from pipeline.common.fx_rates import fetch_usd_to_currency_rates
 from pipeline.common.kafka_client import make_consumer, make_producer
 from pipeline.processors.sector_mapping import map_to_nev_sector
 from pipeline.processors.sector_mapping_gcf import map_gcf_sector
 from pipeline.processors.sector_mapping_afdb import map_afdb_sector
 from pipeline.processors.sector_mapping_opec import map_opec_sector
+
+# Sources that report a real, direct-from-institution non-USD amount
+# themselves (currently only AfDB, XDR) never go through the live-rate
+# conversion below - their message already carries the real figure, and
+# overwriting it with a derived one would replace a sourced number with a
+# less faithful one.
+SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf"})
+
+# In-memory cache for the long-running consumer (unlike the one-shot DAGs,
+# this process can stay up for weeks - fetching on every message would be
+# wasteful/slow, but a single fetch at startup would silently go stale).
+_rates_cache: dict[str, Any] = {"rates": None, "fetched_at": 0.0}
+RATES_TTL_SECONDS = 24 * 3600
+
+
+def get_current_usd_rates() -> dict[str, float]:
+    """Returns the cached USD-pivot rate table, refreshing it if empty or
+    older than RATES_TTL_SECONDS. A fetch failure propagates - the caller
+    (process_message) already runs inside run()'s per-message try/except,
+    so one bad fetch quarantines that message rather than crashing the
+    service; it does not fall back to a stale/guessed rate.
+    """
+    age = time.monotonic() - _rates_cache["fetched_at"]
+    if _rates_cache["rates"] is None or age > RATES_TTL_SECONDS:
+        _rates_cache["rates"] = fetch_usd_to_currency_rates()
+        _rates_cache["fetched_at"] = time.monotonic()
+    return _rates_cache["rates"]
 
 WORLD_BANK_SOURCE_NAME = "World Bank Data API"  # matches backend/src/DataFixtures/SourceFixtures.php - reuses that row instead of creating a duplicate
 GCF_SOURCE_NAME = "Green Climate Fund — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
@@ -96,6 +125,12 @@ def lookup_country_id(cursor, country_iso: str) -> int | None:
 
 def lookup_sector_id(cursor, sector_name: str) -> int | None:
     cursor.execute("SELECT id FROM sector WHERE name = %s", (sector_name,))
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def lookup_country_currency(cursor, country_id: int) -> str | None:
+    cursor.execute("SELECT currency FROM country WHERE id = %s", (country_id,))
     row = cursor.fetchone()
     return row[0] if row else None
 
@@ -289,10 +324,39 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
 
     source_id = ensure_source(cursor)
 
-    # AfDB messages carry original_amount/original_currency/exchange_rate
-    # (floats, from JSON) - convert via str() to avoid binary float
-    # artifacts in the Decimal conversion (e.g. Decimal(1.370818) != 1.370818).
-    # World Bank/GCF messages don't have these keys at all.
+    # AfDB messages carry a real, institution-reported original_amount/
+    # original_currency/exchange_rate (floats, from JSON) - convert via
+    # str() to avoid binary float artifacts in the Decimal conversion (e.g.
+    # Decimal(1.370818) != 1.370818). World Bank/GCF/OPEC Fund report
+    # directly in USD with no native non-USD figure to preserve, so their
+    # "devise locale" column is instead a real, live-rate USD -> country
+    # currency conversion (never the AfricanCurrencies illustrative table,
+    # which is reserved for the demo dataset) - see fx_rates.py. A missing
+    # country currency or rate leaves all three fields None rather than
+    # guessing, exactly like AfDB's own existing null-safety.
+    original_amount: Decimal | None
+    original_currency: str | None
+    exchange_rate: Decimal | None
+    if "original_amount" in message:
+        original_amount = Decimal(str(message["original_amount"]))
+        original_currency = message.get("original_currency")
+        exchange_rate = Decimal(str(message["exchange_rate"])) if "exchange_rate" in message else None
+    elif source in SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT:
+        original_amount, original_currency, exchange_rate = None, None, None
+        local_currency = lookup_country_currency(cursor, country_id)
+        if local_currency:
+            try:
+                rates = get_current_usd_rates()
+            except Exception:
+                rates = {}
+            rate = rates.get(local_currency)
+            if rate:
+                original_amount = Decimal(str(message["amount_usd"])) * Decimal(str(rate))
+                original_currency = local_currency
+                exchange_rate = Decimal("1") / Decimal(str(rate))
+    else:
+        original_amount, original_currency, exchange_rate = None, None, None
+
     apply_project_contribution(
         cursor,
         source_id=source_id,
@@ -303,9 +367,9 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         funding_type=message["funding_type"],
         amount=Decimal(message["amount_usd"]),
         collection_date=message["collected_at"][:10],
-        original_amount=Decimal(str(message["original_amount"])) if "original_amount" in message else None,
-        original_currency=message.get("original_currency"),
-        exchange_rate=Decimal(str(message["exchange_rate"])) if "exchange_rate" in message else None,
+        original_amount=original_amount,
+        original_currency=original_currency,
+        exchange_rate=exchange_rate,
     )
     return True, None
 

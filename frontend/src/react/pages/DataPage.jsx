@@ -87,6 +87,7 @@ export default function DataPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS, ...filtersFromUrl() }));
   const [sectorOptions, setSectorOptions] = useState([]); // learned from real API responses, see learnSectorsFrom()
+  const [yearOptions, setYearOptions] = useState([]); // learned from real API responses, see learnYearsFrom() - real data spans 1967-2027, a hardcoded 2022-2025 list (pre-B3.1) silently hid everything outside that range
 
   const [status, setStatus] = useState("loading"); // loading | error | empty | data
   const [errorMessage, setErrorMessage] = useState("");
@@ -99,6 +100,7 @@ export default function DataPage() {
   const [exportErrorMessage, setExportErrorMessage] = useState("");
 
   const knownSectorIds = useRef(new Set());
+  const knownYears = useRef(new Set());
 
   function learnSectorsFrom(responseItems) {
     let added = false;
@@ -115,6 +117,23 @@ export default function DataPage() {
     if (added) {
       next.sort((a, b) => a.name.localeCompare(b.name, "fr"));
       setSectorOptions(next);
+    }
+  }
+
+  function learnYearsFrom(responseItems) {
+    let added = false;
+    const next = [...yearOptions];
+    responseItems.forEach((item) => {
+      if (knownYears.current.has(item.year)) {
+        return;
+      }
+      knownYears.current.add(item.year);
+      next.push(item.year);
+      added = true;
+    });
+    if (added) {
+      next.sort((a, b) => b - a);
+      setYearOptions(next);
     }
   }
 
@@ -150,6 +169,7 @@ export default function DataPage() {
       }
 
       learnSectorsFrom(body.data);
+      learnYearsFrom(body.data);
       setMeta({ page: body.meta.page, totalPages: body.meta.totalPages, total: body.meta.total });
       setItems(body.data);
       setStatus(0 === body.data.length ? "empty" : "data");
@@ -358,10 +378,11 @@ export default function DataPage() {
               </NevSelect>
               <NevSelect id="filter-year" label={t("dataPage.year", "Année")} value={filters.year} onChange={(event) => setFilters({ ...filters, year: event.target.value })}>
                 <option value="">{t("dataPage.allYears", "Toutes les années")}</option>
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
-                <option value="2023">2023</option>
-                <option value="2022">2022</option>
+                {yearOptions.map((year) => (
+                  <option key={year} value={String(year)}>
+                    {year}
+                  </option>
+                ))}
               </NevSelect>
               <NevSelect
                 id="filter-funding-type"
