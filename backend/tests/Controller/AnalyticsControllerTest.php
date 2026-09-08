@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Entity\Country;
+use App\Entity\Emission;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
@@ -225,6 +226,63 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertNull($data['data']);
         self::assertArrayHasKey('reason', $data);
         self::assertNotSame('', $data['reason']);
+    }
+
+    public function testCo2ReductionComputesYearOverYearVariationOnCommonCountries(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $container = static::getContainer();
+        $entityManager = $container->get(EntityManagerInterface::class);
+
+        $senegal = $entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
+        $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $entityManager->persist($kenya);
+        $source = new Source('Emission Source', SourceType::InternalDemo, SourceReliability::Medium);
+        $entityManager->persist($source);
+
+        // Senegal: 20 -> 15 (reduction of 5). Kenya only has a 2024 row (no
+        // 2025 row) - must be excluded from both sides of the comparison,
+        // never treated as a Kenya reduction to 0.
+        $entityManager->persist(new Emission($senegal, 2024, '20.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
+        $entityManager->persist(new Emission($senegal, 2025, '15.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Demo));
+        $entityManager->persist(new Emission($kenya, 2024, '8.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
+        $entityManager->flush();
+        $container->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/co2-reduction');
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertTrue($data['available']);
+        self::assertEqualsWithDelta(5.0, $data['data']['reductionMt'], 0.001);
+        self::assertSame(2025, $data['data']['latestYear']);
+        self::assertSame(2024, $data['data']['previousYear']);
+        self::assertSame(1, $data['data']['countriesCompared']); // Senegal only - Kenya excluded
+    }
+
+    public function testCo2ReductionReportsNegativeValueOnARealIncrease(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $container = static::getContainer();
+        $entityManager = $container->get(EntityManagerInterface::class);
+
+        $senegal = $entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
+        $source = new Source('Emission Source', SourceType::InternalDemo, SourceReliability::Medium);
+        $entityManager->persist($source);
+        $entityManager->persist(new Emission($senegal, 2024, '10.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
+        $entityManager->persist(new Emission($senegal, 2025, '14.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Demo));
+        $entityManager->flush();
+        $container->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/co2-reduction');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertTrue($data['available']);
+        // A real increase must be reported as a negative number, never
+        // clamped to 0 or hidden.
+        self::assertEqualsWithDelta(-4.0, $data['data']['reductionMt'], 0.001);
     }
 
     public function testEmptyDatasetReturnsEmptyDataArraysNotAnError(): void

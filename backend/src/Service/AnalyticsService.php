@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Entity\Enum\FundingType;
+use App\Repository\EmissionRepository;
 use App\Repository\FundingRepository;
 use App\Repository\SectorRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -47,6 +48,7 @@ final class AnalyticsService
     public function __construct(
         private readonly FundingRepository $fundingRepository,
         private readonly SectorRepository $sectorRepository,
+        private readonly EmissionRepository $emissionRepository,
         #[Autowire(service: 'cache.analytics')]
         private readonly CacheInterface $cache,
     ) {
@@ -89,25 +91,58 @@ final class AnalyticsService
     }
 
     /**
-     * See the A2.5/A2.6 report for the full reasoning: nothing in the
-     * schema, fixtures, or project docs carries emissions data or an
-     * emission-conversion factor, and nothing officially defines one. This
-     * deliberately does not fabricate a number - it returns a structured
-     * "not available" result, which is the honest answer given what the
-     * data actually supports, and doubles as the real (not staged) case
-     * A2.6's "Donnée non disponible" state is built to handle.
+     * B3.2: year-over-year variation in total CO2 emissions (Mt), computed
+     * only over countries with a *current* Emission row in both of the two
+     * most recent years with any data - a country missing one of the two
+     * years is excluded from both sides, never treated as a drop to zero
+     * ("Absence ≠ zéro", cahier des charges 6.4). Positive = a real
+     * reduction; negative = a real increase, reported honestly rather than
+     * clamped. Falls back to the same {available: false} shape as before
+     * when fewer than 2 years of data exist, or no country has data in
+     * both of the 2 most recent years - see
+     * docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md.
      *
-     * @return array{available: false, data: null, reason: string}
+     * @return array{available: bool, data: array{reductionMt: float, latestYear: int, previousYear: int, countriesCompared: int}|null, reason: string|null}
      */
     public function getCo2Reduction(): array
     {
         return $this->cache->get(self::CACHE_KEY_CO2_REDUCTION, function (ItemInterface $item): array {
             $item->expiresAfter(self::CACHE_TTL_SECONDS);
 
+            $years = $this->emissionRepository->distinctYearsWithCurrentData();
+            if (count($years) < 2) {
+                return [
+                    'available' => false,
+                    'data' => null,
+                    'reason' => 'Moins de deux années de données d\'émissions disponibles pour calculer une variation.',
+                ];
+            }
+
+            [$latestYear, $previousYear] = [$years[0], $years[1]];
+            $latestTotals = $this->emissionRepository->totalsByYear($latestYear);
+            $previousTotals = $this->emissionRepository->totalsByYear($previousYear);
+            $commonCountryIds = array_intersect_key($latestTotals, $previousTotals);
+
+            if ([] === $commonCountryIds) {
+                return [
+                    'available' => false,
+                    'data' => null,
+                    'reason' => sprintf('Aucun pays avec une donnée d\'émissions à la fois en %d et %d.', $previousYear, $latestYear),
+                ];
+            }
+
+            $latestSum = array_sum(array_intersect_key($latestTotals, $commonCountryIds));
+            $previousSum = array_sum(array_intersect_key($previousTotals, $commonCountryIds));
+
             return [
-                'available' => false,
-                'data' => null,
-                'reason' => 'Aucune donnée d\'émissions ni facteur de conversion CO2 n\'existe dans le schéma actuel (Funding/Sector/Source). Ce calcul est prévu au Volet B (pipeline de données réelles), pas au Volet A.',
+                'available' => true,
+                'data' => [
+                    'reductionMt' => round($previousSum - $latestSum, 3),
+                    'latestYear' => $latestYear,
+                    'previousYear' => $previousYear,
+                    'countriesCompared' => count($commonCountryIds),
+                ],
+                'reason' => null,
             ];
         });
     }
