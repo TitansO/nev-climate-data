@@ -146,19 +146,29 @@ final class AnalyticsController extends AbstractController
 
     #[Route('/api/analytics/co2-reduction', name: 'api_analytics_co2_reduction', methods: ['GET'])]
     #[OA\Get(
-        summary: 'Réduction CO2 estimée (mis en cache 15 min)',
-        description: 'Aucune donnée d\'émissions ni facteur de conversion officiel n\'existe dans le schéma actuel (voir le rapport d\'implémentation A2.5/A2.6) - cet endpoint retourne donc systématiquement `available: false` plutôt que d\'inventer un chiffre. Structure conservée pour rester compatible avec un futur calcul réel (Volet B). Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
+        summary: 'Variation CO2 d\'une année sur l\'autre (mis en cache 15 min)',
+        description: 'Variation totale des émissions entre les deux années les plus récentes disposant de données (B1.4/B3.2), calculée uniquement sur les pays ayant une donnée les deux années (jamais un pays manquant traité comme zéro). `reductionMt` positif = réduction réelle, négatif = hausse réelle - jamais tronqué. Retourne `available: false` si moins de 2 années de données existent, ou aucun pays commun entre les deux années les plus récentes. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
         security: [],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Indisponibilité explicite de la donnée',
+                description: 'Variation CO2 disponible ou indisponibilité explicite',
                 content: new OA\JsonContent(
                     properties: [
-                        new OA\Property(property: 'available', type: 'boolean', example: false),
-                        new OA\Property(property: 'data', type: 'object', nullable: true, example: null),
-                        new OA\Property(property: 'reason', type: 'string', example: 'Aucune donnée d\'émissions ni facteur de conversion CO2 n\'existe dans le schéma actuel.'),
+                        new OA\Property(property: 'available', type: 'boolean', example: true),
+                        new OA\Property(
+                            property: 'data',
+                            type: 'object',
+                            nullable: true,
+                            properties: [
+                                new OA\Property(property: 'reductionMt', type: 'number', format: 'float', example: 12.7),
+                                new OA\Property(property: 'latestYear', type: 'integer', example: 2025),
+                                new OA\Property(property: 'previousYear', type: 'integer', example: 2024),
+                                new OA\Property(property: 'countriesCompared', type: 'integer', example: 28),
+                            ]
+                        ),
+                        new OA\Property(property: 'reason', type: 'string', nullable: true, example: null),
                     ]
                 )
             ),
