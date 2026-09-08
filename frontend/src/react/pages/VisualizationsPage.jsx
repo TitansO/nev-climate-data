@@ -61,7 +61,7 @@ function useKpiHeroStats() {
   return stats;
 }
 
-/** Local hook for /api/analytics/co2-reduction - its {available: false} shape doesn't fit the generic empty/error/success chart-card pattern (it's a single value tile, not a chart), same as analytics.js's loadCo2Reduction(). */
+/** Local hook for /api/analytics/co2-reduction - its {available: false} shape doesn't fit the generic empty/error/success chart-card pattern (it's a single value tile, not a chart), same as analytics.js's loadCo2Reduction(). B3.2: `data` is now a structured object ({reductionMt, latestYear, previousYear, countriesCompared}), never a bare number. */
 function useCo2Reduction() {
   const { API_BASE_URL } = useAuth();
   const [value, setValue] = useState("…");
@@ -84,8 +84,12 @@ function useCo2Reduction() {
           setNote("Donnée non disponible.");
           return;
         }
-        setValue(String(body.data));
-        setNote("");
+        const { reductionMt, latestYear, previousYear, countriesCompared } = body.data;
+        setValue(reductionMt.toLocaleString("fr-FR", { maximumFractionDigits: 1, signDisplay: "exceptZero" }));
+        setNote(
+          (reductionMt < 0 ? "Hausse des émissions - " : "") +
+            previousYear + " → " + latestYear + " · " + countriesCompared + " pays comparés"
+        );
       } catch (error) {
         if (!cancelled) {
           setValue("-");
@@ -120,6 +124,12 @@ export default function VisualizationsPage() {
   // environment) - the KPI band never depends on Mercure to render.
   const mercureKpis = useMercureKpis();
   const fundingTotalUsd = mercureKpis.snapshot ? mercureKpis.snapshot.fundingTotalUsd : financingTotals ? financingTotals.grandTotal : null;
+  // B3.2: same live-override pattern as fundingTotalUsd above - null/undefined
+  // (getCo2Reduction() had nothing to report) leaves the REST-fetched co2.value
+  // in place instead of showing a live badge for a value that isn't actually live.
+  const co2ReductionMt = mercureKpis.snapshot && null !== mercureKpis.snapshot.co2ReductionMt && undefined !== mercureKpis.snapshot.co2ReductionMt
+    ? mercureKpis.snapshot.co2ReductionMt
+    : null;
 
   return (
     <>
@@ -199,7 +209,14 @@ export default function VisualizationsPage() {
         <section className="pb-20">
           <h2 className="mb-6 text-xl font-bold text-dark">{t("vizPage.otherIndicators", "Autres indicateurs climatiques")}</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <NevKpi label={t("vizPage.co2Reduction", "Réduction CO2 (M tonnes/an)")} value={co2.value} context={co2.note} state="success" />
+            <NevKpi
+              label={t("vizPage.co2Reduction", "Réduction CO2 (M tonnes/an)")}
+              value={null !== co2ReductionMt ? co2ReductionMt.toLocaleString("fr-FR", { maximumFractionDigits: 1, signDisplay: "exceptZero" }) : co2.value}
+              context={co2.note}
+              state="success"
+              liveBadge={mercureKpis.connected && null !== co2ReductionMt}
+              liveLabel="Direct"
+            />
             <NevKpi label={t("vizPage.activeProjects", "Projets actifs")} state="empty" context={t("vizPage.comingIndicator", "Indicateur à venir (Volet B)")} />
             <NevKpi label={t("vizPage.validatedCountries", "Pays avec données validées")} state="empty" context={t("vizPage.comingIndicator", "Indicateur à venir (Volet B)")} />
           </div>
