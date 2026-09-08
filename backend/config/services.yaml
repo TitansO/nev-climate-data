@@ -13,13 +13,20 @@ parameters:
     # under public/ - never served directly by Apache, only ever streamed
     # through that authenticated endpoint.
     app.export_storage_dir: '%kernel.project_dir%/var/exports'
-    # A2.13: where published reports' PDF files live, read by
-    # App\Controller\ReportController::download(). Report.pdfFile already
+    # A2.13 / B3.3 point d'attention #55: where published reports' PDF files
+    # live, read by App\Controller\ReportController::download(). Report.pdfFile
     # stores a "reports/..." relative path (see App\DataFixtures\ReportFixtures),
-    # so this points at var/ itself, not var/reports/ - avoids a doubled
-    # "reports/reports/" segment. Not under public/ - never served directly
-    # by Apache, only ever streamed through the tracked download endpoint.
-    app.report_storage_dir: '%kernel.project_dir%/var'
+    # so this points at resources/ itself, not resources/reports/ - avoids a
+    # doubled "reports/reports/" segment. Deliberately NOT under var/ (gitignored,
+    # excluded from the Docker build context by .dockerignore - a real bug found
+    # in production: files written there at fixture-load time never made it into
+    # the deployed image, and Render's disk is ephemeral anyway, so every
+    # download 404'd). resources/ is a real, git-tracked, Docker-image-shipped
+    # directory - the same 4 placeholder PDFs exist on every environment without
+    # ever needing fixtures to run against it. Not under public/ either - never
+    # served directly by Apache, only ever streamed through the tracked
+    # download endpoint.
+    app.report_storage_dir: '%kernel.project_dir%/resources'
 
 services:
     # default configuration for services in *this* file
