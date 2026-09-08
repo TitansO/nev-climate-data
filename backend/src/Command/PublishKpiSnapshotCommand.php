@@ -97,12 +97,18 @@ final class PublishKpiSnapshotCommand extends Command
         try {
             $trends = $this->analyticsService->getFinancingTrends();
             $heroStats = $this->analyticsService->getHeroStats();
+            $co2Reduction = $this->analyticsService->getCo2Reduction();
 
             $fundingTotalUsd = array_sum(array_map(static fn (array $row): float => (float) $row['total'], $trends));
 
             $payload = json_encode([
                 'fundingTotalUsd' => $fundingTotalUsd,
                 'countriesCovered' => $heroStats['countriesCovered'],
+                // B3.2: null when getCo2Reduction() has nothing to report
+                // (fewer than 2 years of Emission data, or no country
+                // common to the 2 most recent years) - never 0 by default,
+                // same "Absence ≠ zéro" principle as the REST endpoint.
+                'co2ReductionMt' => $co2Reduction['available'] ? $co2Reduction['data']['reductionMt'] : null,
                 'publishedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
             ], \JSON_THROW_ON_ERROR);
 

@@ -6,6 +6,7 @@ namespace App\Tests\Command;
 
 use App\Command\PublishKpiSnapshotCommand;
 use App\Entity\Country;
+use App\Entity\Emission;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
@@ -112,6 +113,60 @@ final class PublishKpiSnapshotCommandTest extends KernelTestCase
         self::assertEquals(400000.0, $payload['fundingTotalUsd']);
         self::assertSame(2, $payload['countriesCovered']);
         self::assertArrayHasKey('publishedAt', $payload);
+    }
+
+    public function testSnapshotIncludesCo2ReductionWhenEmissionDataExists(): void
+    {
+        $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
+        $source = new Source('Emission Source', SourceType::InternalDemo, SourceReliability::Medium);
+        $this->entityManager->persist($source);
+        $this->entityManager->persist(new Emission($senegal, 2024, '20.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
+        $this->entityManager->persist(new Emission($senegal, 2025, '15.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Demo));
+        $this->entityManager->flush();
+
+        $published = null;
+        // createStub(), not createMock(): these two tests only care about
+        // capturing the published payload, never about call count/order -
+        // a stub is the correct tool, avoids PHPUnit 13's "mock used
+        // without expectations" notice.
+        $hub = $this->createStub(HubInterface::class);
+        $hub->method('publish')->willReturnCallback(function (Update $update) use (&$published): string {
+            $published = $update;
+
+            return 'mock-id';
+        });
+
+        $command = new PublishKpiSnapshotCommand(static::getContainer()->get(AnalyticsService::class), $hub);
+        $application = new Application(self::$kernel);
+        $application->addCommand($command);
+        (new CommandTester($application->find('app:mercure:publish-kpis')))->execute(['--once' => true]);
+
+        $payload = json_decode($published->getData(), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertEqualsWithDelta(5.0, $payload['co2ReductionMt'], 0.001);
+    }
+
+    public function testSnapshotHasNullCo2ReductionWhenNoEmissionData(): void
+    {
+        $published = null;
+        // createStub(), not createMock(): these two tests only care about
+        // capturing the published payload, never about call count/order -
+        // a stub is the correct tool, avoids PHPUnit 13's "mock used
+        // without expectations" notice.
+        $hub = $this->createStub(HubInterface::class);
+        $hub->method('publish')->willReturnCallback(function (Update $update) use (&$published): string {
+            $published = $update;
+
+            return 'mock-id';
+        });
+
+        $command = new PublishKpiSnapshotCommand(static::getContainer()->get(AnalyticsService::class), $hub);
+        $application = new Application(self::$kernel);
+        $application->addCommand($command);
+        (new CommandTester($application->find('app:mercure:publish-kpis')))->execute(['--once' => true]);
+
+        $payload = json_decode($published->getData(), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertArrayHasKey('co2ReductionMt', $payload);
+        self::assertNull($payload['co2ReductionMt']);
     }
 
     public function testAPublishFailureIsLoggedNotThrown(): void
