@@ -812,6 +812,7 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 |---|---|---|
 | B3.1 | Exposer les agrégats réels via les endpoints existants, sans changement de contrat | ✅ Fait - trois vrais bugs trouvés et corrigés en vérifiant avec des données réelles (voir points d'attention #52-#54) ; les 5 connecteurs Volet B tournés pour de vrai pour la première fois dans cet environnement (~5 149 lignes `funding` réelles World Bank/GCF/AfDB/OPEC Fund PDF, hors démo) |
 | B3.2 | Connecter la diffusion des KPIs réels (et GreenAccess) au hub Mercure | ✅ Fait - `AnalyticsService::getCo2Reduction()` rebranché sur la vraie table `Emission` (B1.4), variation CO2 année sur année sur l'intersection des pays communs ; `co2ReductionMt` ajouté au payload Mercure ; tuile CO2 du frontend rebranchée + badge « Direct ». Le flux financement était déjà réel (mêmes méthodes que B3.1 a corrigées). GreenAccess explicitement hors périmètre (Phase B2 « Bloqué », aucune donnée). Voir « B3.2 — Diffusion des KPIs réels via Mercure » plus bas et [`docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md`](docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md) |
+| B3.3 | Basculer progressivement le frontend des données de démonstration vers les données réelles | ✅ Fait - filtre `validation_status = 'validated'` systématique côté lecture (`FundingRepository`, `EmissionRepository`, `AnalyticsService::getHeroStats()`), jumeau du filtre `isCurrent` de B1.7. Bascule unique (les 5 connecteurs avaient déjà tourné) plutôt que progressive par source - la démo n'est pas taguée par source réelle. Rapports/notifications hors périmètre (aucune source réelle n'existe pour eux). Voir « B3.3 — Bascule démo → réel » plus bas et [`docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md`](docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md) |
 
 **Travaux supplémentaires réalisés hors plan officiel (Phase B3)** :
 
@@ -1144,3 +1145,39 @@ connecteurs Volet B lisent la liste des pays depuis la table `country`
 table est vide → `_extraire()` ne fait **aucun** appel API (0,2s d'exécution, zéro log) et le DAG
 rapporte quand même `success`. Toujours charger les fixtures A1.6 avant de déclencher un
 connecteur sur un environnement fraîchement provisionné.
+
+### B3.3 — Bascule démo → réel (2026-09-08)
+
+Décisions complètes :
+[`docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md`](docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md),
+plan d'implémentation :
+[`docs/superpowers/plans/2026-09-08-b33-demo-to-real-switch.md`](docs/superpowers/plans/2026-09-08-b33-demo-to-real-switch.md).
+
+**Constat** : aucune requête de lecture ne filtrait `validation_status` nulle part - exactement le
+même angle mort que B1.7 avait trouvé pour `is_current`. `GET /api/analytics/hero-stats` mélangeait
+1080 lignes `funding` de démonstration (A1.6, `validation_status = 'demo'`) et 3005 lignes réelles
+(`'validated'`), renvoyant `fundingRecords: 4085`.
+
+**Corrigé** : un filtre `validation_status = 'validated'` (liste blanche, jamais liste noire)
+systématique côté lecture - `FundingRepository::onlyValidated()` (nouveau helper), appliqué à
+`criteriaQueryBuilder()` (listing/export), `findFinancingTrendsAggregate()`,
+`findSectorDistributionAggregate()`, `findCountryDistributionAggregate()`,
+`countDistinctCountries()`, `countDistinctSources()` ; même filtre inline dans
+`EmissionRepository::distinctYearsWithCurrentData()`/`totalsByYear()` (B3.2) ; `AnalyticsService::
+getHeroStats()` ajoute `validationStatus` au tableau de critères de `count()`. Toujours actif,
+jamais un paramètre d'API ni un flag d'environnement (décision explicite).
+
+**Hors périmètre** : `report`/`notification` (aucune tâche Volet B ne produit de vraies données
+pour ces deux tables - fixtures démo conservées) ; `source`/`country`/`sector` (données de
+référence partagées, jamais « démo » - `SourceFixtures` crée d'ailleurs les mêmes lignes que le
+pipeline réutilise). Bascule unique décidée plutôt qu'un mécanisme progressif par source : la
+démonstration A1.6 est un jeu synthétique global, pas taggé par source réelle - un « progressif
+par source » n'aurait rien à activer.
+
+**Vérifié en direct sur le Codespace** :
+`GET /api/analytics/hero-stats` passe de `{"countriesCovered":54,"fundingRecords":4085,
+"activeSources":6}` à `{"countriesCovered":53,"fundingRecords":3005,"activeSources":4}` - les
+lignes démo (dont un pays qui n'existait qu'en démo, et 2 sources purement démo) disparaissent
+intégralement. `GET /api/analytics/financing-trends` (somme des `total`) = `317 117 898 749`,
+identique au `SELECT sum(amount) FROM funding WHERE is_current AND validation_status='validated'`
+exécuté en direct. Suite complète : 205 tests, 763 assertions, 0 échec.

@@ -92,7 +92,7 @@ final class FundingController extends AbstractController
                                         new OA\Property(property: 'name', type: 'string', example: 'World Bank Data API'),
                                     ], type: 'object'),
                                     new OA\Property(property: 'collectionDate', type: 'string', format: 'date', example: '2025-03-15'),
-                                    new OA\Property(property: 'validationStatus', type: 'string', example: 'demo'),
+                                    new OA\Property(property: 'validationStatus', type: 'string', example: 'validated'),
                                 ]
                             )
                         ),

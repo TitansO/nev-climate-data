@@ -75,17 +75,17 @@ final class FundingExportTest extends WebTestCase
             $name = 0 === $i ? 'Test Source' : "Test Source A{$i}";
             $source = new Source($name, SourceType::InternalDemo, SourceReliability::Medium);
             $this->entityManager->persist($source);
-            $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '1000000.00', FundingType::Public, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Demo));
+            $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '1000000.00', FundingType::Public, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Validated));
         }
         for ($i = 0; $i < 5; ++$i) {
             $source = new Source("Test Source B{$i}", SourceType::InternalDemo, SourceReliability::Medium);
             $this->entityManager->persist($source);
-            $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '500000.00', FundingType::Private, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Demo));
+            $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '500000.00', FundingType::Private, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Validated));
         }
         for ($i = 0; $i < 10; ++$i) {
             $source = new Source("Test Source C{$i}", SourceType::InternalDemo, SourceReliability::Medium);
             $this->entityManager->persist($source);
-            $this->entityManager->persist(new Funding($kenya, $agriculture, 2024, '250000.00', FundingType::Private, $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
+            $this->entityManager->persist(new Funding($kenya, $agriculture, 2024, '250000.00', FundingType::Private, $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated));
         }
 
         $this->entityManager->flush();
@@ -169,7 +169,7 @@ final class FundingExportTest extends WebTestCase
         self::assertSame('2025', $row['year']);
         self::assertSame('1000000.00', $row['amount']);
         self::assertSame('2025-03-15', $row['collection_date']);
-        self::assertSame('demo', $row['validation_status']);
+        self::assertSame('validated', $row['validation_status']);
     }
 
     public function testInvalidFormatReturns400Json(): void
@@ -367,7 +367,7 @@ final class FundingExportTest extends WebTestCase
         for ($i = 0; $i < $recordsNeeded; ++$i) {
             $source = new Source("Threshold Source {$i}", SourceType::InternalDemo, SourceReliability::Medium);
             $this->entityManager->persist($source);
-            $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '100.00', FundingType::Public, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Demo));
+            $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '100.00', FundingType::Public, $source, new \DateTimeImmutable('2025-03-15'), ValidationStatus::Validated));
         }
         $this->entityManager->flush();
     }

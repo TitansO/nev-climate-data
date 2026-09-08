@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Entity\Enum\FundingType;
+use App\Entity\Enum\ValidationStatus;
 use App\Repository\EmissionRepository;
 use App\Repository\FundingRepository;
 use App\Repository\SectorRepository;
@@ -165,7 +166,10 @@ final class AnalyticsService
             return [
                 'countriesCovered' => $this->fundingRepository->countDistinctCountries(),
                 'sectorsTracked' => $this->sectorRepository->count([]),
-                'fundingRecords' => $this->fundingRepository->count(['isCurrent' => true]),
+                // B3.3: only pipeline-validated rows, never A1.6 demo fixtures -
+                // countDistinctCountries()/countDistinctSources() already filter
+                // this themselves; count() builds its own WHERE from the array.
+                'fundingRecords' => $this->fundingRepository->count(['isCurrent' => true, 'validationStatus' => ValidationStatus::Validated]),
                 'activeSources' => $this->fundingRepository->countDistinctSources(),
             ];
         });

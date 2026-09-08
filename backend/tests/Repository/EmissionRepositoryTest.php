@@ -44,9 +44,9 @@ final class EmissionRepositoryTest extends KernelTestCase
         $this->entityManager->persist($senegal);
         $this->entityManager->persist($source);
 
-        $y2023 = new Emission($senegal, 2023, '10.500', $source, new \DateTimeImmutable('2023-06-01'), ValidationStatus::Demo);
-        $y2024 = new Emission($senegal, 2024, '11.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo);
-        $historizedY2025 = new Emission($senegal, 2025, '999.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Demo);
+        $y2023 = new Emission($senegal, 2023, '10.500', $source, new \DateTimeImmutable('2023-06-01'), ValidationStatus::Validated);
+        $y2024 = new Emission($senegal, 2024, '11.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated);
+        $historizedY2025 = new Emission($senegal, 2025, '999.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Validated);
         $historizedY2025->setIsCurrent(false);
         foreach ([$y2023, $y2024, $historizedY2025] as $emission) {
             $this->entityManager->persist($emission);
@@ -66,9 +66,9 @@ final class EmissionRepositoryTest extends KernelTestCase
         $this->entityManager->persist($kenya);
         $this->entityManager->persist($source);
 
-        $senegal2024 = new Emission($senegal, 2024, '11.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo);
-        $kenya2024 = new Emission($kenya, 2024, '5.250', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo);
-        $historizedSenegal2024 = new Emission($senegal, 2024, '999.000', $source, new \DateTimeImmutable('2024-01-01'), ValidationStatus::Demo);
+        $senegal2024 = new Emission($senegal, 2024, '11.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated);
+        $kenya2024 = new Emission($kenya, 2024, '5.250', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated);
+        $historizedSenegal2024 = new Emission($senegal, 2024, '999.000', $source, new \DateTimeImmutable('2024-01-01'), ValidationStatus::Validated);
         $historizedSenegal2024->setIsCurrent(false);
         foreach ([$senegal2024, $kenya2024, $historizedSenegal2024] as $emission) {
             $this->entityManager->persist($emission);
@@ -79,5 +79,23 @@ final class EmissionRepositoryTest extends KernelTestCase
 
         self::assertEqualsWithDelta(11.0, $totals[$senegal->getId()], 0.001);
         self::assertEqualsWithDelta(5.25, $totals[$kenya->getId()], 0.001);
+    }
+
+    public function testDemoRowsAreExcludedFromBothQueries(): void
+    {
+        $senegal = new Country('Senegal', 'SEN', "Afrique de l'Ouest");
+        $source = new Source('Test Source', SourceType::InternalDemo, SourceReliability::Medium);
+        $this->entityManager->persist($senegal);
+        $this->entityManager->persist($source);
+
+        // 2024 has only a Demo row - B3.3: it must not appear as an available
+        // year, and must not contribute to the 2023 totals either.
+        $this->entityManager->persist(new Emission($senegal, 2023, '10.000', $source, new \DateTimeImmutable('2023-06-01'), ValidationStatus::Validated));
+        $this->entityManager->persist(new Emission($senegal, 2022, '9.000', $source, new \DateTimeImmutable('2022-06-01'), ValidationStatus::Validated));
+        $this->entityManager->persist(new Emission($senegal, 2024, '999.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
+        $this->entityManager->flush();
+
+        self::assertSame([2023, 2022], $this->repository->distinctYearsWithCurrentData());
+        self::assertSame([], $this->repository->totalsByYear(2024));
     }
 }

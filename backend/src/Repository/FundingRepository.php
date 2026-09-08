@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Dto\FundingSearchCriteria;
+use App\Entity\Enum\ValidationStatus;
 use App\Entity\Funding;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -18,6 +19,22 @@ class FundingRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Funding::class);
+    }
+
+    /**
+     * B3.3: every read path the frontend consumes excludes demonstration
+     * rows (`validation_status = 'demo'`, A1.6 fixtures) - only pipeline
+     * data validated by the Volet B processors ('validated') is ever
+     * served. Whitelist (`= 'validated'`), not blacklist: a future status
+     * would not leak by accident. Always on, never an API parameter - same
+     * discipline as the `is_current = true` filter (B1.7). `alias` is the
+     * root alias used by the calling query builder.
+     */
+    private function onlyValidated(QueryBuilder $qb, string $alias = 'funding'): QueryBuilder
+    {
+        return $qb
+            ->andWhere(sprintf('%s.validationStatus = :validated', $alias))
+            ->setParameter('validated', ValidationStatus::Validated);
     }
 
     /**
@@ -81,9 +98,9 @@ class FundingRepository extends ServiceEntityRepository
      */
     public function findFinancingTrendsAggregate(): array
     {
-        return $this->createQueryBuilder('funding')
+        return $this->onlyValidated($this->createQueryBuilder('funding')
             ->select('funding.year AS year', 'funding.fundingType AS fundingType', 'SUM(funding.amount) AS total')
-            ->where('funding.isCurrent = true')
+            ->where('funding.isCurrent = true'))
             ->groupBy('funding.year')
             ->addGroupBy('funding.fundingType')
             ->orderBy('funding.year', 'ASC')
@@ -103,10 +120,10 @@ class FundingRepository extends ServiceEntityRepository
      */
     public function findSectorDistributionAggregate(): array
     {
-        return $this->createQueryBuilder('funding')
+        return $this->onlyValidated($this->createQueryBuilder('funding')
             ->select('sector.id AS sectorId', 'sector.name AS sectorName', 'SUM(funding.amount) AS total')
             ->join('funding.sector', 'sector')
-            ->where('funding.isCurrent = true')
+            ->where('funding.isCurrent = true'))
             ->groupBy('sector.id')
             ->addGroupBy('sector.name')
             ->orderBy('total', 'DESC')
@@ -126,10 +143,10 @@ class FundingRepository extends ServiceEntityRepository
      */
     public function findCountryDistributionAggregate(): array
     {
-        return $this->createQueryBuilder('funding')
+        return $this->onlyValidated($this->createQueryBuilder('funding')
             ->select('country.isoCode AS isoCode', 'country.name AS countryName', 'SUM(funding.amount) AS total')
             ->join('funding.country', 'country')
-            ->where('funding.isCurrent = true')
+            ->where('funding.isCurrent = true'))
             ->groupBy('country.id')
             ->addGroupBy('country.isoCode')
             ->addGroupBy('country.name')
@@ -153,6 +170,7 @@ class FundingRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('funding')
             ->join('funding.country', 'country')
             ->andWhere('funding.isCurrent = true');
+        $this->onlyValidated($qb);
 
         if (null !== $criteria->countryIsoCode) {
             $qb->andWhere('country.isoCode = :countryIsoCode')
@@ -206,9 +224,9 @@ class FundingRepository extends ServiceEntityRepository
      */
     public function countDistinctCountries(): int
     {
-        return (int) $this->createQueryBuilder('funding')
+        return (int) $this->onlyValidated($this->createQueryBuilder('funding')
             ->select('COUNT(DISTINCT funding.country)')
-            ->where('funding.isCurrent = true')
+            ->where('funding.isCurrent = true'))
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -220,9 +238,9 @@ class FundingRepository extends ServiceEntityRepository
      */
     public function countDistinctSources(): int
     {
-        return (int) $this->createQueryBuilder('funding')
+        return (int) $this->onlyValidated($this->createQueryBuilder('funding')
             ->select('COUNT(DISTINCT funding.source)')
-            ->where('funding.isCurrent = true')
+            ->where('funding.isCurrent = true'))
             ->getQuery()
             ->getSingleScalarResult();
     }

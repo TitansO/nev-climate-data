@@ -54,8 +54,8 @@ final class PublishKpiSnapshotCommandTest extends KernelTestCase
         foreach ([$senegal, $kenya, $sector, $source] as $entity) {
             $this->entityManager->persist($entity);
         }
-        $this->entityManager->persist(new Funding($senegal, $sector, 2025, '300000.00', FundingType::Public, $source, new \DateTimeImmutable('2025-01-01'), ValidationStatus::Demo));
-        $this->entityManager->persist(new Funding($kenya, $sector, 2025, '100000.00', FundingType::Private, $source, new \DateTimeImmutable('2025-01-01'), ValidationStatus::Demo));
+        $this->entityManager->persist(new Funding($senegal, $sector, 2025, '300000.00', FundingType::Public, $source, new \DateTimeImmutable('2025-01-01'), ValidationStatus::Validated));
+        $this->entityManager->persist(new Funding($kenya, $sector, 2025, '100000.00', FundingType::Private, $source, new \DateTimeImmutable('2025-01-01'), ValidationStatus::Validated));
         $this->entityManager->flush();
     }
 
@@ -120,8 +120,8 @@ final class PublishKpiSnapshotCommandTest extends KernelTestCase
         $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $source = new Source('Emission Source', SourceType::InternalDemo, SourceReliability::Medium);
         $this->entityManager->persist($source);
-        $this->entityManager->persist(new Emission($senegal, 2024, '20.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
-        $this->entityManager->persist(new Emission($senegal, 2025, '15.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Demo));
+        $this->entityManager->persist(new Emission($senegal, 2024, '20.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated));
+        $this->entityManager->persist(new Emission($senegal, 2025, '15.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Validated));
         $this->entityManager->flush();
 
         $published = null;

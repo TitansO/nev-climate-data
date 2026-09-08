@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\Emission;
+use App\Entity\Enum\ValidationStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -32,6 +33,8 @@ class EmissionRepository extends ServiceEntityRepository
             $this->createQueryBuilder('emission')
                 ->select('DISTINCT emission.year AS year')
                 ->where('emission.isCurrent = true')
+                ->andWhere('emission.validationStatus = :validated')
+                ->setParameter('validated', ValidationStatus::Validated)
                 ->orderBy('emission.year', 'DESC')
                 ->getQuery()
                 ->getScalarResult(),
@@ -49,8 +52,10 @@ class EmissionRepository extends ServiceEntityRepository
             ->select('IDENTITY(emission.country) AS countryId', 'SUM(emission.valueMt) AS total')
             ->where('emission.year = :year')
             ->andWhere('emission.isCurrent = true')
+            ->andWhere('emission.validationStatus = :validated')
             ->groupBy('emission.country')
             ->setParameter('year', $year)
+            ->setParameter('validated', ValidationStatus::Validated)
             ->getQuery()
             ->getScalarResult();
 

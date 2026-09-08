@@ -90,7 +90,7 @@ final class FundingControllerTest extends WebTestCase
                 FundingType::Public,
                 $source,
                 new \DateTimeImmutable('2025-03-15'),
-                ValidationStatus::Demo,
+                ValidationStatus::Validated,
             );
             // Only on the exact row testResponseShapeMatchesContractAndHidesInternalFields
             // asserts on (the "Test Source" one, i === 9) - every other row in this suite
@@ -112,7 +112,7 @@ final class FundingControllerTest extends WebTestCase
                 FundingType::Private,
                 $source,
                 new \DateTimeImmutable('2025-03-15'),
-                ValidationStatus::Demo,
+                ValidationStatus::Validated,
             ));
         }
 
@@ -127,7 +127,7 @@ final class FundingControllerTest extends WebTestCase
                 FundingType::Private,
                 $source,
                 new \DateTimeImmutable('2024-06-01'),
-                ValidationStatus::Demo,
+                ValidationStatus::Validated,
             ));
         }
 
@@ -400,7 +400,7 @@ final class FundingControllerTest extends WebTestCase
         self::assertSame('XOF', $item['originalCurrency']);
         self::assertSame('public', $item['fundingType']);
         self::assertSame('2025-03-15', $item['collectionDate']);
-        self::assertSame('demo', $item['validationStatus']);
+        self::assertSame('validated', $item['validationStatus']);
 
         // exchangeRate is raw pivot-conversion metadata, not meant for display -
         // stays internal even though originalAmount/originalCurrency (above) are
@@ -432,7 +432,7 @@ final class FundingControllerTest extends WebTestCase
             FundingType::Private,
             $source,
             new \DateTimeImmutable('2024-06-01'),
-            ValidationStatus::Demo,
+            ValidationStatus::Validated,
         );
         $historized->setIsCurrent(false);
         $this->entityManager->persist($historized);
@@ -444,6 +444,39 @@ final class FundingControllerTest extends WebTestCase
         self::assertSame(10, $data['meta']['total']); // unchanged - the historized row never counts
         foreach ($data['data'] as $item) {
             self::assertNotSame('9999999.00', $item['amount']);
+        }
+    }
+
+    public function testDemoRowsAreExcludedFromListingsAndCounts(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        // A ValidationStatus::Demo row (A1.6 fixture kind) satisfying the same
+        // sector filter as Group C (Kenya/Agriculture/2024/private, 10 records)
+        // - B3.3: the frontend only ever sees pipeline-validated data.
+        $kenya = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'KEN']);
+        $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
+        $source = new Source('Test Source Demo', SourceType::InternalDemo, SourceReliability::Medium);
+        $this->entityManager->persist($source);
+        $this->entityManager->persist(new Funding(
+            $kenya,
+            $agriculture,
+            2024,
+            '8888888.00',
+            FundingType::Private,
+            $source,
+            new \DateTimeImmutable('2024-06-01'),
+            ValidationStatus::Demo,
+        ));
+        $this->entityManager->flush();
+
+        $client->request('GET', '/api/funding?sector='.$this->sectorId('Agriculture').'&limit=100');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame(10, $data['meta']['total']); // unchanged - the demo row never counts
+        foreach ($data['data'] as $item) {
+            self::assertNotSame('8888888.00', $item['amount']);
         }
     }
 }

@@ -105,9 +105,9 @@ final class AnalyticsControllerTest extends WebTestCase
             $this->entityManager->persist($entity);
         }
 
-        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2024, '300.00', FundingType::Public, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Demo));
-        $this->entityManager->persist(new Funding($senegal, $agriculture, 2024, '100.00', FundingType::Private, $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
-        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '400.00', FundingType::Multilateral, $source, new \DateTimeImmutable('2025-01-10'), ValidationStatus::Demo));
+        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2024, '300.00', FundingType::Public, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Validated));
+        $this->entityManager->persist(new Funding($senegal, $agriculture, 2024, '100.00', FundingType::Private, $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated));
+        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2025, '400.00', FundingType::Multilateral, $source, new \DateTimeImmutable('2025-01-10'), ValidationStatus::Validated));
 
         $this->entityManager->flush();
 
@@ -193,7 +193,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->persist($kenya);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
         $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
-        $this->entityManager->persist(new Funding($kenya, $renewableEnergy, 2024, '200.00', FundingType::Public, $source, new \DateTimeImmutable('2024-05-01'), ValidationStatus::Demo));
+        $this->entityManager->persist(new Funding($kenya, $renewableEnergy, 2024, '200.00', FundingType::Public, $source, new \DateTimeImmutable('2024-05-01'), ValidationStatus::Validated));
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
@@ -244,9 +244,9 @@ final class AnalyticsControllerTest extends WebTestCase
         // Senegal: 20 -> 15 (reduction of 5). Kenya only has a 2024 row (no
         // 2025 row) - must be excluded from both sides of the comparison,
         // never treated as a Kenya reduction to 0.
-        $entityManager->persist(new Emission($senegal, 2024, '20.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
-        $entityManager->persist(new Emission($senegal, 2025, '15.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Demo));
-        $entityManager->persist(new Emission($kenya, 2024, '8.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
+        $entityManager->persist(new Emission($senegal, 2024, '20.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated));
+        $entityManager->persist(new Emission($senegal, 2025, '15.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Validated));
+        $entityManager->persist(new Emission($kenya, 2024, '8.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated));
         $entityManager->flush();
         $container->get('cache.analytics')->clear();
 
@@ -271,8 +271,8 @@ final class AnalyticsControllerTest extends WebTestCase
         $senegal = $entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $source = new Source('Emission Source', SourceType::InternalDemo, SourceReliability::Medium);
         $entityManager->persist($source);
-        $entityManager->persist(new Emission($senegal, 2024, '10.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Demo));
-        $entityManager->persist(new Emission($senegal, 2025, '14.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Demo));
+        $entityManager->persist(new Emission($senegal, 2024, '10.000', $source, new \DateTimeImmutable('2024-06-01'), ValidationStatus::Validated));
+        $entityManager->persist(new Emission($senegal, 2025, '14.000', $source, new \DateTimeImmutable('2025-06-01'), ValidationStatus::Validated));
         $entityManager->flush();
         $container->get('cache.analytics')->clear();
 
@@ -433,7 +433,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
         $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
-        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2023, '999999.00', FundingType::Public, $source, new \DateTimeImmutable('2023-03-15'), ValidationStatus::Demo));
+        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2023, '999999.00', FundingType::Public, $source, new \DateTimeImmutable('2023-03-15'), ValidationStatus::Validated));
         $this->entityManager->flush();
 
         $client->request('GET', '/api/analytics/sector-distribution');
@@ -456,7 +456,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
         $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
-        $historized = new Funding($senegal, $renewableEnergy, 2024, '999999.00', FundingType::Public, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Demo);
+        $historized = new Funding($senegal, $renewableEnergy, 2024, '999999.00', FundingType::Public, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Validated);
         $historized->setIsCurrent(false);
         $this->entityManager->persist($historized);
         $this->entityManager->flush();
@@ -477,5 +477,35 @@ final class AnalyticsControllerTest extends WebTestCase
         $client->request('GET', '/api/analytics/hero-stats');
         $heroData = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(3, $heroData['fundingRecords']); // unchanged, not 4
+    }
+
+    public function testDemoRowsAreExcludedFromEveryAggregate(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        // A ValidationStatus::Demo row (A1.6 fixture kind) with a large amount -
+        // B3.3: no demo data ever reaches the frontend, so none of the
+        // aggregates nor the Hero counts move.
+        $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
+        $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
+        $source = new Source('Demo Source', SourceType::InternalDemo, SourceReliability::Medium);
+        $this->entityManager->persist($source);
+        $this->entityManager->persist(new Funding($senegal, $agriculture, 2024, '999999.00', FundingType::Private, $source, new \DateTimeImmutable('2024-03-15'), ValidationStatus::Demo));
+        $this->entityManager->flush();
+        static::getContainer()->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/financing-trends');
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertEquals(100.0, $data[0]['private']); // unchanged, not 999999 + 100
+
+        $client->request('GET', '/api/analytics/sector-distribution');
+        $sectorData = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertEquals(100.0, $sectorData[1]['amount']); // Agriculture unchanged, not 999999 + 100
+
+        $client->request('GET', '/api/analytics/hero-stats');
+        $heroData = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame(3, $heroData['fundingRecords']); // unchanged, not 4
+        self::assertSame(1, $heroData['activeSources']); // "Demo Source" not counted
     }
 }
