@@ -811,6 +811,7 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 | Tâche | Contenu | Statut |
 |---|---|---|
 | B3.1 | Exposer les agrégats réels via les endpoints existants, sans changement de contrat | ✅ Fait - trois vrais bugs trouvés et corrigés en vérifiant avec des données réelles (voir points d'attention #52-#54) ; les 5 connecteurs Volet B tournés pour de vrai pour la première fois dans cet environnement (~5 149 lignes `funding` réelles World Bank/GCF/AfDB/OPEC Fund PDF, hors démo) |
+| B3.2 | Connecter la diffusion des KPIs réels (et GreenAccess) au hub Mercure | ✅ Fait - `AnalyticsService::getCo2Reduction()` rebranché sur la vraie table `Emission` (B1.4), variation CO2 année sur année sur l'intersection des pays communs ; `co2ReductionMt` ajouté au payload Mercure ; tuile CO2 du frontend rebranchée + badge « Direct ». Le flux financement était déjà réel (mêmes méthodes que B3.1 a corrigées). GreenAccess explicitement hors périmètre (Phase B2 « Bloqué », aucune donnée). Voir « B3.2 — Diffusion des KPIs réels via Mercure » plus bas et [`docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md`](docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md) |
 
 **Travaux supplémentaires réalisés hors plan officiel (Phase B3)** :
 
@@ -1087,3 +1088,59 @@ et un DAG jetable systématiquement en échec (`retries: 0`) ont chacun génér�
 confirmé par Serge - le second correspond exactement à la tâche, au sujet
 (`Airflow alert: <TaskInstance: ...>`) et à l'exception attendus. Le DAG de test a été supprimé
 après vérification (jamais commité).
+
+### B3.2 — Diffusion des KPIs réels via Mercure (2026-09-07)
+
+Le plan officiel scope B3.2 comme « Connecter la diffusion des KPIs réels **et GreenAccess** au
+hub Mercure ». Décisions complètes :
+[`docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md`](docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md),
+plan d'implémentation :
+[`docs/superpowers/plans/2026-09-07-b32-mercure-realtime-kpis.md`](docs/superpowers/plans/2026-09-07-b32-mercure-realtime-kpis.md).
+
+**Deux constats avant de coder :**
+
+- **GreenAccess est hors de portée.** Toute la Phase B2 (B2.1 à B2.8) est au statut « Bloqué »
+  dans le plan - aucune donnée GreenAccess n'existe nulle part (ni Kafka, ni TimescaleDB), il n'y
+  a littéralement rien à diffuser. Même décision que B3.1 (avancé sans attendre B2 sur instruction
+  explicite de l'utilisateur) : cette tâche couvre uniquement les KPIs réels du Volet B déjà
+  collectés.
+- **Le flux Mercure du financement était déjà réel, sans changement de code.**
+  `PublishKpiSnapshotCommand` (A3.1) republie `AnalyticsService::getFinancingTrends()` /
+  `getHeroStats()` - les mêmes méthodes que B3.1 a corrigées. Vérifié en direct : le payload SSE
+  passe de `3 241 719 990` USD (démo seule) à `278 367 428 726` USD dès que le connecteur World
+  Bank réel a tourné - aucune modification n'était nécessaire côté financement.
+
+**Le vrai travail : rebrancher la réduction CO2 sur les données réelles.**
+`AnalyticsService::getCo2Reduction()` retournait encore en dur `{available: false}` alors que
+B1.4 a livré une vraie table `Emission` (840 lignes réelles, 35 des 54 pays NEV, source IEA/PNUE).
+Rebranché : **variation totale des émissions entre les deux années les plus récentes disposant de
+données, calculée uniquement sur l'intersection des pays présents les deux années** (jamais un
+pays manquant traité comme zéro - « Absence ≠ zéro », cahier des charges 6.4). `reductionMt`
+positif = réduction réelle, négatif = hausse réelle, **jamais tronqué**. Fallback
+`{available: false}` conservé si moins de 2 années de données, ou aucun pays commun.
+
+- Nouvelles méthodes `EmissionRepository::distinctYearsWithCurrentData()` / `totalsByYear()`
+  (filtre `isCurrent = true`, même principe que B1.7 pour `Funding`).
+- Forme de réponse enrichie : `data` devient
+  `{reductionMt, latestYear, previousYear, countriesCompared}` (jamais un scalaire ; `data`
+  n'avait jamais été autre chose que `null` depuis la création de l'endpoint, aucun consommateur
+  réel à casser). Swagger et le hook frontend mis à jour en même temps.
+- `co2ReductionMt` ajouté au payload Mercure (nullable - jamais `0` par défaut) ; la tuile CO2 de
+  `VisualizationsPage.jsx` porte désormais le badge « Direct » quand la valeur arrive du hub,
+  exactement comme la tuile financement.
+
+**Vérifié en direct sur le Codespace (données PNUE réelles) :**
+`GET /api/analytics/co2-reduction` →
+`{"available":true,"data":{"reductionMt":-7.83,"latestYear":2023,"previousYear":2022,"countriesCompared":35}}`.
+Requête SQL de contrôle directe sur `emission` : `2022 → 2023, 35 pays communs, -7.830 Mt` -
+**correspondance exacte**. Les émissions ont réellement **augmenté** de 7,83 Mt sur ce périmètre
+entre 2022 et 2023 - affiché honnêtement en négatif, pas maquillé en « réduction ». Payload
+Mercure capté en direct :
+`{"fundingTotalUsd":278367428726,"countriesCovered":54,"co2ReductionMt":-7.83,"publishedAt":"..."}`.
+
+**Piège rencontré au bootstrap d'un Codespace neuf** (voir aussi point d'attention #11) : les
+connecteurs Volet B lisent la liste des pays depuis la table `country`
+(`SELECT iso_code FROM country`, décision B1.1). Sans `doctrine:fixtures:load` préalable, cette
+table est vide → `_extraire()` ne fait **aucun** appel API (0,2s d'exécution, zéro log) et le DAG
+rapporte quand même `success`. Toujours charger les fixtures A1.6 avant de déclencher un
+connecteur sur un environnement fraîchement provisionné.
