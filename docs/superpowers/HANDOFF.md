@@ -20,38 +20,77 @@ that task, it won't be there — don't wait on it or search for it as a record o
 
 ## Current state (as of this entry)
 
-- **Branch:** `developp`, commit `0e2aa3d`, clean, pushed, matches `origin/developp`.
-- **Phase A1 (Fondations) is CLOSED** — formally recetted and signed
-  (`docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md`).
-- **Phase A2 (Oumar, via Antigravity) is in progress: A2.1–A2.6 done** (funding API with
-  filters/pagination/CORS, frontend wired to real data, CSV export, per-user notifications,
-  cached analytics endpoints, frontend charts). **A2.7–A2.14 are not started.**
-- **Phase A3 (Oumar): not started at all.** Zero commits, including **A3.10 itself** (the
-  formal Volet A recette + written client sign-off that the cahier des charges, sections 2
-  and 10, requires before Volet B may begin).
-- **Volet B (Serge) started anyway, as an explicit, informed decision — not an oversight.**
-  On 2026-08-27, told plainly that A3.10 does not yet exist, Serge chose to proceed with B1/B2
-  in parallel with Oumar finishing A2/A3, rather than wait. This is documented here so it
-  reads as a conscious call, not a missed governance gate. Two things already exist for
-  Volet B, done *before* this decision (pure design/coordination, not blocked by anything):
-  - `docs/superpowers/specs/2026-08-26-volet-b-pipeline-architecture-design.md` — shared
-    architecture for all of B1+B2 (own Kafka/Airflow/MinIO/Redis stack, `pipeline/` directory,
-    topic conventions, upsert+historization approach, ECB FX rates for the pivot currency).
-    Reference material used to write it: `pipeline-observatoire-cima.pdf` (Serge's own prior
-    work on an unrelated project, reused as a pattern only — never as shared infrastructure).
-  - `docs/note-de-cadrage-greenaccess-b2.1.md` — the GreenAccess scoping note (B2.1), ready to
-    send once a named recipient is confirmed; nothing downstream in B2 starts before it's
-    signed.
-  - A second sourcing document (`Cartographie_Sources_Donnees_Climat_Senegal.pdf`, ~12
-    additional data sources beyond the plan's 5 B1 tasks, and notably omitting PNUE which
-    *is* in the plan as B1.4) was shared by Serge and explicitly set aside on his instruction
-    — not in scope, not to be acted on, until he brings it back after further research. Don't
-    treat it as a source of truth for B1 scope.
-- **Next task:** B1.1 (Banque Mondiale connector) — not yet spec'd. Per the architecture spec,
-  each B1/B2 task still gets its own implementation plan on top of the shared architecture
-  before any code is written.
-- **In progress right now:** nothing. The repo is in a clean, fully-verified state between
-  tasks.
+- **Branch:** `developp`, commit `4ca8c66` + the T.1/T.2/T.3 docs commit on top, clean,
+  pushed to **both** remotes (GitLab canonical `nev-consulting-group/nev-climate-data`,
+  GitHub mirror `Odjiguimde/nev-climate-data` — the mirror exists only to feed GitHub
+  Codespaces).
+- **Volet A (Phases A1 + A2 + A3) is functionally complete.**
+  - A1 (Fondations) **CLOSED** — formally recetted and signed
+    (`docs/superpowers/specs/2026-08-25-a18-phase-a1-recette.md`).
+  - A2 (A2.1–A2.14) complete — recette `docs/superpowers/specs/2026-08-29-a214-phase-a2-recette.md`,
+    awaiting the Product Owner's written signature.
+  - A3 (A3.1–A3.10) complete — Mercure realtime, full React migration, Symfony secrets vault,
+    general rate limiting, coverage audit, automated DB backups + tested restore, k6 load
+    tests, **real production go-live (Render API + own PostgreSQL / Netlify frontend, both
+    HTTPS, auto-deploy on `developp`)**, Swagger (28 operations). Recette
+    `docs/superpowers/specs/2026-09-02-a310-phase-a3-recette.md` — **proposée, awaiting the
+    Product Owner's written signature.**
+  - Off-plan: A3.11 institutional UI/UX overhaul (design system `--nev-*`, 12 shared
+    components, 13 pages restyled).
+- **Volet B — B1 (connectors) + B3 (real-data cutover) done; B2 (GreenAccess) still blocked.**
+  - Shared architecture: `docs/superpowers/specs/2026-08-26-volet-b-pipeline-architecture-design.md`.
+    Reference-only pattern material: `pipeline-observatoire-cima.pdf` (Serge's own prior work
+    on an unrelated project — never shared infrastructure).
+  - **B1.1–B1.10 complete** — 5 real connectors (World Bank, GCF via IATI, AfDB via IATI with
+    real XDR→USD conversion, PNUE via the UN SDG API, OPEC Fund PDF via Gemini with SHA-256
+    cache), validation/normalisation processor, source-conflict handling + SCD2 historisation,
+    Kafka/MinIO isolation vs CIMA, robust Airflow DAGs (`extraire >> transformer >> publier`,
+    quarterly `0 3 1 1,4,7,10 *`), email alerting. Recette
+    `docs/superpowers/specs/2026-09-01-b110-phase-b1-recette.md` — awaiting PO signature.
+  - **B3.1–B3.6 complete** (run *before* B2, at the user's explicit request, to prove the
+    stack works on real data): real aggregates on the existing endpoints (3 real bugs fixed —
+    points #52–#54); `AnalyticsService::getCo2Reduction()` rewired onto the real `Emission`
+    table + `co2ReductionMt` in the Mercure payload (B3.2); systematic
+    `validation_status = 'validated'` read filter across `FundingRepository`,
+    `EmissionRepository`, `getHeroStats()` (B3.3); 5 aggregates cross-checked against direct
+    SQL, exact match, + NaN emission bug found & fixed in `pipeline/collectors/pnue.py` (B3.4);
+    DAG idempotence verified, 0 dup / 0 loss (B3.5). Recette
+    `docs/superpowers/specs/2026-09-08-b36-recette-finale-volet-b.md` — **proposée, awaiting PO
+    signature.** Off-plan in B3: real local-currency conversion (`pipeline/common/fx_rates.py`),
+    date-range filter fix, `funding-validator`/`emission-validator` image rebuild.
+  - B2.1 scoping note `docs/note-de-cadrage-greenaccess-b2.1.md` — ready to send once a named
+    recipient is confirmed; nothing downstream in B2 starts before it is signed.
+  - `Cartographie_Sources_Donnees_Climat_Senegal.pdf` (~12 extra sources) is explicitly set
+    aside on Serge's instruction — not a source of truth for B1 scope.
+- **Transverse tasks (T):**
+  - **T.1 done** — `docs/exploitation/runbooks.md` (operational procedures) authored; this
+    HANDOFF refreshed; README « État d'avancement » gains a « Tâches transverses (T) » block.
+  - **T.2 done** — `docs/exploitation/suivi-couts.md` (monthly cost-tracking table + risks +
+    optimisation levers). Current config runs at ~0 USD/month; the real exposure is quota /
+    free-tier-expiry risk, not billing.
+  - **T.3 done** — `docs/exploitation/formation-equipe.md` (the training support itself:
+    objectives, per-audience tracks, modules, hands-on exercises, glossary, session log).
+    The deliverable is « atteint » once at least one session per audience is run and logged
+    in that file's §10 — **sessions not yet held.**
+- **Codespace:** `turbo-journey-g4gvr455pp9hvrpw` on `Odjiguimde/nev-climate-data`, 2-core /
+  8 GB (undersized vs requested), auto-sleeps after ~30 min. `gh` not installed on it;
+  system `python3` broken. Full 15-service stack has been run there successfully this cycle.
+- **Next task:** per the plan, **Phase B2 (GreenAccess connector)** — blocked until the B2.1
+  scoping note has a confirmed recipient and is signed. Each B1/B2 task still gets its own
+  spec then plan then code.
+- **In progress right now:** nothing. Repo clean between tasks.
+
+### Standing manual action items (not code — the user must do these)
+
+1. `DELETE FROM emission WHERE value_mt::text = 'NaN';` on **dev and production** (12
+   South-Sudan rows, 2000–2011). Root cause fixed in code; the stored rows are not.
+2. Rotate the production DB password (found exposed in a compose override; rotation deferred
+   by the user).
+3. Obtain the Product Owner's written signature on recettes **A3.10** and **B3.6** (B1.10
+   also pending).
+4. Re-run `pipeline/tests/test_dag_*_tasks.py` on a properly sized environment (skipped in
+   the 2026-09-08 session — Codespace too small).
+5. Hold and log the T.3 training sessions (`docs/exploitation/formation-equipe.md` §10).
 
 ## Conventions this project has settled on (don't relitigate these without asking Serge)
 

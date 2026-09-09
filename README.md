@@ -825,6 +825,16 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 | Correction du filtre de plage de dates (`periodStart`/`periodEnd`) | Bug réel trouvé en vérifiant B3.1 avec des données réelles (voir point d'attention #53) | Non |
 | Reconstruction de `funding-validator`/`emission-validator` | Image Docker figée avant l'ajout du dispatch par source, plantait en boucle et bloquait silencieusement tout le flux Kafka (voir point d'attention #52) | Non |
 
+**Fait (Tâches transverses — T) :**
+
+| Tâche | Contenu | Statut |
+|---|---|---|
+| T.1 | Documentation technique à jour (README, schémas, runbooks) | ✅ Fait - [`docs/exploitation/runbooks.md`](docs/exploitation/runbooks.md) (procédures opérationnelles : démarrage/arrêt de la pile, reprise après `git pull`, tests, déclenchement des collectes, incidents rapports/NaN, sauvegarde/restauration, déploiement, Codespace, cohérence dev↔prod) ; [`docs/superpowers/HANDOFF.md`](docs/superpowers/HANDOFF.md) rafraîchi (était bloqué au commit `0e2aa3d`) ; le présent tableau d'avancement tenu à jour tâche par tâche |
+| T.2 | Suivi et optimisation des coûts | ✅ Fait - [`docs/exploitation/suivi-couts.md`](docs/exploitation/suivi-couts.md) : tableau de suivi mensuel (13 postes), historique, 7 risques de bascule vers un coût non nul (dont R1 : expiration à 30 j de la base PostgreSQL gratuite Render), leviers d'optimisation déjà en place, procédure de relevé mensuel. Configuration actuelle : **coût monétaire ~nul**, le coût réel est un coût de risque (plafonds, offres gratuites) |
+| T.3 | Former l'équipe interne (support + session(s)) | ✅ Support livré - [`docs/exploitation/formation-equipe.md`](docs/exploitation/formation-equipe.md) : objectifs pédagogiques, 3 parcours selon le public, modules (nature des données, lecture des tableaux de bord, pipeline en pratique, gestion d'incident), exercices pratiques, glossaire, journal des sessions. Dépendait de B3.6 (satisfaite). **Réserve : les sessions elles-mêmes restent à animer et à tracer** (§10 du support) |
+
+**Tâches transverses : documentation et support livrés.** Restent à réaliser : les sessions de formation (T.3) et le relevé mensuel des coûts (T.2, récurrent).
+
 ## Pipeline (Volet B)
 
 Premier connecteur du Volet B (données réelles) : collecte trimestrielle des financements
