@@ -8,6 +8,7 @@ dedicated Kafka topic `nev.emissions.raw`.
 from __future__ import annotations
 
 import datetime as dt
+import math
 from typing import Any, Iterator
 
 import pycountry
@@ -58,11 +59,26 @@ def parse_emission(row: dict[str, Any], country_iso: str) -> dict[str, Any] | No
     if row.get("dimensions", {}).get("Activity") != TOTAL_ACTIVITY_CODE:
         return None
 
+    value_mt = float(row["value"])
+    # Real bug found during B3.4's SQL control-query audit (South Sudan,
+    # 2000-2011, 12 rows): the SDG API returns the literal string "NaN"
+    # for some country/year combinations it can't compute a total for
+    # (rather than omitting the row or returning null) - Python's float()
+    # accepts "NaN" silently, so this quietly stored a non-numeric
+    # sentinel as if it were a real emissions figure. A NaN poisons any
+    # SQL/PHP aggregate it enters (SUM/array_sum over a NaN input becomes
+    # NaN for the whole group, not just this one row), so this must be
+    # rejected here, not filtered downstream. Same "Absence ≠ zéro"
+    # governance principle as elsewhere in this pipeline - the correct
+    # representation of "no computable total" is no row at all.
+    if math.isnan(value_mt):
+        return None
+
     return {
         "source": "pnue",
         "country_iso": country_iso,
         "year": int(row["timePeriodStart"]),
-        "value_mt": float(row["value"]),
+        "value_mt": value_mt,
         "collected_at": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
 

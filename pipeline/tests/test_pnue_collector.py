@@ -56,6 +56,23 @@ def test_parse_emission_discards_the_manufacturing_subset_row():
     assert parse_emission(_ROW_MANUFACTURING_SUBSET, "SEN") is None
 
 
+def test_parse_emission_discards_a_nan_value():
+    # Real bug found during B3.4's SQL control-query audit: the SDG API
+    # returns the literal string "NaN" for some country/year combinations
+    # (South Sudan, 2000-2011, confirmed live) instead of omitting the
+    # row - float("NaN") succeeds silently, so this used to be stored as
+    # if it were a real figure, poisoning any SUM/array_sum it later
+    # entered. Must be treated as no data, same as the manufacturing
+    # subset row above.
+    row = {
+        "geoAreaCode": "728",
+        "timePeriodStart": 2005.0,
+        "value": "NaN",
+        "dimensions": {"Reporting Type": "G", "Activity": "TOTAL"},
+    }
+    assert parse_emission(row, "SSD") is None
+
+
 def test_parse_emission_uses_the_caller_provided_country_iso_not_geo_area_code():
     # Real bug found during B1.4's end-to-end verification:
     # pycountry.countries.get(numeric=...) requires zero-padding ("024"
