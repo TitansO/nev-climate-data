@@ -813,6 +813,8 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 | B3.1 | Exposer les agrégats réels via les endpoints existants, sans changement de contrat | ✅ Fait - trois vrais bugs trouvés et corrigés en vérifiant avec des données réelles (voir points d'attention #52-#54) ; les 5 connecteurs Volet B tournés pour de vrai pour la première fois dans cet environnement (~5 149 lignes `funding` réelles World Bank/GCF/AfDB/OPEC Fund PDF, hors démo) |
 | B3.2 | Connecter la diffusion des KPIs réels (et GreenAccess) au hub Mercure | ✅ Fait - `AnalyticsService::getCo2Reduction()` rebranché sur la vraie table `Emission` (B1.4), variation CO2 année sur année sur l'intersection des pays communs ; `co2ReductionMt` ajouté au payload Mercure ; tuile CO2 du frontend rebranchée + badge « Direct ». Le flux financement était déjà réel (mêmes méthodes que B3.1 a corrigées). GreenAccess explicitement hors périmètre (Phase B2 « Bloqué », aucune donnée). Voir « B3.2 — Diffusion des KPIs réels via Mercure » plus bas et [`docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md`](docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md) |
 | B3.3 | Basculer progressivement le frontend des données de démonstration vers les données réelles | ✅ Fait - filtre `validation_status = 'validated'` systématique côté lecture (`FundingRepository`, `EmissionRepository`, `AnalyticsService::getHeroStats()`), jumeau du filtre `isCurrent` de B1.7. Bascule unique (les 5 connecteurs avaient déjà tourné) plutôt que progressive par source - la démo n'est pas taguée par source réelle. Rapports/notifications hors périmètre (aucune source réelle n'existe pour eux). Voir « B3.3 — Bascule démo → réel » plus bas et [`docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md`](docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md) |
+| B3.4 | Comparer les valeurs affichées aux requêtes SQL de contrôle | ✅ Fait - 5 agrégats analytiques comparés à leur requête SQL directe, correspondance exacte sur tous. Un vrai défaut latent trouvé et corrigé : 12 lignes `emission` (Soudan du Sud, 2000-2011) avec `value_mt = NaN` (l'API SDG ONU renvoie littéralement "NaN" pour certaines années, jamais filtré avant B3.4) - aurait cassé silencieusement `getCo2Reduction()` dès que la fenêtre des 2 années les plus récentes les aurait incluses. Voir [`docs/superpowers/specs/2026-09-08-b34-b35-recette-controle-qualite.md`](docs/superpowers/specs/2026-09-08-b34-b35-recette-controle-qualite.md) |
+| B3.5 | Vérifier l'idempotence de chaque DAG (rejeu sans doublon ni perte) | ✅ Fait - les 5 DAGs redéclenchés sur un état déjà peuplé : 0 doublon, 0 perte sur toutes les sources. Seul écart observé (AfDB, -0,00006%) confirmé être une vraie révision de la source IATI absorbée en delta par `funding_project_contribution`, jamais une addition aveugle. OPEC Fund confirme le cache SHA-256 (0 message republié). Voir même document que B3.4 |
 
 **Travaux supplémentaires réalisés hors plan officiel (Phase B3)** :
 
@@ -1181,3 +1183,30 @@ lignes démo (dont un pays qui n'existait qu'en démo, et 2 sources purement dé
 intégralement. `GET /api/analytics/financing-trends` (somme des `total`) = `317 117 898 749`,
 identique au `SELECT sum(amount) FROM funding WHERE is_current AND validation_status='validated'`
 exécuté en direct. Suite complète : 205 tests, 763 assertions, 0 échec.
+
+### B3.4 & B3.5 — Contrôle qualité et idempotence (2026-09-08)
+
+Décisions et preuves complètes :
+[`docs/superpowers/specs/2026-09-08-b34-b35-recette-controle-qualite.md`](docs/superpowers/specs/2026-09-08-b34-b35-recette-controle-qualite.md).
+
+**B3.4** : les 5 agrégats analytiques exposés au frontend (tendances de financement, stats du
+Hero, répartition sectorielle, répartition par pays, réduction CO2) comparés un par un à leur
+requête SQL directe équivalente - correspondance exacte sur les 5. Un vrai défaut latent trouvé
+en creusant `emission` avant le calcul CO2 : **12 lignes portaient `value_mt = NaN`** (Soudan du
+Sud, 2000-2011) - l'API SDG des Nations Unies renvoie littéralement la chaîne `"NaN"` pour
+certaines années au lieu d'omettre la ligne, et `float("NaN")` réussit silencieusement en Python.
+Un `NaN` contamine toute agrégation SQL/PHP qui le contient (`SUM`/`array_sum` devient `NaN` pour
+tout le groupe) - sans impact visible aujourd'hui (hors de la fenêtre des 2 années les plus
+récentes utilisée par `getCo2Reduction()`), mais aurait cassé silencieusement l'endpoint et le
+flux Mercure dès que cette fenêtre les aurait incluses. Corrigé dans
+`pipeline/collectors/pnue.py::parse_emission()` (rejette explicitement tout `NaN`, même principe
+« Absence ≠ zéro » que le reste du pipeline). Nettoyage des 12 lignes déjà en base (dev et
+production) à faire manuellement : `DELETE FROM emission WHERE value_mt::text = 'NaN';`.
+
+**B3.5** : les 5 DAGs redéclenchés manuellement sur un état déjà peuplé. **0 doublon, 0 perte**
+sur toutes les sources (World Bank, GCF, AfDB, OPEC Fund, PNUE) - nombre de lignes strictement
+identique avant/après pour chacune. Le seul écart observé (AfDB, montant total -0,00006%) n'est
+pas une erreur de rejeu : confirmé être une vraie révision de la source IATI entre les deux
+exécutions, correctement absorbée en delta par `funding_project_contribution` plutôt qu'additionnée
+aveuglément. OPEC Fund confirme le cache SHA-256 (B1.5) : second déclenchement, 0 message
+republié. Critère de recette 6.8 satisfait.
