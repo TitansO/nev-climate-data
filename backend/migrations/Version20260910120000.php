@@ -21,9 +21,7 @@ use Doctrine\Migrations\AbstractMigration;
  * doublon serait creee a la collecte suivante, detachant les ~3 000 lignes
  * `funding` reelles de leur source d'origine.
  *
- * Colonnes traitees : source.name, report.title, report.region,
- * notification.message, country.name, sector.name. Le `REPLACE` est un
- * no-op sur les valeurs deja propres.
+ * `REPLACE` est un no-op sur les valeurs deja propres.
  *
  * `down()` est volontairement vide : la normalisation n'est pas reversible
  * (on ne sait pas quels « - » etaient d'origine des cadratins), et revenir
@@ -31,12 +29,15 @@ use Doctrine\Migrations\AbstractMigration;
  */
 final class Version20260910120000 extends AbstractMigration
 {
-    private const COLUMNS = [
-        'source' => 'name',
-        'report' => 'title',
-        'notification' => 'message',
-        'country' => 'name',
-        'sector' => 'name',
+    /** @var array<int, array{0: string, 1: string}> [table, colonne] */
+    private const TARGETS = [
+        ['source', 'name'],
+        ['report', 'title'],
+        ['report', 'region'],
+        ['notification', 'content'],
+        ['country', 'name'],
+        ['country', 'region'],
+        ['sector', 'name'],
     ];
 
     public function getDescription(): string
@@ -46,7 +47,7 @@ final class Version20260910120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        foreach (self::COLUMNS as $table => $column) {
+        foreach (self::TARGETS as [$table, $column]) {
             $this->addSql(sprintf(
                 "UPDATE %s SET %s = REPLACE(REPLACE(%s, CHR(8212), '-'), CHR(8211), '-') "
                 ."WHERE %s LIKE '%%' || CHR(8212) || '%%' OR %s LIKE '%%' || CHR(8211) || '%%'",
@@ -57,12 +58,6 @@ final class Version20260910120000 extends AbstractMigration
                 $column,
             ));
         }
-
-        // report.region : nullable, meme traitement.
-        $this->addSql(
-            "UPDATE report SET region = REPLACE(REPLACE(region, CHR(8212), '-'), CHR(8211), '-') "
-            ."WHERE region LIKE '%' || CHR(8212) || '%' OR region LIKE '%' || CHR(8211) || '%'"
-        );
     }
 
     public function down(Schema $schema): void
