@@ -190,7 +190,7 @@ final class ApiKeyControllerTest extends WebTestCase
         $created = json_decode($client->getResponse()->getContent(), true);
 
         // The freshly-minted API key must not itself be usable to create,
-        // list, or revoke further keys — see ApiKeyController::assertJwtAuthenticated().
+        // list, or revoke further keys - see ApiKeyController::assertJwtAuthenticated().
         $client->request('POST', '/api/api-keys', server: ['HTTP_X_API_KEY' => $created['key']]);
         self::assertSame(403, $client->getResponse()->getStatusCode());
 

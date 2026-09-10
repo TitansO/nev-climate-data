@@ -1,9 +1,9 @@
-# B1.9 — Alerting réel sur échec des DAGs Volet B
+# B1.9 - Alerting réel sur échec des DAGs Volet B
 
 Status: Approved
 Author: Serge (with Claude)
 Date: 2026-09-01
-Plan reference: B1.9 (Phase B1 — Connecteurs sources officielles), `Plan_Implementation_NEV_Climate_Data.xlsx`
+Plan reference: B1.9 (Phase B1 - Connecteurs sources officielles), `Plan_Implementation_NEV_Climate_Data.xlsx`
 Architecture reference: 5 DAGs déjà livrés (B1.1-B1.5), tous avec `retries: 3` /
 `retry_delay: timedelta(minutes=5)` dans leur `default_args` depuis leur création.
 
@@ -15,7 +15,7 @@ Architecture reference: 5 DAGs déjà livrés (B1.1-B1.5), tous avec `retries: 3
   `on_failure_callback` nulle part dans `docker-compose.yml` ni dans `pipeline/dags/`. C'est
   exactement le manque déjà identifié dans le roadmap.
 
-## Décision 1 — Canal : email, via Gmail SMTP
+## Décision 1 - Canal : email, via Gmail SMTP
 
 Confirmé par Serge. Nécessite un vrai mot de passe d'application Gmail (fourni, stocké dans
 `.env` local uniquement - `AIRFLOW_ALERT_EMAIL`, `AIRFLOW_SMTP_PASSWORD` - jamais commité, même
@@ -34,7 +34,7 @@ AIRFLOW__SMTP__SMTP_PASSWORD: ${AIRFLOW_SMTP_PASSWORD}
 AIRFLOW__SMTP__SMTP_MAIL_FROM: ${AIRFLOW_ALERT_EMAIL}
 ```
 
-## Décision 2 — Alerte seulement après épuisement des retries, pas à chaque tentative
+## Décision 2 - Alerte seulement après épuisement des retries, pas à chaque tentative
 
 Airflow distingue nativement `email_on_retry` (une alerte à *chaque* tentative avant succès -
 bruyant, une source lente/rate-limitée comme AfDB en génèrerait à chaque run un peu chargé) de
@@ -42,7 +42,7 @@ bruyant, une source lente/rate-limitée comme AfDB en génèrerait à chaque run
 de bon). On veut la seconde, pas la première - "détecter rapidement les échecs", pas être notifié
 d'une lenteur transitoire déjà gérée par le retry existant.
 
-## Décision 3 — Un seul module partagé, pas 5 `default_args` dupliqués
+## Décision 3 - Un seul module partagé, pas 5 `default_args` dupliqués
 
 Les 5 DAGs ont aujourd'hui le même bloc `default_args` dupliqué mot pour mot. Puisque cette tâche
 le modifie déjà dans les 5 fichiers, en profiter pour le centraliser dans un nouveau
@@ -69,7 +69,7 @@ une adresse vide - dégradation silencieuse plutôt qu'une erreur SMTP au démar
 Chaque DAG importe `from pipeline.common.alerting import default_args` au lieu de définir son
 propre dictionnaire.
 
-## Décision 4 — Pas de détecteur dédié de "changement de structure"
+## Décision 4 - Pas de détecteur dédié de "changement de structure"
 
 Un vrai changement de structure de source (un champ renommé/retiré côté API) se manifeste déjà
 comme une exception Python réelle pendant le parsing (`KeyError`, erreur de validation...) - la

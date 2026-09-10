@@ -1,4 +1,4 @@
-# B3.3 — Bascule du frontend des données de démonstration vers les données réelles
+# B3.3 - Bascule du frontend des données de démonstration vers les données réelles
 
 Status: Approved
 Author: Serge (with Claude)
@@ -33,7 +33,7 @@ Les rejets de validation ne sont jamais insérés dans `funding`/`emission` - il
 topic Kafka `.rejets`. La table `funding` ne contient donc, par construction, que `demo` ou
 `validated`.
 
-## Décision 1 — Un filtre `validation_status = 'validated'` systématique côté lecture
+## Décision 1 - Un filtre `validation_status = 'validated'` systématique côté lecture
 
 Même mécanisme que B1.7 : chaque requête de `FundingRepository` / `EmissionRepository` qui lit des
 lignes destinées au frontend exclut les lignes `demo`. **Liste blanche** (`= 'validated'`), pas
@@ -64,7 +64,7 @@ Le filtre est **toujours actif**, jamais un paramètre d'API ni un flag d'enviro
 utilisateur explicite du 2026-09-08). Un besoin réel de consulter la démo via l'API (peu probable)
 serait une décision séparée.
 
-## Décision 2 — Hors périmètre : rapports, notifications, catalogue de sources
+## Décision 2 - Hors périmètre : rapports, notifications, catalogue de sources
 
 - **`report` / `notification`** : aucune tâche Volet B ne produit de vrais rapports ni de vraies
   notifications - il n'existe aucune donnée réelle à basculer. Les fixtures démo de ces deux
@@ -79,7 +79,7 @@ serait une décision séparée.
   sources réellement référencées par au moins une ligne `funding` validée.
 - **`country` / `sector`** : données de référence partagées, jamais « démo ».
 
-## Décision 3 — Bascule unique, pas de mécanisme progressif par source
+## Décision 3 - Bascule unique, pas de mécanisme progressif par source
 
 Les 5 connecteurs ont tourné, les données réelles sont là (~3000 `funding` + 840 `emission`). Le
 filtre est activé en une fois (décision utilisateur explicite). B3.4 (comparaison des valeurs
@@ -87,7 +87,7 @@ affichées aux requêtes SQL de contrôle) valide juste après. Pas de toggle pa
 démo n'est de toute façon pas taguée par source réelle (les fixtures sont synthétiques,
 déterministes), un « progressif par source » n'aurait pas de sens sur ce jeu.
 
-## Décision 4 — « Jeu de démonstration désactivé »
+## Décision 4 - « Jeu de démonstration désactivé »
 
 Le livrable demande que le jeu de démo soit « désactivé ». Deux niveaux :
 1. **Invisible côté frontend** : garanti par le filtre de la Décision 1 - même si les fixtures
@@ -101,7 +101,7 @@ Le livrable demande que le jeu de démo soit « désactivé ». Deux niveaux :
 Aucune suppression physique des lignes `demo` existantes (décision utilisateur : filtre, pas
 DELETE) - elles restent en base, inertes, réversibles.
 
-## Décision 5 — Aucun changement de contrat API, aucun changement frontend
+## Décision 5 - Aucun changement de contrat API, aucun changement frontend
 
 Principe directeur du cahier des charges (section 2) : le frontend du Volet A ne doit pas bouger.
 `validation_status` reste un champ interne de la réponse `GET /api/funding` (déjà exposé
@@ -139,7 +139,7 @@ philosophie déjà établie du projet).
 
 ## Documentation
 
-`README.md` : nouvelle sous-section « B3.3 — Bascule démo → réel » dans la partie Volet B,
+`README.md` : nouvelle sous-section « B3.3 - Bascule démo → réel » dans la partie Volet B,
 nouveau point d'attention (le filtre `validation_status`, jumeau de celui de B1.7), mise à jour du
 tableau « État d'avancement » (B3.3 ✅), et note dans la checklist de reprise (« ne pas charger les
 fixtures sur un environnement qui sert du réel »).

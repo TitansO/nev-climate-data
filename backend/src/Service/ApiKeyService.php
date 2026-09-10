@@ -26,7 +26,7 @@ final class ApiKeyService
     private const KEY_PREFIX = 'nev_';
 
     /**
-     * 32 bytes = 256 bits of entropy from a CSPRNG — far beyond what's
+     * 32 bytes = 256 bits of entropy from a CSPRNG - far beyond what's
      * brute-forceable, and generous headroom versus the ~128 bits generally
      * considered sufficient for bearer tokens.
      */
@@ -57,7 +57,7 @@ final class ApiKeyService
      * already a 256-bit CSPRNG-generated secret, not a low-entropy
      * human-chosen password, so there's nothing for a slow, salted hash to
      * protect against that a fast, deterministic digest doesn't already
-     * cover — and a deterministic digest is what allows looking a key up by
+     * cover - and a deterministic digest is what allows looking a key up by
      * an indexed equality match instead of hashing and comparing against
      * every stored key. This mirrors common practice for high-entropy API
      * tokens (e.g. GitHub, Stripe).
@@ -71,7 +71,7 @@ final class ApiKeyService
      * Looks up the key by its hash and returns it only if active. The
      * lookup itself is an indexed equality match in the database, so there
      * is no application-level string comparison of secrets to guard with
-     * hash_equals() — the match either exists in the index or it doesn't,
+     * hash_equals() - the match either exists in the index or it doesn't,
      * which does not leak timing information about a candidate key.
      */
     public function validateKey(string $plainKey): ?ApiKey

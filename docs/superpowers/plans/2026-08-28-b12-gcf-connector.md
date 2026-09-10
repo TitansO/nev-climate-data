@@ -4,21 +4,21 @@
 
 **Goal:** Collect Green Climate Fund (GCF) project financing for every NEV-tracked country, monthly, and land it in the `funding` table via the shared Volet B pipeline (Kafka + the existing Python validator writing directly to TimescaleDB).
 
-**Architecture:** A new `pipeline/collectors/gcf.py` queries the IATI Datastore for GCF's entire IATI-published portfolio (one request, no per-country pagination — unlike B1.1's World Bank collector), splits multi-country activities into one payload per recipient country, and publishes to the **existing** `nev.funding.raw` topic (`source: "gcf"`). The **existing** `funding-validator` service is extended to dispatch on `source` to a new `pipeline/processors/sector_mapping_gcf.py` (DAC 5-digit code table, not keyword matching). No new Kafka topics or services — B1.1 already provisioned everything this plan reuses.
+**Architecture:** A new `pipeline/collectors/gcf.py` queries the IATI Datastore for GCF's entire IATI-published portfolio (one request, no per-country pagination - unlike B1.1's World Bank collector), splits multi-country activities into one payload per recipient country, and publishes to the **existing** `nev.funding.raw` topic (`source: "gcf"`). The **existing** `funding-validator` service is extended to dispatch on `source` to a new `pipeline/processors/sector_mapping_gcf.py` (DAC 5-digit code table, not keyword matching). No new Kafka topics or services - B1.1 already provisioned everything this plan reuses.
 
 **Tech Stack:** Python 3.12, `requests`, `pycountry`, IATI Datastore REST API (Solr-backed, JSON), Apache Airflow 2.9 (existing `airflow` service), Kafka (existing `nev.funding.raw`/`nev.funding.valides`/`nev.funding.rejets` topics), TimescaleDB (existing `funding`/`source`/`country`/`sector` tables), pytest.
 
 ## Global Constraints
 
-- No new Kafka topics or services — this connector publishes to the existing `nev.funding.raw` and is consumed by the existing `funding-validator` service (spec decision 1 / architecture spec decision 4).
+- No new Kafka topics or services - this connector publishes to the existing `nev.funding.raw` and is consumed by the existing `funding-validator` service (spec decision 1 / architecture spec decision 4).
 - `fundingType` is always `Multilateral` for this connector (B1.2 spec decision 2).
-- Currency is always USD for GCF — no conversion, `originalAmount`/`originalCurrency`/`exchangeRate` stay unused (B1.2 spec decision 3).
-- `amount_usd` = the sum of transactions where `transaction_type = "2"` AND `transaction_description_narrative == "GCF financing commitment"` exactly — never `transaction_provider_org_ref` (always GCF, useless as a filter) (B1.2 spec decision 4).
+- Currency is always USD for GCF - no conversion, `originalAmount`/`originalCurrency`/`exchangeRate` stay unused (B1.2 spec decision 3).
+- `amount_usd` = the sum of transactions where `transaction_type = "2"` AND `transaction_description_narrative == "GCF financing commitment"` exactly - never `transaction_provider_org_ref` (always GCF, useless as a filter) (B1.2 spec decision 4).
 - `year` = the year of those same summed transactions (B1.2 spec decision 5).
 - Multi-country activities: one `nev.funding.raw` message per recipient country, `amount_usd` prorated by IATI's own `recipient_country_percentage` (B1.2 spec decision 6).
 - Sector mapping: fixed DAC 5-digit code table, first NEV-sector-in-priority-order with any matching code wins, `sector_percentage` is not used for the decision (B1.2 spec decision 7).
-- IATI Datastore requires `Ocp-Apim-Subscription-Key: $IATI_API_KEY` on every request — free key from `developer.iatistandard.org`, stored in `.env` (gitignored), never committed.
-- Exact-phrase Solr query required: `q=reporting_org_ref:"XM-DAC-41317"` (quoted) — unquoted tokenizes on the dashes and matches ~269,000 unrelated documents instead of GCF's real 350 activities.
+- IATI Datastore requires `Ocp-Apim-Subscription-Key: $IATI_API_KEY` on every request - free key from `developer.iatistandard.org`, stored in `.env` (gitignored), never committed.
+- Exact-phrase Solr query required: `q=reporting_org_ref:"XM-DAC-41317"` (quoted) - unquoted tokenizes on the dashes and matches ~269,000 unrelated documents instead of GCF's real 350 activities.
 - Schedule: monthly (plan's own B1.2 livrable: "DAG Airflow mensuel").
 - Repo root for all paths below: `nev-climate-data/`. All `docker compose` commands run from that root.
 
@@ -180,7 +180,7 @@ git commit -m "feat(b1.2): add GCF DAC-code sector-mapping function"
 In `.env.example`, add after the MinIO section:
 
 ```
-# --- IATI Datastore (Volet B — B1.2, connecteur GCF) -----------------------
+# --- IATI Datastore (Volet B - B1.2, connecteur GCF) -----------------------
 # Clé gratuite : inscription sur https://developer.iatistandard.org/, puis
 # Subscriptions -> "Exploratory" (aucune approbation requise). Utilisée pour
 # interroger https://api.iatistandard.org/datastore/activity/select.
@@ -219,7 +219,7 @@ funding-validator ...` while developing/testing this collector) and the `airflow
 ```
 
 Run: `docker compose up -d funding-validator` then `docker compose up -d --force-recreate
-airflow` (recreate needed for the new env var to take effect — same requirement Task 1 of B1.1
+airflow` (recreate needed for the new env var to take effect - same requirement Task 1 of B1.1
 documented for `_PIP_ADDITIONAL_REQUIREMENTS` changes).
 
 - [ ] **Step 2: Write the failing offline unit tests**
@@ -577,7 +577,7 @@ Save as `pipeline/tests/test_gcf_collector_live.py`.
 ```bash
 docker compose run --rm funding-validator python -m pytest pipeline/tests/test_gcf_collector_live.py -v -m live
 ```
-Expected: PASS (1 test) — proves the real IATI Datastore contract still matches what this
+Expected: PASS (1 test) - proves the real IATI Datastore contract still matches what this
 task's implementation assumes, not just the mocked fixtures.
 
 - [ ] **Step 8: Commit**
@@ -598,7 +598,7 @@ git commit -m "feat(b1.2): add GCF collector (IATI Datastore)"
 
 **Interfaces:**
 - Consumes: `map_gcf_sector` from Task 1, the `nev.funding.raw` GCF payload shape from Task 2.
-- Produces: `process_message` now dispatches on `message["source"]` (`"world_bank"` or `"gcf"`) — unchanged signature, `tuple[bool, str | None]`.
+- Produces: `process_message` now dispatches on `message["source"]` (`"world_bank"` or `"gcf"`) - unchanged signature, `tuple[bool, str | None]`.
 
 - [ ] **Step 1: Add the GCF source fixture row**
 
@@ -608,15 +608,15 @@ In `backend/src/DataFixtures/SourceFixtures.php`, add a new row to the `SOURCES`
 ```php
     private const SOURCES = [
         ['World Bank Data API', 'world-bank-api', SourceType::OfficialApi, SourceReliability::High],
-        ['Green Climate Fund — Annual Report (PDF)', 'gcf-pdf-report', SourceType::PdfReport, SourceReliability::Medium],
-        ['Green Climate Fund — IATI Datastore', 'gcf-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
+        ['Green Climate Fund - Annual Report (PDF)', 'gcf-pdf-report', SourceType::PdfReport, SourceReliability::Medium],
+        ['Green Climate Fund - IATI Datastore', 'gcf-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
-        ['NEV Climate Data — Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
+        ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];
 ```
 
-The existing `'Green Climate Fund — Annual Report (PDF)'` row (`SourceType::PdfReport`) stays
-untouched — its type is wrong for this connector (real GCF data comes from the IATI Datastore
+The existing `'Green Climate Fund - Annual Report (PDF)'` row (`SourceType::PdfReport`) stays
+untouched - its type is wrong for this connector (real GCF data comes from the IATI Datastore
 API, not a PDF, per this plan's spec), and it may still be needed for a future PDF-based source.
 Adding a second, differently-typed row for the same real-world organisation is intentional, not
 a duplicate: `Source.name` uniqueness (added in B1.1) is per-name, and these two names differ.
@@ -636,7 +636,7 @@ Expected: two rows, one `pdf_report`, one `official_api`.
 - [ ] **Step 2: Write the failing tests**
 
 Add to `pipeline/tests/test_funding_validator.py` (alongside the existing World Bank tests and
-fixtures — `db_cursor`, `_funding_row` already exist there from B1.1, reused as-is):
+fixtures - `db_cursor`, `_funding_row` already exist there from B1.1, reused as-is):
 
 ```python
 def _gcf_sample_message(amount_usd: int) -> dict:
@@ -660,7 +660,7 @@ def test_gcf_message_inserts_a_new_funding_row_under_the_gcf_source(db_cursor):
     assert accepted is True
     assert reason is None
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'Green Climate Fund — IATI Datastore'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Green Climate Fund - IATI Datastore'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]
@@ -722,7 +722,7 @@ def test_unrecognized_source_is_rejected():
 ```bash
 docker compose run --rm funding-validator python -m pytest pipeline/tests/test_funding_validator.py -v
 ```
-Expected: the 4 new tests FAIL (`KeyError` on `raw_sector_codes`, or wrong sector resolved) —
+Expected: the 4 new tests FAIL (`KeyError` on `raw_sector_codes`, or wrong sector resolved) -
 the existing 3 World Bank tests still PASS unchanged.
 
 - [ ] **Step 4: Update the implementation**
@@ -735,7 +735,7 @@ from pipeline.processors.sector_mapping_gcf import map_gcf_sector
 ```
 
 ```python
-GCF_SOURCE_NAME = "Green Climate Fund — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
+GCF_SOURCE_NAME = "Green Climate Fund - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
 
 
 def ensure_gcf_source(cursor) -> int:
@@ -839,7 +839,7 @@ git commit -m "feat(b1.2): dispatch funding-validator to GCF sector mapping by s
 
 **Interfaces:**
 - Consumes: `collect_and_publish` from Task 2, `make_producer` from `pipeline/common/kafka_client.py` (existing, from B1.1 Task 4).
-- Produces: nothing consumed by a later task — Task 5 verifies this DAG end-to-end.
+- Produces: nothing consumed by a later task - Task 5 verifies this DAG end-to-end.
 
 - [ ] **Step 1: Write the DAG**
 
@@ -888,7 +888,7 @@ with DAG(
 
 Save as `pipeline/dags/collecte_gcf.py`. `./pipeline` is already volume-mounted to
 `/opt/airflow/pipeline` and `/opt/airflow` is already on `PYTHONPATH` (both from B1.1 Task 1/8)
-— this file needs no additional Airflow configuration.
+- this file needs no additional Airflow configuration.
 
 - [ ] **Step 2: Verify the DAG is recognized**
 
@@ -918,7 +918,7 @@ git commit -m "feat(b1.2): add monthly GCF collection DAG"
 
 **Interfaces:**
 - Consumes: the entire connector built in Tasks 1-4, running on B1.1's already-provisioned infrastructure.
-- Produces: nothing — this is the plan's acceptance check.
+- Produces: nothing - this is the plan's acceptance check.
 
 - [ ] **Step 1: Trigger the DAG manually**
 
@@ -927,7 +927,7 @@ docker compose exec airflow airflow dags unpause collecte_gcf
 docker compose exec airflow airflow dags trigger collecte_gcf
 ```
 
-Wait a minute or two (one HTTP request, ~350 activities to parse — much faster than B1.1's
+Wait a minute or two (one HTTP request, ~350 activities to parse - much faster than B1.1's
 54-country World Bank run), then check:
 
 ```bash
@@ -943,22 +943,22 @@ docker compose exec airflow sh -c "find /opt/airflow/logs/dag_id=collecte_gcf -n
 - [ ] **Step 2: Verify real data landed in `funding`**
 
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'Green Climate Fund — IATI Datastore')"
+docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'Green Climate Fund - IATI Datastore')"
 ```
 Expected: a count greater than 0.
 
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT country_id, sector_id, year, amount, funding_type, is_current FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'Green Climate Fund — IATI Datastore') ORDER BY amount DESC LIMIT 5"
+docker compose exec backend php bin/console dbal:run-sql "SELECT country_id, sector_id, year, amount, funding_type, is_current FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'Green Climate Fund - IATI Datastore') ORDER BY amount DESC LIMIT 5"
 ```
 Expected: rows with plausible amounts, `funding_type = multilateral`, `is_current = t`.
 
 - [ ] **Step 3: Verify World Bank and GCF rows stayed separate**
 
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT s.name, count(*) FROM funding f JOIN source s ON s.id = f.source_id WHERE s.name IN ('World Bank Data API', 'Green Climate Fund — IATI Datastore') GROUP BY s.name"
+docker compose exec backend php bin/console dbal:run-sql "SELECT s.name, count(*) FROM funding f JOIN source s ON s.id = f.source_id WHERE s.name IN ('World Bank Data API', 'Green Climate Fund - IATI Datastore') GROUP BY s.name"
 ```
 Expected: two distinct rows, both with real counts (confirms the dedup key correctly keeps
-different sources apart — see Task 3's `test_gcf_and_world_bank_rows_stay_separate_for_the_same_dedup_key`,
+different sources apart - see Task 3's `test_gcf_and_world_bank_rows_stay_separate_for_the_same_dedup_key`,
 now confirmed against real data too).
 
 - [ ] **Step 4: Verify the historization/summing behavior for real**
@@ -969,10 +969,10 @@ docker compose exec airflow airflow dags trigger collecte_gcf
 
 Wait for it to complete again, then:
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'Green Climate Fund — IATI Datastore') AND is_current = false"
+docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'Green Climate Fund - IATI Datastore') AND is_current = false"
 ```
 Expected: a count greater than 0 (the second run's matching country/sector/year/type
-combinations summed onto the first run's rows, historizing the originals — same mechanism
+combinations summed onto the first run's rows, historizing the originals - same mechanism
 B1.1 already verified, now confirmed for a second real source).
 
 - [ ] **Step 5: Verify quarantine is reachable for GCF-sourced rejects**
@@ -980,11 +980,11 @@ B1.1 already verified, now confirmed for a second real source).
 ```bash
 docker compose exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic nev.funding.rejets --from-beginning --max-messages 200 --timeout-ms 10000 2>&1 | grep '"source": "gcf"' | head -3
 ```
-Expected: at least one GCF-sourced rejected message (very likely — 205/350 real activities
+Expected: at least one GCF-sourced rejected message (very likely - 205/350 real activities
 touch no NEV-tracked country at all, per the spec's own verified numbers, and will hit
 `unknown_country`), with a `rejection_reason` field.
 
-- [ ] **Step 6: No commit** — this task only ran verification commands; nothing in the repo
+- [ ] **Step 6: No commit** - this task only ran verification commands; nothing in the repo
 changed.
 
 ---
@@ -995,7 +995,7 @@ changed.
 - Modify: `README.md`
 
 **Interfaces:**
-- Consumes: nothing. Produces: nothing consumed elsewhere — final task of this plan.
+- Consumes: nothing. Produces: nothing consumed elsewhere - final task of this plan.
 
 - [ ] **Step 1: Extend the "Pipeline (Volet B)" section**
 
@@ -1007,7 +1007,7 @@ existing "Lancer les tests du pipeline" part:
 
 Deuxième connecteur du Volet B : collecte mensuelle des financements du Fonds Vert pour le
 Climat, via l'API IATI Datastore (pas l'API/dashboard propre du GCF, injoignable au moment de
-la conception — voir la spec). Décisions de conception complètes :
+la conception - voir la spec). Décisions de conception complètes :
 [`docs/superpowers/specs/2026-08-28-b12-gcf-connector-design.md`](docs/superpowers/specs/2026-08-28-b12-gcf-connector-design.md).
 
 Nécessite `IATI_API_KEY` dans le `.env` racine (clé gratuite, inscription sur
@@ -1017,7 +1017,7 @@ Nécessite `IATI_API_KEY` dans le `.env` racine (clé gratuite, inscription sur
 docker compose exec airflow airflow dags trigger collecte_gcf
 ```
 
-Réutilise l'infrastructure et le topic `nev.funding.raw` déjà provisionnés par B1.1 — aucun
+Réutilise l'infrastructure et le topic `nev.funding.raw` déjà provisionnés par B1.1 - aucun
 nouveau service, aucun nouveau topic.
 ```
 
@@ -1028,7 +1028,7 @@ Append as the next numbered points in that section (after point 17, added by B1.
 ```markdown
 18. **Une requête Solr non guillemetée sur un identifiant contenant des tirets fait un matching flou, pas une correspondance exacte.** `reporting_org_ref:XM-DAC-41317` (sans guillemets) tokenize sur les tirets et retourne ~269 000 documents sans rapport, contre 350 avec `reporting_org_ref:"XM-DAC-41317"` (guillemets = expression exacte). Tout code interrogeant l'API IATI Datastore avec un identifiant contenant des tirets doit guillemeter sa valeur dans le paramètre `q=`.
 
-19. **Un champ "provider_org" d'une API ne garantit pas qu'il identifie le vrai payeur.** Sur l'API IATI Datastore, `transaction_provider_org_ref` vaut toujours l'identifiant du GCF sur *toutes* les transactions de type "Commitment" d'une activité GCF — y compris celles explicitement décrites comme "Co-financing commitment" (argent d'autres bailleurs, que GCF enregistre pour la transparence mais qui n'est pas son propre argent). Le seul signal fiable trouvé est un champ texte libre (`transaction_description_narrative`), pas un champ codé — voir `pipeline/collectors/gcf.py::_gcf_commitment_summary` et la décision 4 de la spec B1.2. Toujours vérifier qu'un champ apparemment codé («provider», «owner», «source») identifie vraiment ce que son nom suggère, sur des données réelles, avant de s'appuyer dessus pour un calcul financier.
+19. **Un champ "provider_org" d'une API ne garantit pas qu'il identifie le vrai payeur.** Sur l'API IATI Datastore, `transaction_provider_org_ref` vaut toujours l'identifiant du GCF sur *toutes* les transactions de type "Commitment" d'une activité GCF - y compris celles explicitement décrites comme "Co-financing commitment" (argent d'autres bailleurs, que GCF enregistre pour la transparence mais qui n'est pas son propre argent). Le seul signal fiable trouvé est un champ texte libre (`transaction_description_narrative`), pas un champ codé - voir `pipeline/collectors/gcf.py::_gcf_commitment_summary` et la décision 4 de la spec B1.2. Toujours vérifier qu'un champ apparemment codé («provider», «owner», «source») identifie vraiment ce que son nom suggère, sur des données réelles, avant de s'appuyer dessus pour un calcul financier.
 ```
 
 - [ ] **Step 3: Commit**
@@ -1042,8 +1042,8 @@ git commit -m "docs(b1.2): document the GCF connector"
 
 ## Final check before considering B1.2 done
 
-- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m "not live"` — all green (32 tests).
-- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/test_gcf_collector_live.py -v -m live` — green (real IATI API still matches assumptions).
-- [ ] `docker compose exec backend php bin/phpunit` (full existing suite) — still green, confirming the new `SourceFixtures.php` row caused no regression.
-- [ ] Two manual DAG triggers (Task 5) produced real `Funding` rows with `source = Green Climate Fund — IATI Datastore`, `funding_type = multilateral`, correct summing/historization on the second run, and World Bank rows verified to stay separate under the shared dedup key.
-- [ ] Cross-check against the plan spreadsheet: B1.2's "Livrable attendu" was *"DAG Airflow mensuel publiant vers le topic Kafka dédié"* — confirmed: `collecte_gcf` DAG exists, scheduled monthly, publishes to `nev.funding.raw`.
+- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m "not live"` - all green (32 tests).
+- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/test_gcf_collector_live.py -v -m live` - green (real IATI API still matches assumptions).
+- [ ] `docker compose exec backend php bin/phpunit` (full existing suite) - still green, confirming the new `SourceFixtures.php` row caused no regression.
+- [ ] Two manual DAG triggers (Task 5) produced real `Funding` rows with `source = Green Climate Fund - IATI Datastore`, `funding_type = multilateral`, correct summing/historization on the second run, and World Bank rows verified to stay separate under the shared dedup key.
+- [ ] Cross-check against the plan spreadsheet: B1.2's "Livrable attendu" was *"DAG Airflow mensuel publiant vers le topic Kafka dédié"* - confirmed: `collecte_gcf` DAG exists, scheduled monthly, publishes to `nev.funding.raw`.

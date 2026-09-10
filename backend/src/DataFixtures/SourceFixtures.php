@@ -13,7 +13,7 @@ use Doctrine\Persistence\ObjectManager;
 /**
  * One source per SourceType case (cahier des charges 6.2 connectors named
  * in the implementation plan: World Bank, GCF, PDF extractor), plus the
- * internal-demo source used by every Funding fixture record — never an
+ * internal-demo source used by every Funding fixture record - never an
  * invented enum value.
  *
  * Reference name for other fixtures: self::sourceReference($slug).
@@ -29,13 +29,13 @@ final class SourceFixtures extends Fixture
      */
     private const SOURCES = [
         ['World Bank Data API', 'world-bank-api', SourceType::OfficialApi, SourceReliability::High],
-        ['Green Climate Fund — Annual Report (PDF)', 'gcf-pdf-report', SourceType::PdfReport, SourceReliability::Medium],
-        ['Green Climate Fund — IATI Datastore', 'gcf-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
-        ['African Development Bank Group — IATI Datastore', 'afdb-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
-        ['UN SDG Global Database — Indicator 9.4.1 (IEA)', 'un-sdg-en-atm-co2', SourceType::OfficialApi, SourceReliability::High],
-        ['OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)', 'opec-fund-climate-finance-pdf', SourceType::PdfReport, SourceReliability::High],
+        ['Green Climate Fund - Annual Report (PDF)', 'gcf-pdf-report', SourceType::PdfReport, SourceReliability::Medium],
+        ['Green Climate Fund - IATI Datastore', 'gcf-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
+        ['African Development Bank Group - IATI Datastore', 'afdb-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
+        ['UN SDG Global Database - Indicator 9.4.1 (IEA)', 'un-sdg-en-atm-co2', SourceType::OfficialApi, SourceReliability::High],
+        ['OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)', 'opec-fund-climate-finance-pdf', SourceType::PdfReport, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
-        ['NEV Climate Data — Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
+        ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];
 
     public static function sourceReference(string $slug): string

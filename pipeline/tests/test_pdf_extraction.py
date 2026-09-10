@@ -153,7 +153,7 @@ def test_record_processed_inserts_a_new_cache_row():
     record_processed(
         mock_cursor,
         document_hash="abc123",
-        source_name="OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)",
+        source_name="OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)",
         source_url="https://example.org/report.pdf",
         minio_path="bronze/opec-fund-climate-finance/2026-08-29/abc123.pdf",
         rows_extracted=111,
@@ -165,7 +165,7 @@ def test_record_processed_inserts_a_new_cache_row():
     assert "ON CONFLICT (hash) DO NOTHING" in sql
     assert params == (
         "abc123",
-        "OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)",
+        "OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)",
         "https://example.org/report.pdf",
         "bronze/opec-fund-climate-finance/2026-08-29/abc123.pdf",
         111,

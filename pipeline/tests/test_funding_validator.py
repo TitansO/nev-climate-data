@@ -126,7 +126,7 @@ def test_gcf_message_inserts_a_new_funding_row_under_the_gcf_source(db_cursor):
     assert accepted is True
     assert reason is None
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'Green Climate Fund — IATI Datastore'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Green Climate Fund - IATI Datastore'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]
@@ -206,7 +206,7 @@ def test_afdb_message_inserts_a_new_funding_row_with_currency_provenance(db_curs
     assert accepted is True
     assert reason is None
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'African Development Bank Group — IATI Datastore'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'African Development Bank Group - IATI Datastore'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]
@@ -286,8 +286,8 @@ def test_all_three_sources_stay_separate_for_the_same_dedup_key(db_cursor):
           AND source_id IN (
               SELECT id FROM source WHERE name IN (
                   'World Bank Data API',
-                  'Green Climate Fund — IATI Datastore',
-                  'African Development Bank Group — IATI Datastore'
+                  'Green Climate Fund - IATI Datastore',
+                  'African Development Bank Group - IATI Datastore'
               )
           )
           AND amount IN (1000000.00, 2000000.00, 3000000.00)
@@ -325,7 +325,7 @@ def test_opec_adaptation_message_always_maps_to_the_adaptation_sector(db_cursor)
     assert accepted is True
     assert reason is None
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]
@@ -345,7 +345,7 @@ def test_opec_mitigation_message_uses_the_sector_mapping_table(db_cursor):
 
     assert accepted is True
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]
@@ -374,7 +374,7 @@ def test_opec_mitigation_message_energy_label_uses_the_project_name_keyword(db_c
     assert accepted is True
     assert reason is None
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]
@@ -490,7 +490,7 @@ def test_opec_adaptation_and_mitigation_from_the_same_row_are_tracked_as_separat
     process_message(db_cursor, adaptation)
     process_message(db_cursor, mitigation)
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]

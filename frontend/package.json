@@ -2,7 +2,7 @@
   "name": "nev-climate-data-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "NEV Climate Data — frontend React (migration A3.1/A3.2 terminée, les 13 pages sont migrées). Chaque page HTML reste sa propre URL (Vite en mode multi-page, build en place). Tailwind CSS v4 via @tailwindcss/vite.",
+  "description": "NEV Climate Data - frontend React (migration A3.1/A3.2 terminée, les 13 pages sont migrées). Chaque page HTML reste sa propre URL (Vite en mode multi-page, build en place). Tailwind CSS v4 via @tailwindcss/vite.",
   "scripts": {
     "dev": "vite",
     "build": "rm -rf assets/react && vite build"

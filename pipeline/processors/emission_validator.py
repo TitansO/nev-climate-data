@@ -20,7 +20,7 @@ from typing import Any
 from pipeline.common.db import get_connection
 from pipeline.common.kafka_client import make_consumer, make_producer
 
-PNUE_SOURCE_NAME = "UN SDG Global Database — Indicator 9.4.1 (IEA)"  # matches backend/src/DataFixtures/SourceFixtures.php
+PNUE_SOURCE_NAME = "UN SDG Global Database - Indicator 9.4.1 (IEA)"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_pnue_source(cursor) -> int:

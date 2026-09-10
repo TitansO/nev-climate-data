@@ -1,4 +1,4 @@
-# B3.4 & B3.5 — Contrôle qualité des données et idempotence des DAGs
+# B3.4 & B3.5 - Contrôle qualité des données et idempotence des DAGs
 
 Status: Approved
 Author: Serge (with Claude)
@@ -9,7 +9,7 @@ DAG », critère de recette 6.8)
 Environment: Codespace `Odjiguimde/nev-climate-data` (`turbo-journey`), stack complète,
 5 connecteurs Volet B exécutés avec de vraies données.
 
-## B3.4 — Comparaison valeurs affichées vs requêtes SQL de contrôle
+## B3.4 - Comparaison valeurs affichées vs requêtes SQL de contrôle
 
 Échantillon représentatif : les 5 agrégats exposés par `AnalyticsController`, comparés à une
 requête SQL directe équivalente, cache Redis vidé avant chaque comparaison.
@@ -23,7 +23,7 @@ requête SQL directe équivalente, cache Redis vidé avant chaque comparaison.
 | `GET /api/analytics/co2-reduction` | `reductionMt: -7.83` (2022→2023, 35 pays communs) | Requête manuelle sur `emission` (intersection des pays, delta) = -7.830 | ✅ Exact |
 
 **Un vrai écart trouvé et corrigé pendant ce contrôle** (pas dans le tableau ci-dessus, car il
-ne touchait aucun agrégat déjà exposé — trouvé en creusant `emission` avant le calcul CO2) :
+ne touchait aucun agrégat déjà exposé - trouvé en creusant `emission` avant le calcul CO2) :
 12 lignes `emission` (Soudan du Sud, années 2000 à 2011) portaient `value_mt = NaN` - l'API SDG
 des Nations Unies renvoie littéralement la chaîne `"NaN"` pour certaines combinaisons pays/année
 au lieu d'omettre la ligne, et `float("NaN")` réussit silencieusement en Python
@@ -42,7 +42,7 @@ le classificateur de permissions sur une commande `DELETE`).
 exactement à leur requête SQL de contrôle. Un vrai défaut latent trouvé et corrigé avant qu'il
 ne devienne visible.
 
-## B3.5 — Idempotence des DAGs (rejeu sans doublon ni perte)
+## B3.5 - Idempotence des DAGs (rejeu sans doublon ni perte)
 
 Les 5 DAGs (`collecte_worldbank`, `collecte_gcf`, `collecte_afdb`, `collecte_pnue`,
 `extraction_pdf`) redéclenchés manuellement sur un état déjà peuplé (chaque source avait déjà
@@ -51,10 +51,10 @@ tourné au moins une fois). Comparaison ligne à ligne avant/après.
 | Source | Lignes avant | Lignes après | Montant avant (USD) | Montant après (USD) | Verdict |
 |---|---|---|---|---|---|
 | World Bank Data API | 1 521 | 1 521 | 267 929 645 365 | 267 929 645 365 | ✅ Identique |
-| GCF — IATI Datastore | 319 | 319 | 6 863 912 411 | 6 863 912 411 | ✅ Identique |
-| AfDB — IATI Datastore | 1 117 | 1 117 | 41 992 190 013 | 41 968 345 537 | ✅ 0 doublon, delta réel (-23 844 476, ~0,00006%) |
-| OPEC Fund — PDF (Gemini) | 48 | 48 | 332 150 960 | 332 150 960 | ✅ Identique (cache SHA-256 : 0 message republié) |
-| `funding_project_contribution` (suivi par projet) | 4 127 | 4 127 | — | — | ✅ Identique |
+| GCF - IATI Datastore | 319 | 319 | 6 863 912 411 | 6 863 912 411 | ✅ Identique |
+| AfDB - IATI Datastore | 1 117 | 1 117 | 41 992 190 013 | 41 968 345 537 | ✅ 0 doublon, delta réel (-23 844 476, ~0,00006%) |
+| OPEC Fund - PDF (Gemini) | 48 | 48 | 332 150 960 | 332 150 960 | ✅ Identique (cache SHA-256 : 0 message republié) |
+| `funding_project_contribution` (suivi par projet) | 4 127 | 4 127 | - | - | ✅ Identique |
 | `emission` (validées, hors NaN) | 828 | 828 | 24 349,89 Mt | 24 349,89 Mt | ✅ Identique |
 
 **Aucun doublon, aucune perte sur les 5 DAGs.** Le seul écart observé (AfDB, -23 844 476 sur

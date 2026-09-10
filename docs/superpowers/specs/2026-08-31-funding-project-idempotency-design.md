@@ -1,4 +1,4 @@
-# Correction du double comptage Funding — idempotence par projet
+# Correction du double comptage Funding - idempotence par projet
 
 Status: Approved
 Author: Serge (with Claude)
@@ -35,7 +35,7 @@ bloque toute re-publication d'un document déjà traité (0 message publié sur 
 chemin qui cause le bug ailleurs ne peut jamais se déclencher pour lui - les 4 lignes historisées
 observées sont cohérentes avec un traitement normal, pas une corruption répétée.
 
-## Décision 1 — Table de suivi par projet, upsert en delta (pas un simple "déjà vu = ignorer")
+## Décision 1 - Table de suivi par projet, upsert en delta (pas un simple "déjà vu = ignorer")
 
 Nouvelle table `funding_project_contribution` : `id`, `source_id`, `project_id` (string),
 `country_id`, `sector_id`, `year`, `funding_type`, `amount`, `updated_at`. **Clé unique
@@ -77,7 +77,7 @@ et un delta de zéro ne déclenche aucune écriture (garde explicite ajoutée). 
 `opec_fund_pdf`) - `project_id` existe déjà dans chaque message de ces 4 connecteurs mais n'était
 utilisé par aucun code du validateur jusqu'ici.
 
-## Décision 2 — Nouvelle entité `FundingProjectContribution` (Doctrine + migration)
+## Décision 2 - Nouvelle entité `FundingProjectContribution` (Doctrine + migration)
 
 Même précédent que `ProcessedDocument` (B1.5) : une table purement interne au pipeline Python,
 créée via une entité Doctrine + migration parce qu'aucun autre outil de migration n'existe dans ce
@@ -85,7 +85,7 @@ projet, même si Symfony ne la lit ni ne l'écrit jamais. Colonnes : `id`, `sour
 (string), `countryId`, `sectorId`, `year`, `fundingType` (string), `amount` (decimal), `updatedAt`.
 Contrainte unique `(source_id, project_id, country_id)`.
 
-## Décision 3 — Correction des données déjà corrompues : vider et reconstruire, pas recalculer
+## Décision 3 - Correction des données déjà corrompues : vider et reconstruire, pas recalculer
 
 Aucune contribution par projet n'a jamais été suivie avant ce correctif - il est donc impossible
 de reconstruire algorithmiquement l'historique correct à partir des sommes déjà corrompues (on ne

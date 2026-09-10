@@ -19,14 +19,14 @@ use Symfony\Component\HttpKernel\KernelEvents;
  *
  * Added for A2.1 after confirming live (during A2 prep analysis) that a
  * request to an unknown `/api/*` route returns an HTML page even with
- * `Accept: application/json` — there was no JSON-forcing mechanism for
+ * `Accept: application/json` - there was no JSON-forcing mechanism for
  * generic framework exceptions anywhere in the project, only the two
  * dedicated authentication failure handlers produced JSON, and only for
  * authentication failures specifically.
  *
  * Priority -64: below Symfony Security's own exception listener (so a real
- * AuthenticationException/AccessDeniedException — already turned into JSON
- * by Lexik's entry point or the custom failure handlers — is left alone via
+ * AuthenticationException/AccessDeniedException - already turned into JSON
+ * by Lexik's entry point or the custom failure handlers - is left alone via
  * the `hasResponse()` guard below), but above FrameworkBundle's default
  * ErrorListener (priority -128), so this claims the response before the
  * default HTML renderer runs.

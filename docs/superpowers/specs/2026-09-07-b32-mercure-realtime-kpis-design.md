@@ -1,4 +1,4 @@
-# B3.2 — Diffusion des KPIs réels via Mercure
+# B3.2 - Diffusion des KPIs réels via Mercure
 
 Status: Approved
 Author: Serge (with Claude)
@@ -40,7 +40,7 @@ l'occasion naturelle de le combler : sans ce rebranchement, il manquerait un des
 analytiques prévus par la règle 5.2.e (tendances de financement, répartition sectorielle,
 réduction CO2) au flux temps réel.
 
-## Décision 1 — Définition du chiffre "réduction CO2"
+## Décision 1 - Définition du chiffre "réduction CO2"
 
 `Emission.valueMt` est un **niveau** d'émission par pays/année (megatonnes), jamais une baisse
 attribuée à un financement précis - rien dans le schéma ne relie une variation d'émissions à une
@@ -65,7 +65,7 @@ comparaison). Écartée par décision explicite - la variation d'une année sur 
 demandé par le plan ("réduction CO2"), et rester honnête sur le signe (y compris négatif) est
 préférable à changer le sens de la métrique.
 
-## Décision 2 — `EmissionRepository` + `AnalyticsService::getCo2Reduction()`
+## Décision 2 - `EmissionRepository` + `AnalyticsService::getCo2Reduction()`
 
 Même filtre `isCurrent = true` que B1.7 a imposé pour `Funding` (précédent direct, même
 raisonnement : une ligne historisée ne doit jamais entrer dans un agrégat de lecture).
@@ -84,7 +84,7 @@ agrégats.
 Cache Redis 15 minutes conservé à l'identique (`CACHE_KEY_CO2_REDUCTION`, même TTL que les 2 autres
 agrégats analytics) - aucun changement d'infrastructure de cache.
 
-## Décision 3 — Nouvelle forme de réponse (jamais un changement cassant en pratique)
+## Décision 3 - Nouvelle forme de réponse (jamais un changement cassant en pratique)
 
 Forme actuelle documentée en Swagger : `{available: bool, data: null, reason: string|null}` - mais
 `data` n'a **jamais** été autre chose que `null` depuis la création de cet endpoint (A2.5). Il n'y
@@ -108,7 +108,7 @@ a donc aucun consommateur réel d'un `data` non-null à préserver. Nouvelle for
 (attributs `#[OA\...]`) et le fichier OpenAPI généré sont mis à jour en même temps que le code, pas
 après coup - même rigueur que A3.9.
 
-## Décision 4 — Frontend : tuile CO2 réelle + badge "Direct" Mercure
+## Décision 4 - Frontend : tuile CO2 réelle + badge "Direct" Mercure
 
 `VisualizationsPage.jsx`'s `useCo2Reduction()` (actuellement `setValue(String(body.data))`, qui
 produirait `"[object Object]"` avec la nouvelle forme) est réécrit pour lire
@@ -155,7 +155,7 @@ le même badge à la tuile CO2 quand cette valeur est présente.
 
 ## Documentation
 
-`README.md` gagne une nouvelle section "B3.2 — Diffusion des KPIs réels via Mercure" (état
+`README.md` gagne une nouvelle section "B3.2 - Diffusion des KPIs réels via Mercure" (état
 d'avancement Phase B3) documentant : le rebranchement CO2 réel, la vérification du flux financement
 déjà réel, et l'exclusion explicite de GreenAccess (même format que les sections B1.x/B3.1
 existantes).

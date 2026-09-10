@@ -16,7 +16,7 @@ use Symfony\Component\Security\Http\Authentication\AuthenticationFailureHandlerI
  * Wraps Lexik's JWT failure handler to return 429 for throttled login
  * attempts. Lexik maps a failure to a status code via the exception's
  * getCode(), but TooManyLoginAttemptsAuthenticationException never sets one
- * (defaults to 0), so without this it falls back to the generic 401 —
+ * (defaults to 0), so without this it falls back to the generic 401 -
  * indistinguishable from a wrong password.
  *
  * Injects the concrete Lexik handler directly rather than decorating

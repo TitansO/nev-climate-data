@@ -29,7 +29,7 @@ use Symfony\Contracts\Cache\CacheInterface;
  *
  * One Funding row per (country, sector, year, fundingType) group, each
  * already holding the summed amount, not one row per underlying
- * contribution — the B1.1 dedup constraint (unique per
+ * contribution - the B1.1 dedup constraint (unique per
  * source/country/sector/year/fundingType among current rows, see
  * Funding::class) means duplicates land as a single summed row, matching
  * how the real World Bank connector's upsert will behave in production.

@@ -96,7 +96,7 @@ build_and_push_image:
   services:
     - docker:27-dind
   # Ce needs suppose que le job phpunit n'a pas de "rules" qui l'exclurait
-  # d'un pipeline donné (il tourne sur toute branche, sans condition) — s'il
+  # d'un pipeline donné (il tourne sur toute branche, sans condition) - s'il
   # en gagne une un jour, needs doit être revu en même temps, sinon la
   # création du pipeline échoue sur les branches où phpunit est exclu.
   needs: ["phpunit"]

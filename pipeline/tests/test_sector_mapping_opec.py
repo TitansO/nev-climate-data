@@ -63,4 +63,4 @@ def test_generic_multisector_label_is_unclassifiable():
 def test_compound_forestry_label_is_unclassifiable():
     # Real row: "Multisector (energy-cooking fuel & solutions; forestry)" -
     # too ambiguous/compound to map without guessing.
-    assert map_opec_sector("Multisector (energy–cooking fuel & solutions; forestry)", "National Clean Cooking Transition Program") is None
+    assert map_opec_sector("Multisector (energy-cooking fuel & solutions; forestry)", "National Clean Cooking Transition Program") is None

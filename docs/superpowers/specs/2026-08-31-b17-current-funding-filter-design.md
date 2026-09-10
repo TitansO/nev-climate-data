@@ -1,4 +1,4 @@
-# B1.7 — Filtrer isCurrent côté lecture (le pendant "historisation" de la règle 6.4)
+# B1.7 - Filtrer isCurrent côté lecture (le pendant "historisation" de la règle 6.4)
 
 Status: Approved
 Author: Serge (with Claude)
@@ -9,7 +9,7 @@ Architecture reference: `docs/superpowers/specs/2026-08-26-volet-b-pipeline-arch
 (décision 8, historisation), `backend/src/Repository/FundingRepository.php`,
 `backend/src/Service/AnalyticsService.php`
 
-## Contexte — pourquoi ce n'est pas la tâche initialement prévue
+## Contexte - pourquoi ce n'est pas la tâche initialement prévue
 
 Le roadmap B1.7 ("Gestion des conflits entre sources et historisation") demandait de valider que
 le mécanisme d'historisation (`isCurrent`/`validFrom`/`validTo`) fonctionne avec de vraies données
@@ -43,7 +43,7 @@ branché sur l'Analytics (B1.4, scope collecte uniquement).
 lecture, pas juste une note de validation - l'historisation écrite n'a de valeur que si les
 consommateurs la respectent.
 
-## Décision 1 — Filtrer `isCurrent = true` à la source, une fois par requête
+## Décision 1 - Filtrer `isCurrent = true` à la source, une fois par requête
 
 Chaque méthode de `FundingRepository` qui lit des lignes `Funding` doit exclure les versions
 historisées :
@@ -66,7 +66,7 @@ l'historique via l'API - aucune UI ne le demande) : le filtre est **toujours act
 optionnel. Si un futur besoin réel de consulter l'historique apparaît, ce sera une décision
 séparée et explicite, pas un opt-out de celle-ci.
 
-## Décision 2 — Pas de migration, pas de changement de contrat API
+## Décision 2 - Pas de migration, pas de changement de contrat API
 
 Aucun changement de schéma (la colonne `isCurrent` existe depuis A1.3). Aucun changement de forme
 de réponse API - `isCurrent` reste un champ interne jamais exposé (déjà vérifié par

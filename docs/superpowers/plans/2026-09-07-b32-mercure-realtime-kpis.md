@@ -1,4 +1,4 @@
-# B3.2 — Diffusion des KPIs réels via Mercure - Implementation Plan
+# B3.2 - Diffusion des KPIs réels via Mercure - Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -707,7 +707,7 @@ des données (calcul à refaire à la main sur l'intersection des pays pour conf
 
 - [ ] **Step 4: Nouvelle section README**
 
-Ajouter une sous-section "B3.2 — Diffusion des KPIs réels via Mercure" (près de la section
+Ajouter une sous-section "B3.2 - Diffusion des KPIs réels via Mercure" (près de la section
 Pipeline/Volet B existante), documentant : le rebranchement CO2 réel (définition retenue, exemple
 de valeur réelle constatée), la confirmation que le flux financement était déjà réel, et
 l'exclusion explicite de GreenAccess. Mettre à jour le tableau "État d'avancement" (ligne B3.2 :

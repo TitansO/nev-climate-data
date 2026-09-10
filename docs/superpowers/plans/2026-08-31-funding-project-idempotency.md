@@ -687,7 +687,7 @@ def test_opec_adaptation_and_mitigation_from_the_same_row_are_tracked_as_separat
     process_message(db_cursor, adaptation)
     process_message(db_cursor, mitigation)
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]
@@ -755,7 +755,7 @@ Run:
 docker compose exec database psql -U nev_admin -d nev_climate_data -c "
 SELECT s.name, count(*) FILTER (WHERE f.is_current = false) AS historized, count(*) AS total
 FROM funding f JOIN source s ON s.id = f.source_id
-WHERE s.name IN ('World Bank Data API', 'Green Climate Fund — IATI Datastore', 'African Development Bank Group — IATI Datastore')
+WHERE s.name IN ('World Bank Data API', 'Green Climate Fund - IATI Datastore', 'African Development Bank Group - IATI Datastore')
 GROUP BY s.name;
 "
 docker compose exec database psql -U nev_admin -d nev_climate_data -c "
@@ -777,14 +777,14 @@ docker compose exec database psql -U nev_admin -d nev_climate_data -c "
 DELETE FROM funding WHERE source_id IN (
   SELECT id FROM source WHERE name IN (
     'World Bank Data API',
-    'Green Climate Fund — IATI Datastore',
-    'African Development Bank Group — IATI Datastore'
+    'Green Climate Fund - IATI Datastore',
+    'African Development Bank Group - IATI Datastore'
   )
 );
 "
 ```
 
-Ne touche pas à `OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)` (non corrompu, cache
+Ne touche pas à `OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)` (non corrompu, cache
 protégé), ni aux sources de démonstration Volet A (fixtures).
 
 - [ ] **Step 3: Redéclencher chacun des 3 DAGs une seule fois**
@@ -816,7 +816,7 @@ Run:
 docker compose exec database psql -U nev_admin -d nev_climate_data -c "
 SELECT s.name, count(*) FILTER (WHERE f.is_current = false) AS historized, count(*) AS total
 FROM funding f JOIN source s ON s.id = f.source_id
-WHERE s.name IN ('World Bank Data API', 'Green Climate Fund — IATI Datastore', 'African Development Bank Group — IATI Datastore')
+WHERE s.name IN ('World Bank Data API', 'Green Climate Fund - IATI Datastore', 'African Development Bank Group - IATI Datastore')
 GROUP BY s.name;
 "
 ```

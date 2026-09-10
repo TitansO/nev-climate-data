@@ -1,23 +1,23 @@
-# A1.8 — Recette Phase A1 (Auth → API → Base de données)
+# A1.8 - Recette Phase A1 (Auth → API → Base de données)
 
-Status: Validé — Phase A1 recettée
+Status: Validé - Phase A1 recettée
 Author: Serge (with Claude)
 Date: 2026-08-25 / 2026-08-26
-Plan reference: A1.8 (Phase A1 — Fondations), `Plan_Implementation_NEV_Climate_Data.xlsx`
-Spec reference: `Cahier_des_charges_NEV_Climate_Data_v2.docx`, section 10 (Gouvernance de projet — jalons de validation obligatoires)
+Plan reference: A1.8 (Phase A1 - Fondations), `Plan_Implementation_NEV_Climate_Data.xlsx`
+Spec reference: `Cahier_des_charges_NEV_Climate_Data_v2.docx`, section 10 (Gouvernance de projet - jalons de validation obligatoires)
 
 ## Goal
 
 Produce a signed acceptance report validating that everything actually built in Phase A1
-(A1.1–A1.7) works end-to-end, before Phase A2 begins. Matches the plan's A1.8 livrable:
+(A1.1-A1.7) works end-to-end, before Phase A2 begins. Matches the plan's A1.8 livrable:
 *"Rapport de recette Phase A1 signé."*
 
 ## Scope (agreed with Serge before writing this checklist)
 
-Bounded strictly to what A1.1–A1.7 delivered: infrastructure, API skeleton, pipeline-ready
+Bounded strictly to what A1.1-A1.7 delivered: infrastructure, API skeleton, pipeline-ready
 schema, demo fixtures, JWT authentication, API key management, CI/CD pipeline. The broader
 "Volet A" recette criteria in cahier des charges section 5.10 (export, filters, dashboards,
-mobile UI, production HTTPS) are **explicitly out of scope** here — those features don't
+mobile UI, production HTTPS) are **explicitly out of scope** here - those features don't
 exist yet (Phase A2/A3). This document is the Phase A1 gate only, matching the plan's own
 per-phase recette structure (section 10: *"chaque phase (A1, A2, A3, puis B1, B2, B3) fait
 l'objet d'une recette formelle avant passage à la phase suivante"*).
@@ -25,12 +25,12 @@ l'objet d'une recette formelle avant passage à la phase suivante"*).
 ## Method
 
 Each row below is executed directly (Docker/PHP/curl commands run in this session; GitLab
-pipeline status confirmed by Serge, same constraint as A1.7 — no API token available).
+pipeline status confirmed by Serge, same constraint as A1.7 - no API token available).
 
 Order matters: fixtures are loaded early (Auth/API-key checks reuse the demo users it
 creates, rather than inventing throwaway data).
 
-## Finding — blocking bug discovered and fixed during this recette
+## Finding - blocking bug discovered and fixed during this recette
 
 **`docker/backend/vhost.conf` did not forward the `Authorization` HTTP header to PHP.**
 Apache strips this header from the PHP environment by default (a long-standing Apache
@@ -40,13 +40,13 @@ security default); without an explicit `CGIPassAuth On`, every JWT bearer-token 
 
 **Why the automated test suite (65 tests) never caught this:** `AuthenticationControllerTest`
 and `ApiKeyControllerTest` use Symfony's `WebTestCase`/`KernelBrowser`, which calls the
-Symfony kernel directly, in-process — it never goes through Apache. The bug was invisible to
+Symfony kernel directly, in-process - it never goes through Apache. The bug was invisible to
 every automated test while being 100% blocking for real HTTP usage. This is precisely the
 class of gap a recette against the actually-running system (not just the test suite) exists
 to catch.
 
 **Fix applied:** added `CGIPassAuth On` inside the `<Directory /var/www/html/public>` block
-of `docker/backend/vhost.conf` (the directive is invalid directly inside `<VirtualHost>` —
+of `docker/backend/vhost.conf` (the directive is invalid directly inside `<VirtualHost>` -
 first attempt failed Apache's config syntax check, corrected before the second rebuild).
 Verified: full Section 5 and Section 6 checklists below were re-run after the fix, all pass.
 The full PHPUnit suite (65/65) was re-run after the fix too, confirming no regression.
@@ -81,7 +81,7 @@ exactly the kind of gotcha that section exists to prevent from resurfacing.
 | Critère | Commande | Résultat obtenu | Statut |
 |---|---|---|---|
 | Les fixtures se chargent sans erreur | `doctrine:fixtures:load --no-interaction` | 8 fixtures chargées (purge + reload), aucune erreur | ✅ |
-| Les volumes correspondent au README (54 pays, 5 secteurs, 1080 financements, 3 utilisateurs, 2 clés API, 4 sources, 6 rapports, 7 notifications) | requête SQL de comptage via `dbal:run-sql` | countries=54, sectors=5, funding=1080, users=3, api_keys=2, reports=6, notifications=7, sources=4 — correspondance exacte | ✅ |
+| Les volumes correspondent au README (54 pays, 5 secteurs, 1080 financements, 3 utilisateurs, 2 clés API, 4 sources, 6 rapports, 7 notifications) | requête SQL de comptage via `dbal:run-sql` | countries=54, sectors=5, funding=1080, users=3, api_keys=2, reports=6, notifications=7, sources=4 - correspondance exacte | ✅ |
 
 ### 5. Authentification (A1.4)
 
@@ -90,7 +90,7 @@ exactly the kind of gotcha that section exists to prevent from resurfacing.
 | Login avec identifiants valides → token + refresh_token | `curl -X POST /api/auth/login` (admin de démo) | HTTP 200, token JWT + refresh_token présents, claims `ROLE_ADMIN`/`ROLE_USER` corrects | ✅ |
 | Login avec mauvais mot de passe → 401 | idem, mauvais mot de passe | HTTP 401 | ✅ |
 | `/api/auth/me` sans token → 401 | `curl /api/auth/me` sans en-tête | HTTP 401 | ✅ |
-| `/api/auth/me` avec token → 200, rôle correct | `curl /api/auth/me` avec `Authorization: Bearer` | HTTP 200, `{"email":"admin@nev-climate-data.demo","role":"admin"}` — **échoué avant le correctif Apache (401 "JWT Token not found"), passe après** | ✅ (après correctif) |
+| `/api/auth/me` avec token → 200, rôle correct | `curl /api/auth/me` avec `Authorization: Bearer` | HTTP 200, `{"email":"admin@nev-climate-data.demo","role":"admin"}` - **échoué avant le correctif Apache (401 "JWT Token not found"), passe après** | ✅ (après correctif) |
 | Refresh token → nouvelle paire | `curl -X POST /api/auth/refresh` | HTTP 200, nouvelle paire token/refresh_token | ✅ |
 | Logout → refresh token révoqué | `curl -X POST /api/auth/logout` puis re-tentative de refresh | Logout HTTP 204 ; refresh suivant avec l'ancien refresh_token → HTTP 401 (bien révoqué) | ✅ |
 | Anti-brute-force (6ᵉ échec → 429) | `phpunit --filter testSixthFailedLoginAttemptIsThrottled` | 1 test, 6 assertions, OK | ✅ |
@@ -108,14 +108,14 @@ exactly the kind of gotcha that section exists to prevent from resurfacing.
 
 | Critère | Commande | Résultat obtenu | Statut |
 |---|---|---|---|
-| Le pipeline du dernier commit sur `developp` est vert | vérification GitLab par Serge | Pipeline `#2790929229` pour le commit `24feeb8` (correctif Apache inclus) — `phpunit` et `build_and_push_image` tous deux Passed | ✅ |
+| Le pipeline du dernier commit sur `developp` est vert | vérification GitLab par Serge | Pipeline `#2790929229` pour le commit `24feeb8` (correctif Apache inclus) - `phpunit` et `build_and_push_image` tous deux Passed | ✅ |
 
 ### 8. Régression globale
 
 | Critère | Commande | Résultat obtenu | Statut |
 |---|---|---|---|
 | Suite PHPUnit complète au vert (avant correctif Apache) | `phpunit` (env test) | 65 tests, 187 assertions, OK | ✅ |
-| Suite PHPUnit complète au vert (après correctif Apache, non-régression) | `phpunit` (env test) | 65 tests, 187 assertions, OK — identique, aucune régression | ✅ |
+| Suite PHPUnit complète au vert (après correctif Apache, non-régression) | `phpunit` (env test) | 65 tests, 187 assertions, OK - identique, aucune régression | ✅ |
 
 ## Signature
 
@@ -125,4 +125,4 @@ gouvernance du cahier des charges (section 10).
 
 - Signataire : Serge KOBI (Product Owner)
 - Date : 2026-08-26
-- Décision : **Validé** — toutes les catégories (1 à 8) sont vertes. Un bug bloquant a été trouvé pendant l'exécution (Apache ne transmettait pas l'en-tête `Authorization`, voir « Finding » ci-dessus), corrigé, et la non-régression a été vérifiée (suite PHPUnit 65/65 avant et après, sections 5-6 re-testées, pipeline CI/CD vert sur le commit du correctif). La Phase A1 (A1.1 à A1.8) est formellement recettée. La Phase A2 peut démarrer.
+- Décision : **Validé** - toutes les catégories (1 à 8) sont vertes. Un bug bloquant a été trouvé pendant l'exécution (Apache ne transmettait pas l'en-tête `Authorization`, voir « Finding » ci-dessus), corrigé, et la non-régression a été vérifiée (suite PHPUnit 65/65 avant et après, sections 5-6 re-testées, pipeline CI/CD vert sur le commit du correctif). La Phase A1 (A1.1 à A1.8) est formellement recettée. La Phase A2 peut démarrer.

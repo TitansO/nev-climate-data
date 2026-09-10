@@ -12,7 +12,7 @@ import pytest
 
 from pipeline.processors.emission_validator import process_message
 
-PNUE_SOURCE_NAME = "UN SDG Global Database — Indicator 9.4.1 (IEA)"
+PNUE_SOURCE_NAME = "UN SDG Global Database - Indicator 9.4.1 (IEA)"
 
 
 @pytest.fixture()

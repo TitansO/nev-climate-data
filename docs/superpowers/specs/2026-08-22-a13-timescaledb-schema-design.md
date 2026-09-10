@@ -1,9 +1,9 @@
-# A1.3 — TimescaleDB deployment & pipeline-ready schema
+# A1.3 - TimescaleDB deployment & pipeline-ready schema
 
 Status: Approved
 Author: Serge (with Claude)
 Date: 2026-08-22
-Plan reference: A1.3 (Phase A1 — Fondations), `Plan_Implementation_NEV_Climate_Data.xlsx`
+Plan reference: A1.3 (Phase A1 - Fondations), `Plan_Implementation_NEV_Climate_Data.xlsx`
 Spec reference: `Cahier_des_charges_NEV_Climate_Data_v2.docx`, sections 5.2, 5.3, 5.5, 6.4
 
 ## Goal
@@ -20,12 +20,12 @@ Volet A's own application logic will not exercise all of them yet.
 
 ## Non-goals (out of scope for A1.3)
 
-- Seed/fixture data — that's A1.6.
-- Actual historization logic (insert-new-version-on-update) — Volet B's responsibility; A1.3
+- Seed/fixture data - that's A1.6.
+- Actual historization logic (insert-new-version-on-update) - Volet B's responsibility; A1.3
   only adds the columns.
-- Currency conversion logic — Volet B's responsibility; A1.3 only adds the columns.
-- Authentication/JWT wiring — A1.4.
-- API endpoints — A2.x.
+- Currency conversion logic - Volet B's responsibility; A1.3 only adds the columns.
+- Authentication/JWT wiring - A1.4.
+- API endpoints - A2.x.
 
 ## Decisions made during brainstorming
 
@@ -39,7 +39,7 @@ Volet A's own application logic will not exercise all of them yet.
 3. **Historization: columns ready, logic simple.** `Funding` gets `validFrom` (nullable),
    `validTo` (nullable), `isCurrent` (bool, default `true`) now. Volet A's application code
    keeps doing plain `UPDATE`s (these columns stay unused in practice). Volet B will change
-   only the write *logic* (insert new versioned rows) — not the schema — when it lands.
+   only the write *logic* (insert new versioned rows) - not the schema - when it lands.
 4. **Enums vs. reference tables.** Fixed, low-cardinality, stable value sets use native PHP
    8.4 backed enums mapped through Doctrine (`FundingType`, `UserRole`, `ValidationStatus`,
    `ReportStatus`, `ApiKeyStatus`, `SourceType`, `SourceReliability`, `NotificationType`).
@@ -49,13 +49,13 @@ Volet A's own application logic will not exercise all of them yet.
    pivot currency. `originalAmount`, `originalCurrency`, `exchangeRate` are added now as
    nullable columns, per cahier des charges section 6.4, and stay unpopulated until Volet B.
    **Pivot currency default: USD** (a naming/documentation convention at this stage, not a
-   technical constraint — trivially revisited with the client later).
+   technical constraint - trivially revisited with the client later).
 6. **`User.role` has no "Visitor" case.** The cahier des charges' "Visiteur non authentifié"
    is the absence of an account, not a stored role. `UserRole` has three cases: `Admin`,
    `InternalAnalyst`, `ExternalPartner`.
-7. **`Report.type` is a free-text string**, not an enum — the cahier des charges does not fix
+7. **`Report.type` is a free-text string**, not an enum - the cahier des charges does not fix
    a list of report types, and the user confirmed no predefined list exists yet.
-8. **`Report.country` is a nullable FK**, plus a separate nullable `region` string — the
+8. **`Report.country` is a nullable FK**, plus a separate nullable `region` string - the
    cahier des charges says "pays/région" for reports, which does not always map to a single
    `Country` row.
 9. **Migrations: two, one per dependency layer** (see Architecture below), not one migration
@@ -108,10 +108,10 @@ PostgreSQL), matching the note Oumar already left in the compose file and README
 | name | string | |
 | email | string, unique | |
 | passwordHash | string | bcrypt/argon2, per cahier des charges 5.2.a |
-| role | enum `UserRole` | Admin / InternalAnalyst / ExternalPartner (no "Visitor" case — see decision 6) |
+| role | enum `UserRole` | Admin / InternalAnalyst / ExternalPartner (no "Visitor" case - see decision 6) |
 | createdAt | datetime | |
 
-### Funding (layer 2) — "Jeu de données / Financement"
+### Funding (layer 2) - "Jeu de données / Financement"
 | Field | Type | Notes |
 |---|---|---|
 | id | int, PK, autoincrement | |

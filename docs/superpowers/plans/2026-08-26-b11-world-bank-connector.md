@@ -15,10 +15,10 @@
 - Topic names: `nev.funding.raw`, `nev.funding.valides`, `nev.funding.rejets` (architecture spec decision 4).
 - `fundingType` is always `Multilateral` for this connector (B1.1 spec decision 2).
 - Sector mapping is the ordered keyword table in the B1.1 spec (decision 4); no match, or no sector data at all, means quarantine to `nev.funding.rejets`, never a guessed sector (decision 5).
-- Records landing on the same dedup key (`source_id, country_id, sector_id, year, funding_type`) are summed, not overwritten, with the prior version historized (`valid_to`/`is_current`) — B1.1 spec decision 6.
+- Records landing on the same dedup key (`source_id, country_id, sector_id, year, funding_type`) are summed, not overwritten, with the prior version historized (`valid_to`/`is_current`) - B1.1 spec decision 6.
 - `year` = calendar year of `boardapprovaldate`; `collectionDate`/`collected_at` = when the DAG actually ran (B1.1 spec decision 7).
 - Schedule: quarterly (B1.1 spec decision 8; cahier des charges 6.4).
-- No Mercure is added (architecture spec decision 10) — out of scope here.
+- No Mercure is added (architecture spec decision 10) - out of scope here.
 - Repo root for all paths below: `nev-climate-data/`. All `docker compose` commands run from that root.
 
 ---
@@ -35,7 +35,7 @@
 - [ ] **Step 1: Add the new services to `docker-compose.yml`**
 
 Add these services alongside the existing `backend`/`database`/`redis` (note: `redis` already
-exists from Phase A2 — if the `redis` service block is already present, do not duplicate it;
+exists from Phase A2 - if the `redis` service block is already present, do not duplicate it;
 only add `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`):
 
 ```yaml
@@ -131,7 +131,7 @@ only add `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`):
 ```
 
 `kafka-ui` is a read-only visual browser for Kafka (topics, partitions, live message
-content) — not part of the pipeline's own architecture (nothing in the architecture or B1.1
+content) - not part of the pipeline's own architecture (nothing in the architecture or B1.1
 spec references it), added purely so Serge can see what's flowing through Kafka in a browser
 instead of only via CLI, per his explicit request when this plan was reviewed. Port `8083`
 (not `8080`, taken by `backend`, nor `8081`, taken by `airflow`).
@@ -151,7 +151,7 @@ container; only the host-side mapping changes.
 - [ ] **Step 2: Add MinIO credentials to `.env.example`**
 
 ```
-# --- MinIO (Volet B — Bronze/Silver/Gold data lake) -----------------------
+# --- MinIO (Volet B - Bronze/Silver/Gold data lake) -----------------------
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=change_me_use_a_strong_password
 ```
@@ -177,7 +177,7 @@ Expected: `zookeeper`, `kafka`, `postgres-airflow`, `airflow`, `minio`, `kafka-u
 ```bash
 docker compose logs airflow | grep -i "Login with username"
 ```
-Expected: a line showing the auto-generated admin username/password — note it down, you will
+Expected: a line showing the auto-generated admin username/password - note it down, you will
 need it to open `http://localhost:8081` in Task 9.
 
 ```bash
@@ -192,7 +192,7 @@ docker compose exec minio mc --version
 loads with the credentials from `.env`.)
 
 Open `http://localhost:8083` in a browser. Expected: the Kafka UI dashboard loads and shows
-the `nev-climate-data` cluster as online (0 topics at this point — Task 2 creates the first
+the `nev-climate-data` cluster as online (0 topics at this point - Task 2 creates the first
 ones).
 
 - [ ] **Step 4: Commit**
@@ -207,7 +207,7 @@ git commit -m "feat(b1.1): provision shared Volet B infrastructure (Kafka, Airfl
 ## Task 2: Create the Kafka topics
 
 **Files:**
-- None (operational step against the running Kafka broker — no file changes).
+- None (operational step against the running Kafka broker - no file changes).
 
 **Interfaces:**
 - Consumes: the `kafka` service from Task 1.
@@ -233,7 +233,7 @@ docker compose exec kafka kafka-topics --bootstrap-server localhost:9092 --list
 ```
 Expected: all three topic names appear in the output.
 
-No commit for this task — nothing in the repo changed, only broker state (which is not
+No commit for this task - nothing in the repo changed, only broker state (which is not
 persisted across a full `docker compose down -v`, so this step would need re-running after a
 volume wipe; that's expected and cheap to redo).
 
@@ -247,7 +247,7 @@ volume wipe; that's expected and cheap to redo).
 - Create: `backend/migrations/VersionXXXXXXXXXXXXXX.php` (timestamp auto-generated)
 
 **Interfaces:**
-- Produces: a unique constraint on `funding(source_id, country_id, sector_id, year, funding_type)`, relied on by Task 7's `INSERT ... ON CONFLICT` upsert logic, and a unique constraint on `source.name`, relied on by Task 7's `ensure_world_bank_source`'s `ON CONFLICT (name) DO NOTHING` — without either, Postgres has no conflict target to upsert against, and `ON CONFLICT` errors at runtime with "no unique or exclusion constraint matching the ON CONFLICT specification".
+- Produces: a unique constraint on `funding(source_id, country_id, sector_id, year, funding_type)`, relied on by Task 7's `INSERT ... ON CONFLICT` upsert logic, and a unique constraint on `source.name`, relied on by Task 7's `ensure_world_bank_source`'s `ON CONFLICT (name) DO NOTHING` - without either, Postgres has no conflict target to upsert against, and `ON CONFLICT` errors at runtime with "no unique or exclusion constraint matching the ON CONFLICT specification".
 
 - [ ] **Step 1: Add both constraints to the entity mappings**
 
@@ -282,7 +282,7 @@ attribute:
 **Correction found while executing this step (real bug, not a hypothetical): the
 `#[ORM\UniqueConstraint]` must NOT be a flat constraint on those 5 columns.** `Funding` already
 carries historization columns from A1.3 (`isCurrent`/`validFrom`/`validTo`), and B1.1 spec
-decision 6 explicitly historizes on every accumulation — meaning multiple rows legitimately
+decision 6 explicitly historizes on every accumulation - meaning multiple rows legitimately
 share the same `(source_id, country_id, sector_id, year, funding_type)` tuple over time, one
 per version, with `is_current = true` on at most one of them. A flat constraint across every
 row (current and historized alike) rejects the second version the moment it's inserted, and
@@ -303,7 +303,7 @@ Doctrine's `options: ['where' => ...]` on the same attribute:
 (Doctrine ORM 3.6+; confirmed via reflection that `UniqueConstraint` accepts `options`, and
 DBAL's PostgreSQL platform renders `options['where']` as the index's `WHERE` clause.) Task 7's
 `ON CONFLICT` target must match: `ON CONFLICT (source_id, country_id, sector_id, year,
-funding_type) WHERE is_current = true DO UPDATE ...` — Postgres supports inferring a conflict
+funding_type) WHERE is_current = true DO UPDATE ...` - Postgres supports inferring a conflict
 target from a partial unique index this way.
 
 Run: `docker compose exec backend php bin/console doctrine:migrations:diff --no-interaction`
@@ -311,8 +311,8 @@ Run: `docker compose exec backend php bin/console doctrine:migrations:diff --no-
 Expected: a single new migration whose `up()` contains
 `CREATE UNIQUE INDEX uniq_funding_dedup_key_current ON funding (source_id, country_id,
 sector_id, year, funding_type) WHERE is_current = true` **and**
-`CREATE UNIQUE INDEX ... ON source (name)` — nothing else. If the `source` constraint fails to
-apply because two existing rows already share a name (check the A1.6 fixtures —
+`CREATE UNIQUE INDEX ... ON source (name)` - nothing else. If the `source` constraint fails to
+apply because two existing rows already share a name (check the A1.6 fixtures -
 `SourceFixtures.php` creates one row per `SourceType` case, which should already be distinct by
 construction, but verify rather than assume), that's a real pre-existing data issue to resolve,
 not to migrate around. As with every migration generated in this project, check `down()` for
@@ -322,7 +322,7 @@ and remove them if present (see
 
 If the migration fails to apply because existing demo fixture data already violates the new
 constraint (two *current* `Funding` rows sharing a key), that is a real pre-existing data issue
-to investigate — do not silently delete rows to force the migration through; report it before
+to investigate - do not silently delete rows to force the migration through; report it before
 proceeding.
 
 **Also**, if this repo's `developp` branch has migrations from other in-flight work (e.g. a
@@ -340,7 +340,7 @@ docker compose exec backend php bin/console doctrine:migrations:migrate --no-int
 docker compose exec backend php bin/console doctrine:schema:validate
 ```
 Expected: **`[OK] The mapping files are correct.`, but `[ERROR] The database schema is not in
-sync` on the `Database` line is expected and permanent** — confirmed via
+sync` on the `Database` line is expected and permanent** - confirmed via
 `doctrine:schema:update --dump-sql` that the only proposed change is `DROP INDEX
 uniq_funding_dedup_key_current; CREATE UNIQUE INDEX ... WHERE is_current = true;`, i.e. Doctrine
 proposing to replace the partial index with an identical copy of itself. This is a known
@@ -348,7 +348,7 @@ Doctrine/DBAL limitation: the PostgreSQL schema comparator does not read back a 
 `WHERE` clause, so it can never recognize the index it introspects as matching the one in the
 mapping. Verify manually instead with `\d funding` in `psql` (or `docker compose exec database
 psql -U <user> -d <db> -c '\d funding'`) that `uniq_funding_dedup_key_current` exists with `...
-WHERE is_current = true` — that is the real, sufficient proof this step passed. Do **not** run
+WHERE is_current = true` - that is the real, sufficient proof this step passed. Do **not** run
 `migrations:diff` again to "fix" this; it only regenerates the same no-op drop/recreate.
 
 - [ ] **Step 4: Verify reversibility**
@@ -357,7 +357,7 @@ WHERE is_current = true` — that is the real, sufficient proof this step passed
 docker compose exec backend php bin/console doctrine:migrations:migrate prev --no-interaction
 docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
 ```
-Expected: no errors on either command. (Skip `doctrine:schema:validate` here — see Step 3's
+Expected: no errors on either command. (Skip `doctrine:schema:validate` here - see Step 3's
 note; it will always report the same expected false positive.)
 
 - [ ] **Step 5: Run the existing PHPUnit suite to confirm no regression**
@@ -365,16 +365,16 @@ note; it will always report the same expected false positive.)
 ```bash
 docker compose exec -e APP_ENV=test backend php bin/phpunit
 ```
-Expected: full suite green — **it will not be, on the codebase as it stood when this plan was
+Expected: full suite green - **it will not be, on the codebase as it stood when this plan was
 written.** Confirmed by actually running it: 43 errors, all `SQLSTATE[23505]: Unique violation
 ... uniq_funding_dedup_key_current`, all in `FundingControllerTest`, `AnalyticsControllerTest`,
-`FundingExportTest`. The partial index (`WHERE is_current = true`) does not save these tests —
+`FundingExportTest`. The partial index (`WHERE is_current = true`) does not save these tests -
 every fixture row in all three is created with the entity's default `isCurrent = true` and
 nothing ever historizes an earlier one, so two rows sharing a tuple still collide.
 
 This is not a fixture-only fix. Checked every assertion across the three files: each of the
 five dedup-key columns (`source`, `country`, `sector`, `year`, `funding_type`) is pinned exactly
-by some assertion somewhere in this trio —
+by some assertion somewhere in this trio -
 `FundingControllerTest::testFilteringByYearReturnsOnlyMatchingRecords` expects exactly 15 rows
 back for `?year=2025`; `AnalyticsControllerTest` asserts `activeSources === 1` ("only Test
 Source"); country/sector/funding_type are each exercised by their own filter test. There is no
@@ -382,7 +382,7 @@ column left free to vary per fixture row without breaking an assertion elsewhere
 file. Resolving this for real means restructuring how these three pre-existing Volet A/A2.x
 tests build their dataset (most likely: one row per distinct dedup key with the *summed* amount
 that today's `N` identical rows represent, restructured to still produce enough distinct rows
-for whatever each test's pagination/count logic needs) — a change to test files this plan does
+for whatever each test's pagination/count logic needs) - a change to test files this plan does
 not own the intent of, not a B1.1-scoped fix. **Flag this to Serge and get explicit direction
 before touching those three files; do not silently rewrite another engineer's test assertions
 to force this step green.**
@@ -425,19 +425,19 @@ pycountry==24.6.1
 pytest==8.3.3
 ```
 
-`kafka-python-ng` (not `kafka-python`) — confirmed during Task 4 execution: plain
+`kafka-python-ng` (not `kafka-python`) - confirmed during Task 4 execution: plain
 `kafka-python==2.0.2`'s vendored `six` shim breaks under Python 3.12
 (`ModuleNotFoundError: No module named 'kafka.vendor.six.moves'` on `import kafka`, reproduced
 against this exact image). `kafka-python-ng` is the actively-maintained fork, is a drop-in
-replacement (`from kafka import KafkaProducer, KafkaConsumer` unchanged — the module namespace
+replacement (`from kafka import KafkaProducer, KafkaConsumer` unchanged - the module namespace
 is still `kafka`, only the PyPI distribution name differs), and was verified working against
-the real `kafka` service in this stack. This affects every place `kafka-python` is installed —
+the real `kafka` service in this stack. This affects every place `kafka-python` is installed -
 also update the `airflow` service's `_PIP_ADDITIONAL_REQUIREMENTS` in Task 1's
 `docker-compose.yml` snippet the same way.
 
 `pycountry` converts the World Bank API's 2-letter (`SN`) country codes into the 3-letter
 codes (`SEN`) that `Country.isoCode` actually stores (see `#[ORM\Column(length: 3, ...)]` on
-`backend/src/Entity/Country.php`, from A1.3) — without it, every real record from Task 6 would
+`backend/src/Entity/Country.php`, from A1.3) - without it, every real record from Task 6 would
 fail the country lookup in Task 7 and be silently quarantined, since `SN` never matches `SEN`.
 
 - [ ] **Step 2: Write `pipeline/Dockerfile`**
@@ -539,7 +539,7 @@ touch pipeline/common/__init__.py pipeline/collectors/__init__.py pipeline/proce
 ```
 
 The `profiles: [pipeline-tools]` entry keeps this service from starting automatically on a
-plain `docker compose up` — it exists so this plan's tasks can `docker compose run --rm
+plain `docker compose up` - it exists so this plan's tasks can `docker compose run --rm
 pipeline ...` for one-off commands (building the image, running tests). Task 7 replaces this
 `profiles` line when it turns the same image into the always-on `funding-validator` service.
 
@@ -994,7 +994,7 @@ Run:
 ```bash
 docker compose run --rm pipeline python -m pytest pipeline/tests/test_world_bank_collector_live.py -v -m live
 ```
-Expected: PASS (1 test) — this proves the real API contract still matches what Task 3's
+Expected: PASS (1 test) - this proves the real API contract still matches what Task 3's
 implementation assumes, not just the mocked fixtures.
 
 - [ ] **Step 7: Commit**
@@ -1011,7 +1011,7 @@ git commit -m "feat(b1.1): add World Bank collector"
 **Files:**
 - Create: `pipeline/processors/funding_validator.py`
 - Test: `pipeline/tests/test_funding_validator.py`
-- Modify: `docker-compose.yml` (add the always-on `funding-validator` service, replacing Task 4's `profiles`-gated `pipeline` service definition — see Step 6)
+- Modify: `docker-compose.yml` (add the always-on `funding-validator` service, replacing Task 4's `profiles`-gated `pipeline` service definition - see Step 6)
 
 **Interfaces:**
 - Consumes: `map_to_nev_sector` from Task 5, `get_connection`/`make_consumer`/`make_producer` from Task 4, the `uniq_funding_dedup_key` constraint from Task 3.
@@ -1019,7 +1019,7 @@ git commit -m "feat(b1.1): add World Bank collector"
 
 - [ ] **Step 1: Write the failing integration tests**
 
-These require the demo fixtures loaded (Senegal + the 5 sectors must exist) — run
+These require the demo fixtures loaded (Senegal + the 5 sectors must exist) - run
 `docker compose exec backend php bin/console doctrine:fixtures:load --no-interaction` first if
 not already done.
 
@@ -1132,7 +1132,7 @@ def test_unclassifiable_sector_is_rejected_without_writing(db_cursor):
 ```
 
 Save as `pipeline/tests/test_funding_validator.py`. Note: the fixture data's Senegal row uses
-ISO code `SEN` (3-letter, per `backend/src/DataFixtures/CountryFixtures.php` from A1.6) — check
+ISO code `SEN` (3-letter, per `backend/src/DataFixtures/CountryFixtures.php` from A1.6) - check
 that file if any test fails on a country lookup, rather than assuming 2-letter codes.
 
 - [ ] **Step 2: Run to verify it fails**
@@ -1336,11 +1336,11 @@ In `docker-compose.yml`, replace the `pipeline` service block added in Task 4 wi
       - nev-network
 ```
 
-This drops the `profiles: [pipeline-tools]` gate — `funding-validator` now starts
+This drops the `profiles: [pipeline-tools]` gate - `funding-validator` now starts
 automatically with `docker compose up -d` like every other core service, since it's a
 permanent consumer, not a one-off tooling container. One-off commands from earlier tasks
 (`docker compose run --rm pipeline ...`) become `docker compose run --rm funding-validator ...`
-from this point on — same image, just renamed to reflect its real, permanent role.
+from this point on - same image, just renamed to reflect its real, permanent role.
 
 - [ ] **Step 7: Start it and verify it's running**
 
@@ -1354,7 +1354,7 @@ Expected: `Up`.
 docker compose logs funding-validator --tail 20
 ```
 Expected: no crash/traceback (an empty/idle consumer loop produces little to no output, which
-is normal — it's just waiting for messages).
+is normal - it's just waiting for messages).
 
 - [ ] **Step 8: Commit**
 
@@ -1372,7 +1372,7 @@ git commit -m "feat(b1.1): add funding-validator processor service"
 
 **Interfaces:**
 - Consumes: `collect_and_publish` from Task 6, `get_connection` from Task 4, `make_producer` from Task 4.
-- Produces: nothing consumed by a later task in this plan — Task 9 verifies this DAG end-to-end.
+- Produces: nothing consumed by a later task in this plan - Task 9 verifies this DAG end-to-end.
 
 - [ ] **Step 1: Write the DAG**
 
@@ -1442,14 +1442,14 @@ with DAG(
 Save as `pipeline/dags/collecte_worldbank.py`. Recall from Task 1 that `./pipeline` is
 volume-mounted to `/opt/airflow/pipeline` inside the `airflow` container, and
 `_PIP_ADDITIONAL_REQUIREMENTS` already installs `kafka-python`/`psycopg2-binary`/`requests`
-there — this file needs no separate packaging step.
+there - this file needs no separate packaging step.
 
 - [ ] **Step 2: Point Airflow at the DAGs folder, and put its parent on PYTHONPATH**
 
 Airflow's default `AIRFLOW__CORE__DAGS_FOLDER` is `/opt/airflow/dags`, but this plan mounts
 the whole `pipeline/` tree at `/opt/airflow/pipeline`. This was anticipated and already added
 to the `airflow` service's environment during Task 1 (`AIRFLOW__CORE__DAGS_FOLDER:
-/opt/airflow/pipeline/dags`) — confirm it's present:
+/opt/airflow/pipeline/dags`) - confirm it's present:
 
 ```bash
 docker compose exec airflow printenv AIRFLOW__CORE__DAGS_FOLDER
@@ -1457,12 +1457,12 @@ docker compose exec airflow printenv AIRFLOW__CORE__DAGS_FOLDER
 Expected: `/opt/airflow/pipeline/dags`.
 
 **Real bug found while executing this step**: that alone is not enough. Airflow puts
-`DAGS_FOLDER` itself on `sys.path`, not its parent — so `collecte_worldbank.py`'s `from
+`DAGS_FOLDER` itself on `sys.path`, not its parent - so `collecte_worldbank.py`'s `from
 pipeline.collectors.world_bank import ...` (a package one level *above* `DAGS_FOLDER`) fails
 with `ModuleNotFoundError: No module named 'pipeline'`, confirmed live via `airflow dags
 list-import-errors`. Add `PYTHONPATH: /opt/airflow` to the `airflow` service's environment in
 `docker-compose.yml` (that's where `./pipeline` is mounted, so this makes the `pipeline`
-package importable — the same way it already is inside the `funding-validator`/pipeline-tools
+package importable - the same way it already is inside the `funding-validator`/pipeline-tools
 image via its own `ENV PYTHONPATH=/app` in `pipeline/Dockerfile`). Then recreate the container:
 
 ```bash
@@ -1499,7 +1499,7 @@ git commit -m "feat(b1.1): add quarterly World Bank collection DAG"
 
 **Interfaces:**
 - Consumes: the entire pipeline built in Tasks 1-8.
-- Produces: nothing — this is the plan's acceptance check.
+- Produces: nothing - this is the plan's acceptance check.
 
 - [ ] **Step 1: Trigger the DAG manually**
 
@@ -1507,7 +1507,7 @@ git commit -m "feat(b1.1): add quarterly World Bank collection DAG"
 docker compose exec airflow airflow dags trigger collecte_worldbank
 ```
 
-Wait for it to finish (a minute or two — 54 countries, each potentially several pages of
+Wait for it to finish (a minute or two - 54 countries, each potentially several pages of
 projects), then check:
 
 ```bash
@@ -1541,7 +1541,7 @@ docker compose exec airflow airflow dags trigger collecte_worldbank
 Wait for it to complete again, then re-run the query from Step 2. Expected: for any
 country/sector/year that had a match in both runs, `amount` has grown (summed), and a query
 for `is_current = false` rows on that same key now returns at least one row (the prior
-version, historized) — confirming decision 6 works against real, not just test, data.
+version, historized) - confirming decision 6 works against real, not just test, data.
 
 ```bash
 docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'World Bank Data API') AND is_current = false"
@@ -1556,13 +1556,13 @@ two runs minutes apart).
 docker compose exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic nev.funding.rejets --from-beginning --max-messages 1 --timeout-ms 5000
 ```
 Expected: either a JSON message with a `rejection_reason` field (if any project genuinely
-failed classification during the real runs above — plausible, since many World Bank projects
+failed classification during the real runs above - plausible, since many World Bank projects
 touch unrelated sectors like Health or Public Administration even under the Climate change
 theme filter), or a timeout with no message if every real project happened to classify
-successfully. Either outcome is acceptable — this step confirms the topic is reachable and,
+successfully. Either outcome is acceptable - this step confirms the topic is reachable and,
 if populated, that rejected messages carry a real reason.
 
-- [ ] **Step 5: No commit** — this task only ran verification commands; nothing in the repo changed.
+- [ ] **Step 5: No commit** - this task only ran verification commands; nothing in the repo changed.
 
 ---
 
@@ -1572,12 +1572,12 @@ if populated, that rejected messages carry a real reason.
 - Modify: `README.md`
 
 **Interfaces:**
-- Consumes: nothing. Produces: nothing consumed elsewhere — final task of this plan.
+- Consumes: nothing. Produces: nothing consumed elsewhere - final task of this plan.
 
 - [ ] **Step 1: Add a "Pipeline (Volet B)" section**
 
 Insert a new section after "## État d'avancement" (or wherever the current README places its
-last major section — check the file first, since Phase A2 work has been adding sections since
+last major section - check the file first, since Phase A2 work has been adding sections since
 this plan was written):
 
 ```markdown
@@ -1595,7 +1595,7 @@ climat de la Banque Mondiale. Architecture complète et décisions de conception
 `docker compose up -d` démarre désormais aussi `zookeeper`, `kafka`, `postgres-airflow`,
 `airflow`, `minio` et `funding-validator`, en plus des services existants.
 
-- Interface Airflow : `http://localhost:8081` (identifiants générés au premier démarrage —
+- Interface Airflow : `http://localhost:8081` (identifiants générés au premier démarrage -
   voir `docker compose logs airflow | grep "Login with username"`)
 - Console MinIO : `http://localhost:9001`
 
@@ -1612,7 +1612,7 @@ docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m
 ```
 
 Le test marqué `live` (`pipeline/tests/test_world_bank_collector_live.py`) appelle la vraie
-API Banque Mondiale — à exécuter séparément (`-m live`) plutôt qu'en routine, pour ne pas
+API Banque Mondiale - à exécuter séparément (`-m live`) plutôt qu'en routine, pour ne pas
 rendre la suite dépendante du réseau.
 ```
 
@@ -1621,7 +1621,7 @@ rendre la suite dépendante du réseau.
 Append as the next numbered point in that section:
 
 ```markdown
-11. **Le pipeline Python (`pipeline/`) écrit directement en base, sans passer par l'API Symfony.** Toute évolution du schéma `funding` (colonnes, contraintes) impacte donc potentiellement deux codebases séparées (`backend/src/Entity/Funding.php` ET `pipeline/processors/funding_validator.py`) qui doivent rester manuellement synchronisées — rien ne le vérifie automatiquement. La contrainte unique `uniq_funding_dedup_key` (ajoutée en B1.1) est un exemple : elle existe à la fois dans l'attribut Doctrine et dans la logique `ON CONFLICT` du processor Python.
+11. **Le pipeline Python (`pipeline/`) écrit directement en base, sans passer par l'API Symfony.** Toute évolution du schéma `funding` (colonnes, contraintes) impacte donc potentiellement deux codebases séparées (`backend/src/Entity/Funding.php` ET `pipeline/processors/funding_validator.py`) qui doivent rester manuellement synchronisées - rien ne le vérifie automatiquement. La contrainte unique `uniq_funding_dedup_key` (ajoutée en B1.1) est un exemple : elle existe à la fois dans l'attribut Doctrine et dans la logique `ON CONFLICT` du processor Python.
 ```
 
 - [ ] **Step 3: Commit**
@@ -1635,8 +1635,8 @@ git commit -m "docs(b1.1): document the pipeline services and World Bank connect
 
 ## Final check before considering B1.1 done
 
-- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m "not live"` — all green.
-- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/test_world_bank_collector_live.py -v -m live` — green (real API still matches assumptions).
-- [ ] `docker compose exec backend php bin/phpunit` (full existing suite) — still green, confirming Task 3's schema change caused no regression.
+- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m "not live"` - all green.
+- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/test_world_bank_collector_live.py -v -m live` - green (real API still matches assumptions).
+- [ ] `docker compose exec backend php bin/phpunit` (full existing suite) - still green, confirming Task 3's schema change caused no regression.
 - [ ] Two manual DAG triggers (Task 9) produced real `Funding` rows with `source = World Bank`, `funding_type = multilateral`, correct summing/historization on the second run.
-- [ ] Cross-check against the plan spreadsheet: B1.1's "Livrable attendu" was *"DAG Airflow trimestriel publiant vers le topic Kafka dédié"* — confirmed: `collecte_worldbank` DAG exists, scheduled quarterly, publishes to `nev.funding.raw`.
+- [ ] Cross-check against the plan spreadsheet: B1.1's "Livrable attendu" was *"DAG Airflow trimestriel publiant vers le topic Kafka dédié"* - confirmed: `collecte_worldbank` DAG exists, scheduled quarterly, publishes to `nev.funding.raw`.

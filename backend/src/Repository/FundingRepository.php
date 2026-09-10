@@ -162,7 +162,7 @@ class FundingRepository extends ServiceEntityRepository
      * is always joined (needed to filter on Country.isoCode, and it's a
      * required to-one relation so it can't multiply row counts); `sector`
      * and `source` are joined only by findByCriteria(), which needs them for
-     * output hydration — countByCriteria() has no reason to pay for them
+     * output hydration - countByCriteria() has no reason to pay for them
      * since neither is filtered on directly.
      */
     private function criteriaQueryBuilder(FundingSearchCriteria $criteria): QueryBuilder

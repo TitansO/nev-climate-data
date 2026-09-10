@@ -1,11 +1,11 @@
-# B3.6 — Recette finale du Volet B et validation de mise en production
+# B3.6 - Recette finale du Volet B et validation de mise en production
 
 Status: Proposée - en attente de validation écrite du Product Owner
 Author: Claude (with Serge)
 Date: 2026-09-08
-Plan reference: B3.6 (Phase B3 — Bascule et qualité des données), `Plan_Implementation_NEV_Climate_Data.xlsx`
+Plan reference: B3.6 (Phase B3 - Bascule et qualité des données), `Plan_Implementation_NEV_Climate_Data.xlsx`
 Spec reference: critères de recette section 6.8 du cahier des charges (exactitude des agrégats,
-idempotence du pipeline), section 10 (gouvernance de projet — recette formelle avant clôture de
+idempotence du pipeline), section 10 (gouvernance de projet - recette formelle avant clôture de
 phase)
 
 ## Goal
@@ -41,20 +41,20 @@ complet, pytest des tâches DAG) n'ont pas pu être re-exécutées dans cette se
 
 ## Checklist / Report
 
-### 1. Connecteurs officiels (B1.1-B1.5) — état réel des données
+### 1. Connecteurs officiels (B1.1-B1.5) - état réel des données
 
 | Source | Lignes courantes validées | Montant total (USD) | `funding`/`funding_project_contribution` cohérents |
 |---|---|---|---|
 | World Bank Data API | 1 521 | 267 929 645 365 | ✅ Exact (267 929 645 365 des deux côtés) |
-| GCF — IATI Datastore | 319 | 6 863 912 411 | ✅ Exact |
-| AfDB — IATI Datastore | 1 117 | 41 968 345 537 | ✅ Exact |
-| OPEC Fund — PDF (Gemini) | 48 | 332 150 960 | ✅ Exact - **écart de B1.10 résolu** : au moment de B1.10 (2026-09-01), `funding_project_contribution` était vide pour ces 48 lignes (créées avant l'introduction de cette table) ; aujourd'hui les deux sommes correspondent exactement, confirmé en direct |
+| GCF - IATI Datastore | 319 | 6 863 912 411 | ✅ Exact |
+| AfDB - IATI Datastore | 1 117 | 41 968 345 537 | ✅ Exact |
+| OPEC Fund - PDF (Gemini) | 48 | 332 150 960 | ✅ Exact - **écart de B1.10 résolu** : au moment de B1.10 (2026-09-01), `funding_project_contribution` était vide pour ces 48 lignes (créées avant l'introduction de cette table) ; aujourd'hui les deux sommes correspondent exactement, confirmé en direct |
 | PNUE (UN SDG/IEA) | 828 lignes `emission` valides (hors 12 lignes `NaN` en cours de nettoyage, voir B3.4) | 24 349,89 Mt cumulés | N/A (table `emission`, sémantique remplacement) |
 
 **Total réel Volet B (hors démonstration) : 3 005 lignes `funding` + 828 lignes `emission`
 exploitables.**
 
-### 2. Processor / gouvernance de la donnée (B1.6-B1.9) — cité depuis B1.10
+### 2. Processor / gouvernance de la donnée (B1.6-B1.9) - cité depuis B1.10
 
 Aucun changement de code dans ce périmètre depuis B1.10 (2026-09-01). Repris tel quel :
 consumers Kafka permanents opérationnels, quarantaine sur message malformé, historisation SCD2

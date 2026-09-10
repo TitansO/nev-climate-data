@@ -13,7 +13,7 @@ controllers:
 # These two routes are never actually resolved to a controller in practice:
 # the "login" and "api" firewalls' authenticators (json_login, refresh-jwt)
 # intercept the request at kernel.request and return a response before
-# controller resolution runs. The route itself must still exist, though —
+# controller resolution runs. The route itself must still exist, though -
 # routing itself happens before the firewall does, so without a matching
 # route the router throws a 404 first and the authenticator never gets a
 # chance to run.

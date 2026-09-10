@@ -28,7 +28,7 @@ final class AuthenticationControllerTest extends WebTestCase
         // KernelBrowser reboots the kernel (fresh container, fresh DB
         // connection) before every request after the first. That would make
         // the transaction opened below invisible to a second request in the
-        // same test (e.g. login then refresh) — disable it so every request
+        // same test (e.g. login then refresh) - disable it so every request
         // in a test shares the same connection, and the rolled-back
         // transaction stays visible throughout.
         $client->disableReboot();
@@ -40,7 +40,7 @@ final class AuthenticationControllerTest extends WebTestCase
         // Hashed directly via PHP's native password_hash() rather than fetched
         // from the container: Symfony's "auto" hasher resolves to a hasher
         // whose verify() delegates to password_verify(), which auto-detects
-        // the algorithm from the hash itself — so a plain PASSWORD_DEFAULT
+        // the algorithm from the hash itself - so a plain PASSWORD_DEFAULT
         // hash verifies correctly regardless of which concrete algorithm
         // "auto" picks, without depending on a container service that may be
         // compiled away if nothing else in the app graph references it.
@@ -251,7 +251,7 @@ final class AuthenticationControllerTest extends WebTestCase
     public function testSixthFailedLoginAttemptIsThrottled(): void
     {
         // A unique email per run: login_throttling's rate limiter is keyed by
-        // username in a filesystem-backed cache, which — unlike the database —
+        // username in a filesystem-backed cache, which - unlike the database -
         // isn't cleaned up by this class's per-test transaction rollback. A
         // fixed email would accumulate throttle state across separate test
         // runs and make this test flaky depending on run history.

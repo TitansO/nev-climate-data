@@ -1,9 +1,9 @@
-# B1.10 — Recette Phase B1 (Connecteurs sources officielles)
+# B1.10 - Recette Phase B1 (Connecteurs sources officielles)
 
 Status: Validé - Phase B1 (B1.1 à B1.10) recettée
 Author: Claude (with Serge)
 Date: 2026-09-01
-Plan reference: B1.10 (Phase B1 — Connecteurs sources officielles), `Plan_Implementation_NEV_Climate_Data.xlsx`
+Plan reference: B1.10 (Phase B1 - Connecteurs sources officielles), `Plan_Implementation_NEV_Climate_Data.xlsx`
 Spec reference: `Cahier_des_charges_NEV_Climate_Data_v2.docx`, section 6.4 (gouvernance de la
 donnée), section 6.5 (isolation NEV/CIMA), section 10 (gouvernance de projet - jalons de
 validation obligatoires : *"chaque phase (A1, A2, A3, puis B1, B2, B3) fait l'objet d'une
@@ -33,7 +33,7 @@ est citée plutôt que répétée mécaniquement - mais chaque critère listé c
 re-confirmé en direct aujourd'hui, contre le HEAD actuel de `developp`, dans le cadre de la
 rédaction de ce document.
 
-## Finding — écart réel trouvé pendant cette recette (non bloquant)
+## Finding - écart réel trouvé pendant cette recette (non bloquant)
 
 **La table `funding_project_contribution` (idempotence par projet, correctif du 2026-08-31)
 n'est pas rétroactivement peuplée pour les 48 lignes `Funding` réelles d'OPEC Fund PDF.**
@@ -93,7 +93,7 @@ OPEC Fund doit être traitée un jour.
 | Topic et table dédiés (domaine émissions distinct du financement) | `kafka-topics --list` | `nev.emissions.raw/.rejets/.valides` présents, distincts de `nev.funding.*` | ✅ |
 | Données réelles présentes, sémantique remplacement (pas addition) | `SELECT count(*), count(DISTINCT country_id) FROM emission WHERE source_id = (PNUE) AND is_current = true` | 840 lignes courantes, 35 pays couverts | ✅ |
 
-### 5. Extracteur PDF — OPEC Fund (B1.5)
+### 5. Extracteur PDF - OPEC Fund (B1.5)
 
 | Critère | Commande | Résultat obtenu | Statut |
 |---|---|---|---|

@@ -50,7 +50,7 @@ class ApiKeyRepository extends ServiceEntityRepository
     /**
      * Scoped to the owning user directly in the query, rather than fetching
      * by id and checking ownership in PHP, so a mismatched id/user pair
-     * behaves identically (null) to a non-existent id — no ownership detail
+     * behaves identically (null) to a non-existent id - no ownership detail
      * leaks through a different error path.
      */
     public function findOneForUser(int $id, User $user): ?ApiKey

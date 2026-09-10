@@ -12,7 +12,7 @@ use Doctrine\Persistence\ObjectManager;
 /**
  * The 54 UN member states of Africa (cahier des charges 5.3 / A1.3 schema
  * design doc: "54 countries"), grouped by UN M49 sub-region. An explicit,
- * deterministic list rather than a generator — country data doesn't follow
+ * deterministic list rather than a generator - country data doesn't follow
  * a formula, and this stays trivially reviewable and re-runnable.
  *
  * Reference name for other fixtures: self::countryReference($isoCode),
@@ -21,7 +21,7 @@ use Doctrine\Persistence\ObjectManager;
 final class CountryFixtures extends Fixture
 {
     /**
-     * [name, ISO 3166-1 alpha-3 code, region] — codes verified unique below.
+     * [name, ISO 3166-1 alpha-3 code, region] - codes verified unique below.
      *
      * @var list<array{0: string, 1: string, 2: string}>
      */

@@ -1,4 +1,4 @@
-# A1.3 — TimescaleDB Deployment & Pipeline-Ready Schema Implementation Plan
+# A1.3 - TimescaleDB Deployment & Pipeline-Ready Schema Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,16 +10,16 @@
 
 ## Global Constraints
 
-- All code (classes, properties, DB columns) in English — spec decision 1.
-- Primary keys: auto-increment integer, not UUID — spec decision 2.
-- `Funding` gets `validFrom`/`validTo`/`isCurrent` columns now; Volet A logic does plain `UPDATE`s and never populates them — spec decision 3.
-- Fixed low-cardinality value sets are native PHP 8.4 backed enums mapped through Doctrine; `Country`/`Sector`/`Source` stay full entities — spec decision 4.
-- `Funding.amount` is in pivot currency (USD default); `originalAmount`/`originalCurrency`/`exchangeRate` are nullable, unpopulated in Volet A — spec decision 5.
-- `UserRole` has exactly three cases: `Admin`, `InternalAnalyst`, `ExternalPartner` (no "Visitor" case) — spec decision 6.
-- `Report.type` is a free-text string, not an enum — spec decision 7.
-- `Report.country` is a nullable FK plus a separate nullable `region` string — spec decision 8.
-- Exactly two migrations, one per layer — spec decision 9.
-- README updated as part of this task, documenting the schema and migration commands — spec decision 10.
+- All code (classes, properties, DB columns) in English - spec decision 1.
+- Primary keys: auto-increment integer, not UUID - spec decision 2.
+- `Funding` gets `validFrom`/`validTo`/`isCurrent` columns now; Volet A logic does plain `UPDATE`s and never populates them - spec decision 3.
+- Fixed low-cardinality value sets are native PHP 8.4 backed enums mapped through Doctrine; `Country`/`Sector`/`Source` stay full entities - spec decision 4.
+- `Funding.amount` is in pivot currency (USD default); `originalAmount`/`originalCurrency`/`exchangeRate` are nullable, unpopulated in Volet A - spec decision 5.
+- `UserRole` has exactly three cases: `Admin`, `InternalAnalyst`, `ExternalPartner` (no "Visitor" case) - spec decision 6.
+- `Report.type` is a free-text string, not an enum - spec decision 7.
+- `Report.country` is a nullable FK plus a separate nullable `region` string - spec decision 8.
+- Exactly two migrations, one per layer - spec decision 9.
+- README updated as part of this task, documenting the schema and migration commands - spec decision 10.
 - `DATABASE_URL` and `POSTGRES_*` env vars must not change when swapping the DB image (spec, Architecture section).
 - Repo root for all paths below: `nev-climate-data/` (the cloned GitLab repo). All `docker compose` commands run from that root.
 
@@ -31,7 +31,7 @@
 - Modify: `docker-compose.yml`
 
 **Interfaces:**
-- Produces: a running `database` service reachable by the `backend` service at the same `DATABASE_URL` as before (no consumers yet — this is the foundation for every later task).
+- Produces: a running `database` service reachable by the `backend` service at the same `DATABASE_URL` as before (no consumers yet - this is the foundation for every later task).
 
 - [ ] **Step 1: Modify `docker-compose.yml`**
 
@@ -161,7 +161,7 @@ final class CountryTest extends TestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Entity/CountryTest.php`
-Expected: FAIL — `Class "App\Entity\Country" not found`.
+Expected: FAIL - `Class "App\Entity\Country" not found`.
 
 - [ ] **Step 3: Write the entity**
 
@@ -275,7 +275,7 @@ Expected: PASS (2 tests, 8 assertions).
 - [ ] **Step 6: Verify the mapping metadata is valid**
 
 Run: `docker compose exec backend php bin/console doctrine:schema:validate --skip-sync`
-Expected: `[OK] The mapping files are correct.` (DB sync is skipped on purpose — no table exists yet; that comes in Task 6).
+Expected: `[OK] The mapping files are correct.` (DB sync is skipped on purpose - no table exists yet; that comes in Task 6).
 
 - [ ] **Step 7: Commit**
 
@@ -332,7 +332,7 @@ final class SectorTest extends TestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Entity/SectorTest.php`
-Expected: FAIL — `Class "App\Entity\Sector" not found`.
+Expected: FAIL - `Class "App\Entity\Sector" not found`.
 
 - [ ] **Step 3: Write the entity**
 
@@ -481,7 +481,7 @@ final class SourceTest extends TestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Entity/SourceTest.php`
-Expected: FAIL — `Class "App\Entity\Enum\SourceType" not found`.
+Expected: FAIL - `Class "App\Entity\Enum\SourceType" not found`.
 
 - [ ] **Step 3: Write the enums**
 
@@ -653,7 +653,7 @@ git commit -m "feat(a1.3): add Source entity with SourceType/SourceReliability e
 - Test: `backend/tests/Entity/UserTest.php`
 
 **Interfaces:**
-- Produces: `App\Entity\Enum\UserRole` (cases: `Admin`, `InternalAnalyst`, `ExternalPartner`), `App\Entity\User` with constructor `__construct(string $name, string $email, string $passwordHash, UserRole $role)`, `getId(): ?int`, `getName(): string`, `setName(string): static`, `getEmail(): string`, `setEmail(string): static`, `getPasswordHash(): string`, `setPasswordHash(string): static`, `getRole(): UserRole`, `setRole(UserRole): static`, `getCreatedAt(): \DateTimeImmutable`. Consumed by `ApiKey` and `Notification` in Tasks 9–10.
+- Produces: `App\Entity\Enum\UserRole` (cases: `Admin`, `InternalAnalyst`, `ExternalPartner`), `App\Entity\User` with constructor `__construct(string $name, string $email, string $passwordHash, UserRole $role)`, `getId(): ?int`, `getName(): string`, `setName(string): static`, `getEmail(): string`, `setEmail(string): static`, `getPasswordHash(): string`, `setPasswordHash(string): static`, `getRole(): UserRole`, `setRole(UserRole): static`, `getCreatedAt(): \DateTimeImmutable`. Consumed by `ApiKey` and `Notification` in Tasks 9-10.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -702,7 +702,7 @@ final class UserTest extends TestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Entity/UserTest.php`
-Expected: FAIL — `Class "App\Entity\Enum\UserRole" not found`.
+Expected: FAIL - `Class "App\Entity\Enum\UserRole" not found`.
 
 - [ ] **Step 3: Write the enum**
 
@@ -872,14 +872,14 @@ git commit -m "feat(a1.3): add User entity with UserRole enum"
 
 ---
 
-## Task 6: Migration 1 (layer 1) — Country, Sector, Source, users
+## Task 6: Migration 1 (layer 1) - Country, Sector, Source, users
 
 **Files:**
-- Create: `backend/migrations/VersionXXXXXXXXXXXXXX.php` (timestamp auto-generated by Doctrine — see Step 3)
+- Create: `backend/migrations/VersionXXXXXXXXXXXXXX.php` (timestamp auto-generated by Doctrine - see Step 3)
 - Test: `backend/tests/Integration/SchemaLayer1Test.php`
 
 **Interfaces:**
-- Consumes: `App\Entity\Country`, `App\Entity\Sector`, `App\Entity\Source` (+ `SourceType`, `SourceReliability`), `App\Entity\User` (+ `UserRole`) from Tasks 2–5.
+- Consumes: `App\Entity\Country`, `App\Entity\Sector`, `App\Entity\Source` (+ `SourceType`, `SourceReliability`), `App\Entity\User` (+ `UserRole`) from Tasks 2-5.
 - Produces: DB tables `country`, `sector`, `source`, `users`, ready for `Funding`/`Report`/`ApiKey`/`Notification` foreign keys in Task 11.
 
 - [ ] **Step 1: Write the failing integration test**
@@ -985,12 +985,12 @@ Run:
 docker compose exec -e APP_ENV=test backend php bin/console doctrine:database:create --if-not-exists
 docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Integration/SchemaLayer1Test.php
 ```
-Expected: FAIL — each test errors with `SQLSTATE[42P01]: Undefined table` (no `country`/`sector`/`source`/`users` table exists yet).
+Expected: FAIL - each test errors with `SQLSTATE[42P01]: Undefined table` (no `country`/`sector`/`source`/`users` table exists yet).
 
 - [ ] **Step 3: Generate the migration from the entity mappings**
 
 Run: `docker compose exec backend php bin/console doctrine:migrations:diff --no-interaction`
-Expected: output ends with `Generated new migration class to "/var/www/html/migrations/VersionYYYYMMDDHHMMSS.php"`. Note the exact filename/class name printed — you'll reference it in Step 4.
+Expected: output ends with `Generated new migration class to "/var/www/html/migrations/VersionYYYYMMDDHHMMSS.php"`. Note the exact filename/class name printed - you'll reference it in Step 4.
 
 - [ ] **Step 4: Review the generated migration**
 
@@ -1000,7 +1000,7 @@ Open the generated `backend/migrations/VersionYYYYMMDDHHMMSS.php` and confirm it
 - `CREATE TABLE source (id ..., name ..., type ..., reliability ...)`
 - `CREATE TABLE users (id ..., name ..., email ... UNIQUE, password_hash ..., role ..., created_at ...)`
 
-and that `down()` drops the same four tables. If any table/column is missing or misnamed, the corresponding entity from Tasks 2–5 has a mapping mistake — fix the entity, delete the generated migration file, and re-run Step 3. Do not hand-edit the generated SQL to paper over a wrong entity mapping.
+and that `down()` drops the same four tables. If any table/column is missing or misnamed, the corresponding entity from Tasks 2-5 has a mapping mistake - fix the entity, delete the generated migration file, and re-run Step 3. Do not hand-edit the generated SQL to paper over a wrong entity mapping.
 
 - [ ] **Step 5: Apply the migration to the test database**
 
@@ -1050,7 +1050,7 @@ git commit -m "feat(a1.3): migration for layer-1 tables (country, sector, source
 - Test: `backend/tests/Entity/FundingTest.php`
 
 **Interfaces:**
-- Consumes: `App\Entity\Country`, `App\Entity\Sector`, `App\Entity\Source` (Tasks 2–4).
+- Consumes: `App\Entity\Country`, `App\Entity\Sector`, `App\Entity\Source` (Tasks 2-4).
 - Produces: `App\Entity\Enum\FundingType` (cases: `Public`, `Private`, `Multilateral`), `App\Entity\Enum\ValidationStatus` (cases: `Demo`, `Validated`), `App\Entity\Funding` with constructor `__construct(Country $country, Sector $sector, int $year, string $amount, FundingType $fundingType, Source $source, \DateTimeImmutable $collectionDate, ValidationStatus $validationStatus)` and getters/setters for every field listed below. Consumed by Task 11's migration only (no other entity depends on `Funding`).
 
 - [ ] **Step 1: Write the failing test**
@@ -1142,7 +1142,7 @@ final class FundingTest extends TestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Entity/FundingTest.php`
-Expected: FAIL — `Class "App\Entity\Funding" not found`.
+Expected: FAIL - `Class "App\Entity\Funding" not found`.
 
 - [ ] **Step 3: Write the enums**
 
@@ -1587,7 +1587,7 @@ final class ReportTest extends TestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Entity/ReportTest.php`
-Expected: FAIL — `Class "App\Entity\Report" not found`.
+Expected: FAIL - `Class "App\Entity\Report" not found`.
 
 - [ ] **Step 3: Write the enum**
 
@@ -1883,7 +1883,7 @@ final class ApiKeyTest extends TestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Entity/ApiKeyTest.php`
-Expected: FAIL — `Class "App\Entity\ApiKey" not found`.
+Expected: FAIL - `Class "App\Entity\ApiKey" not found`.
 
 - [ ] **Step 3: Write the enum**
 
@@ -2106,7 +2106,7 @@ final class NotificationTest extends TestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Entity/NotificationTest.php`
-Expected: FAIL — `Class "App\Entity\Notification" not found`.
+Expected: FAIL - `Class "App\Entity\Notification" not found`.
 
 - [ ] **Step 3: Write the enum**
 
@@ -2253,15 +2253,15 @@ git commit -m "feat(a1.3): add Notification entity with NotificationType enum"
 
 ---
 
-## Task 11: Migration 2 (layer 2) — funding, report, api_key, notification
+## Task 11: Migration 2 (layer 2) - funding, report, api_key, notification
 
 **Files:**
-- Create: `backend/migrations/VersionXXXXXXXXXXXXXX.php` (second timestamp, auto-generated — see Step 3)
+- Create: `backend/migrations/VersionXXXXXXXXXXXXXX.php` (second timestamp, auto-generated - see Step 3)
 - Test: `backend/tests/Integration/SchemaLayer2Test.php`
 
 **Interfaces:**
-- Consumes: `App\Entity\Funding`, `App\Entity\Report`, `App\Entity\ApiKey`, `App\Entity\Notification` (Tasks 7–10), plus `App\Entity\Country`/`Sector`/`Source`/`User` fixtures from layer 1.
-- Produces: DB tables `funding`, `report`, `api_key`, `notification` with foreign keys into layer 1 and the indexes required by cahier des charges 5.5. This is the last table of A1.3 — Task 12 only touches documentation afterward.
+- Consumes: `App\Entity\Funding`, `App\Entity\Report`, `App\Entity\ApiKey`, `App\Entity\Notification` (Tasks 7-10), plus `App\Entity\Country`/`Sector`/`Source`/`User` fixtures from layer 1.
+- Produces: DB tables `funding`, `report`, `api_key`, `notification` with foreign keys into layer 1 and the indexes required by cahier des charges 5.5. This is the last table of A1.3 - Task 12 only touches documentation afterward.
 
 - [ ] **Step 1: Write the failing integration test**
 
@@ -2409,7 +2409,7 @@ final class SchemaLayer2Test extends KernelTestCase
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit tests/Integration/SchemaLayer2Test.php`
-Expected: FAIL — each test errors with `SQLSTATE[42P01]: Undefined table` (no `funding`/`report`/`api_key`/`notification` table exists yet).
+Expected: FAIL - each test errors with `SQLSTATE[42P01]: Undefined table` (no `funding`/`report`/`api_key`/`notification` table exists yet).
 
 - [ ] **Step 3: Generate the migration from the entity mappings**
 
@@ -2424,7 +2424,7 @@ Open the new file and confirm its `up()` method creates:
 - `CREATE TABLE api_key (..., user_id ... REFERENCES users, ...)`
 - `CREATE TABLE notification (..., user_id ... REFERENCES users, ...)`
 
-and that it does **not** touch `country`, `sector`, `source`, or `users` (those belong to Task 6's migration only). If anything is missing or an unrelated table is touched, fix the entity mapping from Tasks 7–10, delete the generated file, and re-run Step 3.
+and that it does **not** touch `country`, `sector`, `source`, or `users` (those belong to Task 6's migration only). If anything is missing or an unrelated table is touched, fix the entity mapping from Tasks 7-10, delete the generated file, and re-run Step 3.
 
 - [ ] **Step 5: Apply the migration to the test database**
 
@@ -2458,7 +2458,7 @@ Expected: rollback drops `funding`/`report`/`api_key`/`notification` without tou
 - [ ] **Step 9: Run the full test suite**
 
 Run: `docker compose exec -e APP_ENV=test backend php bin/phpunit`
-Expected: all tests pass — the pre-existing `HealthControllerTest`/`ApiDocControllerTest`, all 8 entity unit test files, and both integration test files.
+Expected: all tests pass - the pre-existing `HealthControllerTest`/`ApiDocControllerTest`, all 8 entity unit test files, and both integration test files.
 
 - [ ] **Step 10: Commit**
 
@@ -2476,7 +2476,7 @@ git commit -m "feat(a1.3): migration for layer-2 tables (funding, report, api_ke
 
 **Interfaces:**
 - Consumes: nothing (documentation only).
-- Produces: nothing consumed by later tasks — this is the final task of A1.3.
+- Produces: nothing consumed by later tasks - this is the final task of A1.3.
 
 - [ ] **Step 1: Update the "Prochaine étape" section**
 
@@ -2485,7 +2485,7 @@ Replace:
 ```markdown
 ## Prochaine étape
 
-Les fondations Docker et Symfony (Points 1 et 2) sont posées. La suite du plan (Point 3 — déploiement de TimescaleDB et schéma de données « pipeline-ready ») sera traitée séparément.
+Les fondations Docker et Symfony (Points 1 et 2) sont posées. La suite du plan (Point 3 - déploiement de TimescaleDB et schéma de données « pipeline-ready ») sera traitée séparément.
 ```
 
 with:
@@ -2493,7 +2493,7 @@ with:
 ```markdown
 ## Prochaine étape
 
-Les fondations Docker et Symfony (Points 1 et 2) sont posées. TimescaleDB est déployé et le schéma « pipeline-ready » (Point 3 — A1.3) est en place : voir la section « Schéma de données » ci-dessous. La suite du plan (Point 4 — authentification JWT, A1.4) sera traitée séparément.
+Les fondations Docker et Symfony (Points 1 et 2) sont posées. TimescaleDB est déployé et le schéma « pipeline-ready » (Point 3 - A1.3) est en place : voir la section « Schéma de données » ci-dessous. La suite du plan (Point 4 - authentification JWT, A1.4) sera traitée séparément.
 ```
 
 - [ ] **Step 2: Update the database note in "Variables d'environnement"**
@@ -2519,9 +2519,9 @@ Insert this new section right before "## Tests automatisés":
 
 Le schéma est réparti en deux migrations Doctrine, correspondant à deux couches de dépendances :
 
-**Couche 1 — sans clé étrangère** : `Country`, `Sector`, `Source`, `User` (table `users`, car `user` est un mot réservé en PostgreSQL).
+**Couche 1 - sans clé étrangère** : `Country`, `Sector`, `Source`, `User` (table `users`, car `user` est un mot réservé en PostgreSQL).
 
-**Couche 2 — dépend de la couche 1** : `Funding` (clés étrangères vers `Country`, `Sector`, `Source`), `Report` (clé étrangère optionnelle vers `Country`), `ApiKey` et `Notification` (clé étrangère vers `User`).
+**Couche 2 - dépend de la couche 1** : `Funding` (clés étrangères vers `Country`, `Sector`, `Source`), `Report` (clé étrangère optionnelle vers `Country`), `ApiKey` et `Notification` (clé étrangère vers `User`).
 
 Toutes les valeurs à faible cardinalité et stables (rôle utilisateur, type de financement, statut de validation, statut de rapport, statut de clé API, type/fiabilité de source, type de notification) sont des enums PHP natifs mappés via Doctrine, pas des tables de référence.
 
@@ -2566,8 +2566,8 @@ git commit -m "docs(a1.3): document TimescaleDB schema and migration commands"
 
 ## Final check before considering A1.3 done
 
-- [ ] Run `docker compose exec -e APP_ENV=test backend php bin/phpunit` one more time — full suite green.
-- [ ] Run `docker compose exec backend php bin/console doctrine:schema:validate` — both `[OK]` lines.
-- [ ] Run `git log --oneline` on `developp` — 12 new commits since Oumar's `063c482` (one per task, Tasks 1–12; Task 4/5/7/8/9/10 each being a single commit despite having enum + entity + repo + test files), each with a clean, descriptive message.
-- [ ] Cross-check against the plan spreadsheet: A1.3's "Livrable attendu" was *"Schéma de base documenté avec champs source_id / date_collecte / statut_validation"* — confirm `Funding.source` (FK, plays the role of `source_id`), `Funding.collectionDate`, and `Funding.validationStatus` are all present and match.
-- [ ] Per Serge's stated push strategy: do **not** run `git push` yet — wait until A1.4 (JWT) is also complete, then push both together.
+- [ ] Run `docker compose exec -e APP_ENV=test backend php bin/phpunit` one more time - full suite green.
+- [ ] Run `docker compose exec backend php bin/console doctrine:schema:validate` - both `[OK]` lines.
+- [ ] Run `git log --oneline` on `developp` - 12 new commits since Oumar's `063c482` (one per task, Tasks 1-12; Task 4/5/7/8/9/10 each being a single commit despite having enum + entity + repo + test files), each with a clean, descriptive message.
+- [ ] Cross-check against the plan spreadsheet: A1.3's "Livrable attendu" was *"Schéma de base documenté avec champs source_id / date_collecte / statut_validation"* - confirm `Funding.source` (FK, plays the role of `source_id`), `Funding.collectionDate`, and `Funding.validationStatus` are all present and match.
+- [ ] Per Serge's stated push strategy: do **not** run `git push` yet - wait until A1.4 (JWT) is also complete, then push both together.

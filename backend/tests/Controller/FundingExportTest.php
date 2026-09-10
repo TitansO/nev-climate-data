@@ -65,7 +65,7 @@ final class FundingExportTest extends WebTestCase
         }
 
         // Each row below gets its own Source: the B1.1 dedup constraint (unique per
-        // source/country/sector/year/fundingType among *current* rows — see the
+        // source/country/sector/year/fundingType among *current* rows - see the
         // #[ORM\UniqueConstraint] on Funding::class) means the rows within a group that share
         // one (country, sector, year, fundingType) tuple can no longer also share one Source
         // row. No assertion in this file pins a specific source name except

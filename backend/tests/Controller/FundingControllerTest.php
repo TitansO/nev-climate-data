@@ -67,12 +67,12 @@ final class FundingControllerTest extends WebTestCase
         }
 
         // Each row below gets its own Source: the B1.1 dedup constraint (unique per
-        // source/country/sector/year/fundingType among *current* rows — see the
+        // source/country/sector/year/fundingType among *current* rows - see the
         // #[ORM\UniqueConstraint] on Funding::class) means the rows within a group that share
         // one (country, sector, year, fundingType) tuple can no longer also share one Source
         // row. Source identity itself is asserted only once in this suite
         // (testResponseShapeMatchesContractAndHidesInternalFields, via
-        // `?country=SEN&fundingType=public&limit=1`) — the list endpoint orders by
+        // `?country=SEN&fundingType=public&limit=1`) - the list endpoint orders by
         // collectionDate DESC, then id DESC (see FundingRepository), so within a
         // same-collectionDate group the *last*-inserted row is the one returned for limit=1.
         // Group A's last row keeps the exact original name "Test Source" for that reason;
@@ -147,7 +147,7 @@ final class FundingControllerTest extends WebTestCase
         $client = static::createClient();
         $this->seedDataset($client);
 
-        // No Authorization header, no X-API-Key — a visitor with no account.
+        // No Authorization header, no X-API-Key - a visitor with no account.
         $client->request('GET', '/api/funding');
 
         self::assertResponseIsSuccessful();

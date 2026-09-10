@@ -1,4 +1,4 @@
-# A3.10 - Recette Phase A3 (Qualité, sécurité & mise en production) — clôture du Volet A
+# A3.10 - Recette Phase A3 (Qualité, sécurité & mise en production) - clôture du Volet A
 
 Status: Proposé - Phase A3 (A3.1 à A3.9) recettée, en attente de validation écrite
 Author: Claude (with Oumar)

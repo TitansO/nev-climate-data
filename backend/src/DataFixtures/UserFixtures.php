@@ -11,8 +11,8 @@ use Doctrine\Persistence\ObjectManager;
 
 /**
  * One demonstration user per UserRole case (cahier des charges 5.2: Admin,
- * Internal Analyst, External Partner — "Visitor" has no account by design,
- * see README's Authentification section — plus SuperAdmin, added on top of
+ * Internal Analyst, External Partner - "Visitor" has no account by design,
+ * see README's Authentification section - plus SuperAdmin, added on top of
  * the cahier des charges list for account management, see
  * App\Controller\UserController). Dev/demo only: the password is
  * a fixed, publicly-documented placeholder (see README A1.6 section), never

@@ -1,4 +1,4 @@
-# B1.8 — Clôture : isolation Kafka/MinIO et architecture Bronze/Silver/Gold
+# B1.8 - Clôture : isolation Kafka/MinIO et architecture Bronze/Silver/Gold
 
 Status: Approved
 Author: Serge (with Claude)
@@ -40,7 +40,7 @@ multi-tâches des 5 DAGs du 2026-08-31 (étape bronze/silver de transit entre `e
 
 **Gold - jamais écrit dans MinIO.** Aucun objet sous un préfixe `gold/` n'existe.
 
-## Décision — Gold = TimescaleDB, pas un préfixe MinIO séparé
+## Décision - Gold = TimescaleDB, pas un préfixe MinIO séparé
 
 La spec d'architecture partagée (2026-08-26) décrit déjà ce choix, de façon incohérente entre ses
 deux diagrammes : celui du pipeline B1 liste "MinIO Bronze/Silver/Gold" comme un bloc générique

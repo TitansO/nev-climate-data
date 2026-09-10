@@ -48,9 +48,9 @@ def get_current_usd_rates() -> dict[str, float]:
     return _rates_cache["rates"]
 
 WORLD_BANK_SOURCE_NAME = "World Bank Data API"  # matches backend/src/DataFixtures/SourceFixtures.php - reuses that row instead of creating a duplicate
-GCF_SOURCE_NAME = "Green Climate Fund — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
-AFDB_SOURCE_NAME = "African Development Bank Group — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
-OPEC_FUND_SOURCE_NAME = "OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)"  # matches backend/src/DataFixtures/SourceFixtures.php
+GCF_SOURCE_NAME = "Green Climate Fund - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
+AFDB_SOURCE_NAME = "African Development Bank Group - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
+OPEC_FUND_SOURCE_NAME = "OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:

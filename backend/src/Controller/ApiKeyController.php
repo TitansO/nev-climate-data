@@ -41,13 +41,13 @@ final class ApiKeyController extends AbstractController
     #[Route('/api/api-keys', name: 'api_keys_create', methods: ['POST'])]
     #[OA\Post(
         summary: 'Génère une nouvelle clé API pour l\'utilisateur connecté',
-        description: 'La clé brute retournée n\'est jamais accessible à nouveau ensuite — seul son hash est conservé en base. Elle doit être sauvegardée immédiatement par le client.',
+        description: 'La clé brute retournée n\'est jamais accessible à nouveau ensuite - seul son hash est conservé en base. Elle doit être sauvegardée immédiatement par le client.',
         tags: ['API Keys'],
         security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 201,
-                description: 'Clé créée — la propriété "key" ne sera plus jamais retournée',
+                description: 'Clé créée - la propriété "key" ne sera plus jamais retournée',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'id', type: 'integer', example: 1),
@@ -83,7 +83,7 @@ final class ApiKeyController extends AbstractController
     #[Route('/api/api-keys', name: 'api_keys_list', methods: ['GET'])]
     #[OA\Get(
         summary: 'Liste les clés API de l\'utilisateur connecté',
-        description: 'Ne retourne jamais le hash ni la clé brute — uniquement les métadonnées de chaque clé.',
+        description: 'Ne retourne jamais le hash ni la clé brute - uniquement les métadonnées de chaque clé.',
         tags: ['API Keys'],
         security: [['bearerAuth' => []]],
         responses: [

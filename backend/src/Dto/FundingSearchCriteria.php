@@ -27,7 +27,7 @@ final readonly class FundingSearchCriteria
 
     /**
      * Performance guard (cahier des charges 5.2.c): a client asking for more
-     * than this is silently capped, not rejected — asking for "too much" is
+     * than this is silently capped, not rejected - asking for "too much" is
      * not an invalid request the way a negative page number is.
      */
     public const MAX_LIMIT = 100;

@@ -16,7 +16,7 @@ use Doctrine\Persistence\ObjectManager;
  * A small set of demonstration notifications spread across the 3 demo
  * users, mixing both NotificationType values and both read/unread states
  * (via the entity's own markAsRead(), never bypassing its encapsulation).
- * Notification has no FK to Report or Funding (see Notification.php) —
+ * Notification has no FK to Report or Funding (see Notification.php) -
  * content is free text that reads naturally, not a reference to a specific
  * fixture record.
  */
@@ -41,8 +41,8 @@ final class NotificationFixtures extends Fixture implements DependentFixtureInte
             [$admin, NotificationType::NewData, 'New funding data was collected for 5 countries this week.', false],
             [$analyst, NotificationType::NewReport, 'The report "West Africa Regional Climate Finance Report" has been published.', true],
             [$analyst, NotificationType::NewData, 'New funding data was collected for the Renewable Energy sector.', false],
-            [$analyst, NotificationType::NewReport, 'The report "Senegal — Climate Finance Country Profile" has been published.', false],
-            [$partner, NotificationType::NewReport, 'The report "Nigeria — Climate Finance Country Profile" has been published.', true],
+            [$analyst, NotificationType::NewReport, 'The report "Senegal - Climate Finance Country Profile" has been published.', false],
+            [$partner, NotificationType::NewReport, 'The report "Nigeria - Climate Finance Country Profile" has been published.', true],
             [$partner, NotificationType::NewData, 'New funding data was collected for the Adaptation sector.', false],
         ];
 

@@ -12,7 +12,7 @@ use Doctrine\Persistence\ObjectManager;
  * The 5 sectors named as examples in the A1.3 schema design doc
  * (docs/superpowers/specs/2026-08-22-a13-timescaledb-schema-design.md,
  * "Sector (layer 1)" table: "e.g. Renewable Energy, Sustainable Transport,
- * Agriculture, Forestry, Adaptation") — the only sector names that appear
+ * Agriculture, Forestry, Adaptation") - the only sector names that appear
  * anywhere in the project's own sources, and they already total exactly the
  * 5 sectors called for. Used verbatim rather than inventing alternatives.
  *
@@ -22,7 +22,7 @@ use Doctrine\Persistence\ObjectManager;
 final class SectorFixtures extends Fixture
 {
     /**
-     * [name, slug] — slug only used to build a stable, readable reference
+     * [name, slug] - slug only used to build a stable, readable reference
      * name; not a persisted field (Sector has no slug column).
      *
      * @var list<array{0: string, 1: string}>

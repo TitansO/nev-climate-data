@@ -497,11 +497,11 @@ Le plan d'implémentation exige explicitement pour A3.2 des "composants React ab
 
 **Charts et carte (Lot 5, `visualizations.html`)** : Chart.js et jsVectorMap sont passés de balises `<script src="cdn...">` à de vraies dépendances npm (`chart.js`, `jsvectormap`), un composant par graphique (`src/react/components/charts/`) créant/détruisant son instance Chart.js dans un `useEffect`. jsVectorMap est particulier : son build npm (`dist/jsvectormap.esm.js`, résolu automatiquement par le champ `exports` du package pour un `import`) pose lui-même `window.jsVectorMap` en effet de bord au chargement, et son fichier `dist/maps/world.js` (les données de la carte) est un script non-module qui lit ce même global - importé en second via un `import()` dynamique séquentiel (pas deux `import` statiques : leur ordre d'évaluation n'est pas garanti suivre l'ordre du texte source) pour être sûr que le global existe déjà quand `world.js` s'exécute.
 
-**Déploiement pendant la migration** : le build Netlify a été désactivé (2026-09-01, ressources limitées) - la vérification se faisait sur le Codespace (`npm install && npm run build`, servi en local sur le port 8123, backend sur 8080, tous deux en visibilité publique via `gh codespace ports visibility`). Le build Netlify a été réactivé le 2026-09-02 (A3.8) une fois la migration terminée - voir « A3.8 — Mise en production (Render + Netlify) » plus bas pour l'état réel en production.
+**Déploiement pendant la migration** : le build Netlify a été désactivé (2026-09-01, ressources limitées) - la vérification se faisait sur le Codespace (`npm install && npm run build`, servi en local sur le port 8123, backend sur 8080, tous deux en visibilité publique via `gh codespace ports visibility`). Le build Netlify a été réactivé le 2026-09-02 (A3.8) une fois la migration terminée - voir « A3.8 - Mise en production (Render + Netlify) » plus bas pour l'état réel en production.
 
 **État** : les 13 pages sont migrées (Lots 0 à 5), et A3.1/A3.2 sont faits - voir la section dédiée ci-dessous.
 
-### A3.1 — Hub Mercure temps réel & A3.2 — abonnement React
+### A3.1 - Hub Mercure temps réel & A3.2 - abonnement React
 
 **A3.1 (backend)** : `composer require symfony/mercure-bundle` (génère `backend/config/packages/mercure.yaml` et le bloc `.env` habituel `MERCURE_URL`/`MERCURE_PUBLIC_URL`/`MERCURE_JWT_SECRET`, suivant la convention `%env(...)%` déjà utilisée par `REDIS_DSN`/`MESSENGER_TRANSPORT_DSN`). Deux nouveaux services `docker-compose.yml` :
 - **`mercure`** - image officielle `dunglas/mercure`, port `3000`. Configuré en `anonymous` + `cors_origins *` (via `MERCURE_EXTRA_DIRECTIVES`) : le seul topic publié ici est déjà une donnée publique (mêmes chiffres que `GET /api/analytics/hero-stats`, `PUBLIC_ACCESS`) - aucune raison d'exiger un JWT d'abonné, qu'un `EventSource` natif ne pourrait de toute façon pas envoyer (pas d'en-tête `Authorization` personnalisé possible). `SERVER_NAME: ':80'` évite que Caddy (le serveur sous-jacent du hub) tente une HTTPS automatique sans nom de domaine public réel.
@@ -513,7 +513,7 @@ Le plan d'implémentation exige explicitement pour A3.2 des "composants React ab
 
 **Hors périmètre pour l'instant** : déploiement du hub en production (Render ne fait tourner qu'un seul service aujourd'hui - point d'attention #38 - un hub Mercure nécessiterait un 2e/3e service déployé, décision séparée côté coût/plan Render, non prise à ce stade - `useMercureKpis()` continue de fonctionner en mode dégradé/REST en production pour cette raison).
 
-### A3.3 — Secrets externalisés & A3.4 — Rate limiting général
+### A3.3 - Secrets externalisés & A3.4 - Rate limiting général
 
 **A3.3 (coffre-fort Symfony)** : décision utilisateur explicite (2026-09-02, entre trois options - coffre Symfony intégré / SaaS dédié type Doppler/Infisical / coffre natif Render) - `symfony/secrets` (déjà inclus avec le framework, aucune dépendance ni coût supplémentaire). Périmètre réel identifié à l'exploration : `APP_SECRET`/`JWT_PASSPHRASE`/`MERCURE_JWT_SECRET` sont les seuls secrets consommés par le processus Symfony lui-même (`grep` confirmé : aucun fichier `backend/src/*.php` ne référence `IATI_API_KEY`/`GEMINI_API_KEY` - ce sont des secrets du pipeline Python du Volet B, jamais lus par PHP, donc hors de portée d'un coffre Symfony ; `POSTGRES_PASSWORD`/`MINIO_ROOT_PASSWORD` amorcent d'autres conteneurs Docker et sont interpolés directement dans `docker-compose.yml` avant même que Symfony démarre - également hors de portée). Ces trois-là restent sur le `.env` racine (gitignoré, jamais dans le code) exactement comme avant.
 
@@ -527,7 +527,7 @@ Le plan d'implémentation exige explicitement pour A3.2 des "composants React ab
 
 **Vérifié en direct sur le Codespace** (backend réel, pas juste les tests) : 30 requêtes anonymes vers `GET /api/analytics/hero-stats` → 200, la 31e → `429` avec `{"code":429,"message":"..."}` et un en-tête `Retry-After` réel (au passage, `App\EventListener\ApiExceptionListener` - A2.1 - ne recopiait aucun en-tête de l'exception d'origine vers la réponse JSON qu'il construit ; corrigé au même moment, sinon `Retry-After` aurait été silencieusement perdu) ; `/api/health` et `/api/doc` restent à 200 malgré le plafond anonyme épuisé, confirmant l'exclusion.
 
-### A3.7 — Tests de charge & performance
+### A3.7 - Tests de charge & performance
 
 Cible du cahier des charges 5.5 : **<500ms**. Outil : [k6](https://k6.io/), scripts et rapport complet dans [`loadtest/`](loadtest/README.md) - reproductible (`BASE_URL=http://localhost:8080 k6 run loadtest/baseline.js`), jamais exécuté contre le service Render de production (palier gratuit, vraie ressource).
 
@@ -537,7 +537,7 @@ Cible du cahier des charges 5.5 : **<500ms**. Outil : [k6](https://k6.io/), scri
 
 **Indexation (migration `Version20260902133208`)** : ajout d'un index partiel `idx_funding_is_current` sur `funding.is_current`, filtré par les 3 agrégats analytics et `FundingController` sans condition supplémentaire sélective. Ajouté **de façon proactive, pas réactive** : à 1 080 lignes (100% `is_current = true` aujourd'hui), le planificateur PostgreSQL choisit toujours un `Seq Scan` (comportement correct - un balayage séquentiel est réellement plus rapide à 100% de sélectivité), mais l'historisation SCD2 du pipeline Volet B (point 36) fait grandir la queue de lignes non-courantes indépendamment du nombre de lignes courantes à chaque ré-exécution sur des données déjà vues - le planificateur commencera à exploiter cet index automatiquement, sans changement de code, dès que la sélectivité de `is_current` diminuera. Partagé le même faux positif Doctrine/DBAL déjà documenté pour `uniq_funding_dedup_key_current` (`Funding.php`) - confirmé en direct, comportement attendu.
 
-### A3.8 — Mise en production (Render + Netlify)
+### A3.8 - Mise en production (Render + Netlify)
 
 **État réel (2026-09-02)** : les deux environnements de production existaient déjà (mis en place par l'utilisateur directement, hors de ce dépôt de code) - ce travail a consisté à **vérifier** qu'ils sont cohérents avec l'exigence du plan (« Environnement de production accessible en HTTPS via le nom de domaine »), pas à les créer de zéro.
 
@@ -549,7 +549,7 @@ Cible du cahier des charges 5.5 : **<500ms**. Outil : [k6](https://k6.io/), scri
 
 **Vérifié en direct après correction, sur les deux environnements réels, pas seulement supposé fonctionner** : les 13 pages du site (`404.html` à `visualizations.html`) répondent 200 avec les bundles `assets/react/*.js` réellement construits par Vite (plus aucune trace de l'ancien HTML statique) ; les bundles JS eux-mêmes répondent 200 ; `GET /api/funding?limit=1` à travers le proxy Netlify → Render renvoie de vraies données ; la page 404 personnalisée s'affiche correctement.
 
-### A3.11 — Refonte UI/UX institutionnelle (2026-09-03, hors plan officiel)
+### A3.11 - Refonte UI/UX institutionnelle (2026-09-03, hors plan officiel)
 
 Demande explicite de l'utilisateur, avant l'interconnexion avec le Volet B : donner au frontend (fonctionnellement complet depuis A3.10) un niveau de crédibilité visuelle institutionnelle (référence citée : Our World in Data / World Bank Data / UNDP Data - principes UX étudiés, pas copiés), sans toucher au backend, sans nouvelle fonctionnalité métier, sans donnée fictive, et sans casser l'existant. Aucune tâche du plan d'implémentation ne couvre ce travail - traité comme un chantier autonome entre A3.10 et l'ouverture du Volet B.
 
@@ -662,7 +662,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 21. **Une pagination qui avance d'une taille de page fixe plutôt que du nombre de documents réellement reçus peut s'arrêter trop tôt.** Bug réel trouvé en écrivant le collecteur BAD (`pipeline/collectors/afdb.py`) : si une page renvoie moins de documents que demandé alors qu'il en reste, avancer le curseur de `PAGE_SIZE` au lieu de `len(docs)` fait dépasser le total réel et la boucle s'arrête avant la fin. Peu probable en pratique contre un vrai backend Solr (une page non-finale renvoie normalement exactement `rows` documents), mais la version robuste (avancer du nombre réel reçu) coûte la même chose à écrire et protège contre ce cas.
 
-22. **Une API "gratuite, sans clé" peut quand même avoir une vraie limite de débit stricte (ex. 1 requête/seconde), indépendante du quota journalier.** L'offre "Exploratory" de l'API IATI Datastore (utilisée par B1.2 et B1.3) a ce comportement : enchaîner plusieurs requêtes de pagination sans pause (fonctionnait très bien pour B1.2, une seule requête suffisait) a fait échouer B1.3 de façon répétée et déroutante en `429 Too Many Requests` — y compris juste après un passage à minuit, ce qui a d'abord fait croire à tort à un quota journalier épuisé plutôt qu'à un débit trop rapide. Avant d'implémenter une pagination multi-requêtes contre une API tierce, toujours vérifier explicitement sa politique de débit (pas seulement son quota total) et ajouter une pause entre requêtes en conséquence - voir `PAGINATION_DELAY_SECONDS` dans `pipeline/collectors/afdb.py`.
+22. **Une API "gratuite, sans clé" peut quand même avoir une vraie limite de débit stricte (ex. 1 requête/seconde), indépendante du quota journalier.** L'offre "Exploratory" de l'API IATI Datastore (utilisée par B1.2 et B1.3) a ce comportement : enchaîner plusieurs requêtes de pagination sans pause (fonctionnait très bien pour B1.2, une seule requête suffisait) a fait échouer B1.3 de façon répétée et déroutante en `429 Too Many Requests` - y compris juste après un passage à minuit, ce qui a d'abord fait croire à tort à un quota journalier épuisé plutôt qu'à un débit trop rapide. Avant d'implémenter une pagination multi-requêtes contre une API tierce, toujours vérifier explicitement sa politique de débit (pas seulement son quota total) et ajouter une pause entre requêtes en conséquence - voir `PAGINATION_DELAY_SECONDS` dans `pipeline/collectors/afdb.py`.
 
 23. **Deux tests indépendants qui interrogent la même base de données partagée peuvent se marcher dessus si leurs requêtes ne sont pas suffisamment précises.** Un test comparant un nombre de lignes filtré uniquement par pays/année (sans filtrer par source) a compté à tort de vraies données de production accumulées par les runs Airflow réels des connecteurs précédents (B1.1/B1.2), en plus des lignes que le test venait d'insérer lui-même. Sur une base de développement partagée entre tests et pipeline réel (contrairement à la base de test, réinitialisée et isolée), toujours scoper une assertion de comptage aux identifiants exacts (source, montants...) que le test contrôle - jamais une plage large en espérant qu'elle reste vide par ailleurs.
 
@@ -774,12 +774,12 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 |---|---|---|
 | A3.1 | Hub Mercure temps réel + republication périodique des KPIs (`mercure-publisher`) | ✅ Fait - voir « Migration React », section A3.1/A3.2 |
 | A3.2 | Composants React abonnés au flux Mercure (`useMercureKpis()`) | ✅ Fait - a nécessité de migrer tout le frontend en React (Lots 0-5), voir « Migration React » |
-| A3.3 | Secrets (APP_SECRET, JWT_PASSPHRASE, MERCURE_JWT_SECRET) externalisés vers le coffre-fort Symfony (`config/secrets/prod/`) | ✅ Fait - voir « A3.3 — Secrets externalisés & A3.4 — Rate limiting général » |
+| A3.3 | Secrets (APP_SECRET, JWT_PASSPHRASE, MERCURE_JWT_SECRET) externalisés vers le coffre-fort Symfony (`config/secrets/prod/`) | ✅ Fait - voir « A3.3 - Secrets externalisés & A3.4 - Rate limiting général » |
 | A3.4 | Rate limiting général par rôle sur tout `/api/*` (`App\EventListener\ApiRateLimitListener`) | ✅ Fait - voir la même section |
 | A3.5 | Tests automatisés sur les écarts réels trouvés (audit de couverture 186→193 tests) + couverture reportée en CI/CD | ✅ Fait - voir « Tests automatisés », section « Couverture de code (A3.5) » |
 | A3.6 | Sauvegardes automatisées de la base (`db-backup`, MinIO, rétention 30j) + restauration testée et validée | ✅ Fait - voir « Sauvegardes de la base de données (A3.6) » |
-| A3.7 | Tests de charge (k6, `loadtest/`) + index proactif sur `funding.is_current` | ✅ Fait - voir « A3.7 — Tests de charge & performance » |
-| A3.8 | Mise en production HTTPS réelle (Render backend + Netlify frontend), vérifiée cohérente avec le plan | ✅ Fait - voir « A3.8 — Mise en production (Render + Netlify) » |
+| A3.7 | Tests de charge (k6, `loadtest/`) + index proactif sur `funding.is_current` | ✅ Fait - voir « A3.7 - Tests de charge & performance » |
+| A3.8 | Mise en production HTTPS réelle (Render backend + Netlify frontend), vérifiée cohérente avec le plan | ✅ Fait - voir « A3.8 - Mise en production (Render + Netlify) » |
 | A3.9 | Documentation technique et API à jour - 28 opérations Swagger, sécurité vérifiée endpoint par endpoint | ✅ Fait - voir « Documentation Swagger / OpenAPI » |
 | A3.10 | Recette finale Volet A (Phases A1+A2+A3) | ✅ Proposée - [`docs/superpowers/specs/2026-09-02-a310-phase-a3-recette.md`](docs/superpowers/specs/2026-09-02-a310-phase-a3-recette.md), en attente de validation écrite du Product Owner |
 
@@ -787,7 +787,7 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 | Bloc | Contenu | Dans le plan ? |
 |---|---|---|
-| A3.11 — Refonte UI/UX institutionnelle | Design system `--nev-*`, 12 nouveaux composants partagés (`components/ui/`), les 13 pages restylées, 3 vrais bugs trouvés et corrigés (voir points d'attention #48-#50) | Non |
+| A3.11 - Refonte UI/UX institutionnelle | Design system `--nev-*`, 12 nouveaux composants partagés (`components/ui/`), les 13 pages restylées, 3 vrais bugs trouvés et corrigés (voir points d'attention #48-#50) | Non |
 
 **Phase A3 (A3.1 à A3.10) fonctionnellement complète - le Volet A dans son ensemble (Phases A1, A2, A3) est prêt à être clôturé**, sous réserve de la signature du rapport de recette A3.10. Le Volet B (pipeline de données réelles) a démarré en parallèle : voir la section « Pipeline (Volet B) » plus bas. Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
 
@@ -821,13 +821,13 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 **Phase B1 (B1.1 à B1.10) fonctionnellement complète.** Prochaine étape : Phase B2 (connecteur
 GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 
-**Fait (Phase B3 — anticipée avant B2, à la demande explicite de l'utilisateur pour vérifier que tout fonctionne avec des données réelles) :**
+**Fait (Phase B3 - anticipée avant B2, à la demande explicite de l'utilisateur pour vérifier que tout fonctionne avec des données réelles) :**
 
 | Tâche | Contenu | Statut |
 |---|---|---|
 | B3.1 | Exposer les agrégats réels via les endpoints existants, sans changement de contrat | ✅ Fait - trois vrais bugs trouvés et corrigés en vérifiant avec des données réelles (voir points d'attention #52-#54) ; les 5 connecteurs Volet B tournés pour de vrai pour la première fois dans cet environnement (~5 149 lignes `funding` réelles World Bank/GCF/AfDB/OPEC Fund PDF, hors démo) |
-| B3.2 | Connecter la diffusion des KPIs réels (et GreenAccess) au hub Mercure | ✅ Fait - `AnalyticsService::getCo2Reduction()` rebranché sur la vraie table `Emission` (B1.4), variation CO2 année sur année sur l'intersection des pays communs ; `co2ReductionMt` ajouté au payload Mercure ; tuile CO2 du frontend rebranchée + badge « Direct ». Le flux financement était déjà réel (mêmes méthodes que B3.1 a corrigées). GreenAccess explicitement hors périmètre (Phase B2 « Bloqué », aucune donnée). Voir « B3.2 — Diffusion des KPIs réels via Mercure » plus bas et [`docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md`](docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md) |
-| B3.3 | Basculer progressivement le frontend des données de démonstration vers les données réelles | ✅ Fait - filtre `validation_status = 'validated'` systématique côté lecture (`FundingRepository`, `EmissionRepository`, `AnalyticsService::getHeroStats()`), jumeau du filtre `isCurrent` de B1.7. Bascule unique (les 5 connecteurs avaient déjà tourné) plutôt que progressive par source - la démo n'est pas taguée par source réelle. Rapports/notifications hors périmètre (aucune source réelle n'existe pour eux). Voir « B3.3 — Bascule démo → réel » plus bas et [`docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md`](docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md) |
+| B3.2 | Connecter la diffusion des KPIs réels (et GreenAccess) au hub Mercure | ✅ Fait - `AnalyticsService::getCo2Reduction()` rebranché sur la vraie table `Emission` (B1.4), variation CO2 année sur année sur l'intersection des pays communs ; `co2ReductionMt` ajouté au payload Mercure ; tuile CO2 du frontend rebranchée + badge « Direct ». Le flux financement était déjà réel (mêmes méthodes que B3.1 a corrigées). GreenAccess explicitement hors périmètre (Phase B2 « Bloqué », aucune donnée). Voir « B3.2 - Diffusion des KPIs réels via Mercure » plus bas et [`docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md`](docs/superpowers/specs/2026-09-07-b32-mercure-realtime-kpis-design.md) |
+| B3.3 | Basculer progressivement le frontend des données de démonstration vers les données réelles | ✅ Fait - filtre `validation_status = 'validated'` systématique côté lecture (`FundingRepository`, `EmissionRepository`, `AnalyticsService::getHeroStats()`), jumeau du filtre `isCurrent` de B1.7. Bascule unique (les 5 connecteurs avaient déjà tourné) plutôt que progressive par source - la démo n'est pas taguée par source réelle. Rapports/notifications hors périmètre (aucune source réelle n'existe pour eux). Voir « B3.3 - Bascule démo → réel » plus bas et [`docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md`](docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md) |
 | B3.4 | Comparer les valeurs affichées aux requêtes SQL de contrôle | ✅ Fait - 5 agrégats analytiques comparés à leur requête SQL directe, correspondance exacte sur tous. Un vrai défaut latent trouvé et corrigé : 12 lignes `emission` (Soudan du Sud, 2000-2011) avec `value_mt = NaN` (l'API SDG ONU renvoie littéralement "NaN" pour certaines années, jamais filtré avant B3.4) - aurait cassé silencieusement `getCo2Reduction()` dès que la fenêtre des 2 années les plus récentes les aurait incluses. Voir [`docs/superpowers/specs/2026-09-08-b34-b35-recette-controle-qualite.md`](docs/superpowers/specs/2026-09-08-b34-b35-recette-controle-qualite.md) |
 | B3.5 | Vérifier l'idempotence de chaque DAG (rejeu sans doublon ni perte) | ✅ Fait - les 5 DAGs redéclenchés sur un état déjà peuplé : 0 doublon, 0 perte sur toutes les sources. Seul écart observé (AfDB, -0,00006%) confirmé être une vraie révision de la source IATI absorbée en delta par `funding_project_contribution`, jamais une addition aveugle. OPEC Fund confirme le cache SHA-256 (0 message republié). Voir même document que B3.4 |
 | B3.6 | Réaliser la recette finale du Volet B et valider la mise en production | ✅ Proposée - [`docs/superpowers/specs/2026-09-08-b36-recette-finale-volet-b.md`](docs/superpowers/specs/2026-09-08-b36-recette-finale-volet-b.md), en attente de validation écrite du Product Owner. Volet B (B1+B3) recetté ; Phase B2 (GreenAccess) explicitement hors périmètre, toujours « Bloqué ». Cohérence dev/production vérifiée (mêmes chiffres réels des deux côtés). 2 réserves non bloquantes : nettoyage SQL manuel des 12 lignes `emission` corrompues (dev+prod), et rejeu recommandé de 2 suites de tests pipeline non exécutées cette session (lenteur d'environnement) |
@@ -840,7 +840,7 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 | Correction du filtre de plage de dates (`periodStart`/`periodEnd`) | Bug réel trouvé en vérifiant B3.1 avec des données réelles (voir point d'attention #53) | Non |
 | Reconstruction de `funding-validator`/`emission-validator` | Image Docker figée avant l'ajout du dispatch par source, plantait en boucle et bloquait silencieusement tout le flux Kafka (voir point d'attention #52) | Non |
 
-**Fait (Tâches transverses — T) :**
+**Fait (Tâches transverses - T) :**
 
 | Tâche | Contenu | Statut |
 |---|---|---|
@@ -910,7 +910,7 @@ jamais eu leur propre suite de tests jusqu'ici).
 Deuxième connecteur du Volet B : collecte trimestrielle (fréquence unifiée pour tous les
 connecteurs le 2026-09-01 - était mensuelle à l'origine) des financements du Fonds Vert pour le
 Climat, via l'API IATI Datastore (pas l'API/dashboard propre du GCF, injoignable au moment de
-la conception — voir la spec). Décisions de conception complètes :
+la conception - voir la spec). Décisions de conception complètes :
 [`docs/superpowers/specs/2026-08-28-b12-gcf-connector-design.md`](docs/superpowers/specs/2026-08-28-b12-gcf-connector-design.md).
 
 Nécessite `IATI_API_KEY` dans le `.env` racine (clé gratuite, inscription sur
@@ -920,7 +920,7 @@ Nécessite `IATI_API_KEY` dans le `.env` racine (clé gratuite, inscription sur
 docker compose exec airflow airflow dags trigger collecte_gcf
 ```
 
-Réutilise l'infrastructure et le topic `nev.funding.raw` déjà provisionnés par B1.1 — aucun
+Réutilise l'infrastructure et le topic `nev.funding.raw` déjà provisionnés par B1.1 - aucun
 nouveau service, aucun nouveau topic.
 
 ### Connecteur BAD (B1.3)
@@ -928,7 +928,7 @@ nouveau service, aucun nouveau topic.
 Troisième connecteur du Volet B : collecte trimestrielle des financements de la Banque
 Africaine de Développement (Groupe BAD), via la même API IATI Datastore que B1.2. Premier
 connecteur à effectuer une vraie conversion de devise (XDR→USD, la BCE ne pouvant
-structurellement pas servir cette devise — voir la spec) et à peupler pour de vrai les colonnes
+structurellement pas servir cette devise - voir la spec) et à peupler pour de vrai les colonnes
 `originalAmount`/`originalCurrency`/`exchangeRate` de `Funding`, réservées depuis A1.3.
 Décisions de conception complètes :
 [`docs/superpowers/specs/2026-08-28-b13-afdb-connector-design.md`](docs/superpowers/specs/2026-08-28-b13-afdb-connector-design.md).
@@ -937,9 +937,9 @@ Décisions de conception complètes :
 docker compose exec airflow airflow dags trigger collecte_afdb
 ```
 
-Réutilise `IATI_API_KEY` (déjà configuré depuis B1.2) et l'infrastructure existante — aucun
+Réutilise `IATI_API_KEY` (déjà configuré depuis B1.2) et l'infrastructure existante - aucun
 nouveau service, aucun nouveau topic. Contrairement à B1.2, ce connecteur pagine tout le
-portefeuille (~5600 activités) au lieu d'une seule requête — voir le point d'attention sur la
+portefeuille (~5600 activités) au lieu d'une seule requête - voir le point d'attention sur la
 limite de débit de l'offre gratuite IATI ci-dessous.
 
 ### Connecteur PNUE (B1.4)
@@ -976,7 +976,7 @@ couverture de la source, pas un bug. Périmètre : collecte uniquement -
 `AnalyticsService::getCo2Reduction()` (endpoint `/api/analytics/co2-reduction`) reste
 volontairement non rebranché sur cette nouvelle table dans le cadre de B1.4.
 
-### Extracteur PDF — OPEC Fund (B1.5)
+### Extracteur PDF - OPEC Fund (B1.5)
 
 Cinquième connecteur du Volet B, et premier à extraire des données structurées directement d'un
 rapport PDF via une IA (Gemini), plutôt que via une API. Cible réelle : le rapport OPEC Fund
@@ -1118,7 +1118,7 @@ confirmé par Serge - le second correspond exactement à la tâche, au sujet
 (`Airflow alert: <TaskInstance: ...>`) et à l'exception attendus. Le DAG de test a été supprimé
 après vérification (jamais commité).
 
-### B3.2 — Diffusion des KPIs réels via Mercure (2026-09-07)
+### B3.2 - Diffusion des KPIs réels via Mercure (2026-09-07)
 
 Le plan officiel scope B3.2 comme « Connecter la diffusion des KPIs réels **et GreenAccess** au
 hub Mercure ». Décisions complètes :
@@ -1174,7 +1174,7 @@ table est vide → `_extraire()` ne fait **aucun** appel API (0,2s d'exécution,
 rapporte quand même `success`. Toujours charger les fixtures A1.6 avant de déclencher un
 connecteur sur un environnement fraîchement provisionné.
 
-### B3.3 — Bascule démo → réel (2026-09-08)
+### B3.3 - Bascule démo → réel (2026-09-08)
 
 Décisions complètes :
 [`docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md`](docs/superpowers/specs/2026-09-08-b33-demo-to-real-switch-design.md),
@@ -1210,7 +1210,7 @@ intégralement. `GET /api/analytics/financing-trends` (somme des `total`) = `317
 identique au `SELECT sum(amount) FROM funding WHERE is_current AND validation_status='validated'`
 exécuté en direct. Suite complète : 205 tests, 763 assertions, 0 échec.
 
-### B3.4 & B3.5 — Contrôle qualité et idempotence (2026-09-08)
+### B3.4 & B3.5 - Contrôle qualité et idempotence (2026-09-08)
 
 Décisions et preuves complètes :
 [`docs/superpowers/specs/2026-09-08-b34-b35-recette-controle-qualite.md`](docs/superpowers/specs/2026-09-08-b34-b35-recette-controle-qualite.md).

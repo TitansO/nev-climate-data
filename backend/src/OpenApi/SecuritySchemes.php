@@ -12,7 +12,7 @@ use OpenApi\Attributes as OA;
  *
  * Deliberately isolated in its own route-less class: swagger-php rejects a
  * class that mixes a root SecurityScheme attribute with per-method root
- * Operation attributes (Get/Post/Delete) in the same class — see
+ * Operation attributes (Get/Post/Delete) in the same class - see
  * ApiKeyController's class docblock. NelmioApiDocBundle's describer scans
  * the whole src/ tree for OpenAPI attributes, not just routed controllers,
  * so this class is picked up without needing a route.

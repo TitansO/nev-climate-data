@@ -14,7 +14,7 @@ use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 
 /**
- * Minimal API key fixtures — just enough to exercise the ApiKey -> User
+ * Minimal API key fixtures - just enough to exercise the ApiKey -> User
  * relation and both ApiKeyStatus values, not a realistic key inventory
  * (cahier des charges A1.6: "données minimales uniquement pour tester les
  * relations" when no working credential is actually needed).
@@ -25,7 +25,7 @@ use Doctrine\Persistence\ObjectManager;
  * role -> quota mapping A1.5 applies at runtime.
  *
  * The plaintext values below are fixed, non-secret placeholders that exist
- * only to be hashed — never real credentials, and never printed in the
+ * only to be hashed - never real credentials, and never printed in the
  * README (or anywhere else) as something a developer could actually use.
  */
 final class ApiKeyFixtures extends Fixture implements DependentFixtureInterface

@@ -25,7 +25,7 @@ from pipeline.common.pdf_extraction import (
 )
 from pipeline.processors.sector_mapping_opec import map_opec_sector
 
-SOURCE_NAME = "OPEC Fund — Climate Finance Report (PDF, Gemini-assisted)"  # matches backend/src/DataFixtures/SourceFixtures.php
+SOURCE_NAME = "OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)"  # matches backend/src/DataFixtures/SourceFixtures.php
 SOURCE_URL = "https://www.climatebusiness.africa/wp-content/uploads/2024/11/Climate-Finance-Report-2024.pdf"
 DOCUMENT_SLUG = "opec-fund-climate-finance-2024"
 ANNEX_2_START_PAGE = 62

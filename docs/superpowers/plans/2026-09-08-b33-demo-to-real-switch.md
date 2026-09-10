@@ -1,4 +1,4 @@
-# B3.3 — Bascule démo → réel - Implementation Plan
+# B3.3 - Bascule démo → réel - Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
@@ -35,15 +35,15 @@ le même `andWhere` inline ; `AnalyticsService::getHeroStats()` passe
 - Modify: `backend/src/Repository/EmissionRepository.php`
 - Modify: `backend/src/Service/AnalyticsService.php`
 
-- [ ] **Step 1** — `FundingRepository` : ajouter le helper privé `onlyValidated(QueryBuilder $qb,
+- [ ] **Step 1** - `FundingRepository` : ajouter le helper privé `onlyValidated(QueryBuilder $qb,
   string $alias = 'funding'): QueryBuilder` (`andWhere('%s.validationStatus = :validated')` +
   `setParameter('validated', ValidationStatus::Validated)`), `use App\Entity\Enum\ValidationStatus`.
-- [ ] **Step 2** — l'appliquer à `criteriaQueryBuilder()`, `findFinancingTrendsAggregate()`,
+- [ ] **Step 2** - l'appliquer à `criteriaQueryBuilder()`, `findFinancingTrendsAggregate()`,
   `findSectorDistributionAggregate()`, `findCountryDistributionAggregate()`,
   `countDistinctCountries()`, `countDistinctSources()`.
-- [ ] **Step 3** — `EmissionRepository` : `andWhere('emission.validationStatus = :validated')` +
+- [ ] **Step 3** - `EmissionRepository` : `andWhere('emission.validationStatus = :validated')` +
   `setParameter` dans `distinctYearsWithCurrentData()` et `totalsByYear()`.
-- [ ] **Step 4** — `AnalyticsService::getHeroStats()` :
+- [ ] **Step 4** - `AnalyticsService::getHeroStats()` :
   `count(['isCurrent' => true, 'validationStatus' => ValidationStatus::Validated])`.
 
 ### Tâche 2 : Tests
@@ -55,23 +55,23 @@ le même `andWhere` inline ; `AnalyticsService::getHeroStats()` passe
   `backend/tests/Command/PublishKpiSnapshotCommandTest.php`,
   `backend/tests/Repository/EmissionRepositoryTest.php`
 
-- [ ] **Step 1** — remplacer `ValidationStatus::Demo` → `ValidationStatus::Validated` dans les
+- [ ] **Step 1** - remplacer `ValidationStatus::Demo` → `ValidationStatus::Validated` dans les
   helpers de seed des 5 fichiers (les assertions existantes testent le comportement réel : après
   B3.3, « ce que le frontend voit » = données validées).
-- [ ] **Step 2** — nouveaux tests d'exclusion :
+- [ ] **Step 2** - nouveaux tests d'exclusion :
   - `FundingControllerTest::testDemoRowsAreExcludedFromListingsAndCounts`
   - `AnalyticsControllerTest::testDemoRowsAreExcludedFromEveryAggregate`
   - `EmissionRepositoryTest::testDemoRowsAreExcludedFromBothQueries`
-- [ ] **Step 3** — `docker compose exec -e APP_ENV=test backend php -d memory_limit=512M
+- [ ] **Step 3** - `docker compose exec -e APP_ENV=test backend php -d memory_limit=512M
   bin/phpunit` : suite complète verte, aucune régression au-delà des écarts documentés.
 
 ### Tâche 3 : Vérification en direct + documentation
 
-- [ ] **Step 1** — Codespace : `curl /api/analytics/hero-stats` doit passer de
+- [ ] **Step 1** - Codespace : `curl /api/analytics/hero-stats` doit passer de
   `fundingRecords: 4085` à `3005` ; `SELECT count(*) FROM funding WHERE is_current AND
   validation_status='validated'` = somme retournée par `financing-trends`.
-- [ ] **Step 2** — `README.md` : sous-section « B3.3 — Bascule démo → réel », nouveau point
+- [ ] **Step 2** - `README.md` : sous-section « B3.3 - Bascule démo → réel », nouveau point
   d'attention (filtre `validation_status`, jumeau de B1.7), tableau « État d'avancement » (B3.3
   ✅), note dans la checklist de reprise (« ne pas charger les fixtures sur un environnement qui
   sert du réel »).
-- [ ] **Step 3** — commit + push (GitLab canonique + miroir).
+- [ ] **Step 3** - commit + push (GitLab canonique + miroir).

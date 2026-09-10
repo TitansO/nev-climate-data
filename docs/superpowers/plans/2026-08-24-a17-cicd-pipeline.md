@@ -10,9 +10,9 @@
 
 ## Global Constraints
 
-- No project deployment happens in A1.7 — the `build` job publishes a Docker image to the Container Registry, nothing pulls or runs it anywhere. Document this explicitly everywhere (spec decision, Non-goals).
-- No GitLab CI/CD variables are configured manually in project Settings — everything needed is either a GitLab-provided predefined variable or a throwaway value hard-coded in `.gitlab-ci.yml` (spec decision 4).
-- `test` job's PHP extensions (`pdo`, `pdo_pgsql`, `intl`, `opcache`, `zip`) must match `docker/backend/Dockerfile`'s list exactly — this duplication is accepted and must be flagged in the README (spec decision 3).
+- No project deployment happens in A1.7 - the `build` job publishes a Docker image to the Container Registry, nothing pulls or runs it anywhere. Document this explicitly everywhere (spec decision, Non-goals).
+- No GitLab CI/CD variables are configured manually in project Settings - everything needed is either a GitLab-provided predefined variable or a throwaway value hard-coded in `.gitlab-ci.yml` (spec decision 4).
+- `test` job's PHP extensions (`pdo`, `pdo_pgsql`, `intl`, `opcache`, `zip`) must match `docker/backend/Dockerfile`'s list exactly - this duplication is accepted and must be flagged in the README (spec decision 3).
 - CI database service: `timescale/timescaledb:latest-pg16`, matching `docker-compose.yml`'s `database` service (spec decision 6).
 - Image tags on `developp`: both `$CI_COMMIT_SHORT_SHA` and `developp` (spec decision 5).
 - Nothing is pushed to `developp` until the full pipeline (test + build, including the failure-blocks-build behavior) has been verified working on a throwaway branch first.
@@ -84,7 +84,7 @@ git push -u origin ci/a17-pipeline-verification
 - [ ] **Step 4: Verify the pipeline runs and the test job passes**
 
 Check: `https://gitlab.com/nev-consulting-group/nev-climate-data/-/pipelines?ref=ci/a17-pipeline-verification`
-Expected: a pipeline appears with a single `phpunit` job in the `test` stage, ending green (passed). If it fails, open the job log from that page, fix the root cause in `.gitlab-ci.yml` (common culprits: an `apt-get`/extension name typo, a wrong `DATABASE_URL`, a missing `mkdir -p config/jwt` before key generation), commit, and push again — repeat until green.
+Expected: a pipeline appears with a single `phpunit` job in the `test` stage, ending green (passed). If it fails, open the job log from that page, fix the root cause in `.gitlab-ci.yml` (common culprits: an `apt-get`/extension name typo, a wrong `DATABASE_URL`, a missing `mkdir -p config/jwt` before key generation), commit, and push again - repeat until green.
 
 ---
 
@@ -95,7 +95,7 @@ Expected: a pipeline appears with a single `phpunit` job in the `test` stage, en
 
 **Interfaces:**
 - Consumes: the `phpunit` job from Task 1 (`needs: ["phpunit"]`).
-- Produces: a `build` stage with a `build_and_push_image` job. In this task, its `rules` condition temporarily targets the throwaway branch itself (not `developp` yet) so the full build+push flow can be verified without any risk to `developp` — Task 4 flips this to the real, permanent condition before the final push.
+- Produces: a `build` stage with a `build_and_push_image` job. In this task, its `rules` condition temporarily targets the throwaway branch itself (not `developp` yet) so the full build+push flow can be verified without any risk to `developp` - Task 4 flips this to the real, permanent condition before the final push.
 
 - [ ] **Step 1: Add the build stage and job**
 
@@ -122,7 +122,7 @@ build_and_push_image:
     - docker push "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA"
 ```
 
-The `rules` condition here is **intentionally temporary** — it checks for the throwaway branch name specifically, so this task's verification exercises the real build+push logic for real, without going anywhere near `developp`. Only the commit-SHA tag is pushed at this stage: the throwaway branch's own name, `ci/a17-pipeline-verification`, contains a `/`, which Docker does not accept inside a tag string — using `$CI_COMMIT_BRANCH` as a tag here would fail. The second, fixed `developp` tag (spec decision 5) is added in Task 4, once the branch check points at `developp` (a name with no `/`, safe as a tag).
+The `rules` condition here is **intentionally temporary** - it checks for the throwaway branch name specifically, so this task's verification exercises the real build+push logic for real, without going anywhere near `developp`. Only the commit-SHA tag is pushed at this stage: the throwaway branch's own name, `ci/a17-pipeline-verification`, contains a `/`, which Docker does not accept inside a tag string - using `$CI_COMMIT_BRANCH` as a tag here would fail. The second, fixed `developp` tag (spec decision 5) is added in Task 4, once the branch check points at `developp` (a name with no `/`, safe as a tag).
 
 - [ ] **Step 2: Commit and push**
 
@@ -149,7 +149,7 @@ Expected: an image `backend` with a tag matching the short commit SHA from the p
 
 **Interfaces:**
 - Consumes: the `needs: ["phpunit"]` relationship from Task 2.
-- Produces: nothing new — this task only verifies existing behavior. No later task depends on anything from this one.
+- Produces: nothing new - this task only verifies existing behavior. No later task depends on anything from this one.
 
 - [ ] **Step 1: Temporarily break a test**
 
@@ -175,7 +175,7 @@ git push
 - [ ] **Step 3: Verify the test job fails and the build job does not run**
 
 Check: `https://gitlab.com/nev-consulting-group/nev-climate-data/-/pipelines?ref=ci/a17-pipeline-verification`
-Expected: `phpunit` shows red (failed). `build_and_push_image` shows as **skipped** (not attempted) — this is GitLab's standard behavior for a job whose `needs` dependency failed. This confirms the exact mechanism that will protect `developp`: once the `rules` condition is switched to `developp` in Task 4, a failing test there will skip the image publish the same way.
+Expected: `phpunit` shows red (failed). `build_and_push_image` shows as **skipped** (not attempted) - this is GitLab's standard behavior for a job whose `needs` dependency failed. This confirms the exact mechanism that will protect `developp`: once the `rules` condition is switched to `developp` in Task 4, a failing test there will skip the image publish the same way.
 
 - [ ] **Step 4: Revert the deliberate breakage**
 
@@ -198,8 +198,8 @@ Expected: newest pipeline has both `phpunit` and `build_and_push_image` green ag
 - Modify: `README.md` (new "CI/CD" section, "Points d'attention" addition, "État d'avancement" update)
 
 **Interfaces:**
-- Consumes: the fully-verified `.gitlab-ci.yml` from Tasks 1–3.
-- Produces: nothing consumed elsewhere — this is the final task of A1.7.
+- Consumes: the fully-verified `.gitlab-ci.yml` from Tasks 1-3.
+- Produces: nothing consumed elsewhere - this is the final task of A1.7.
 
 - [ ] **Step 1: Point the build job at `developp` and add the second image tag**
 
@@ -226,7 +226,7 @@ to:
     - docker push "$CI_REGISTRY_IMAGE/backend:developp"
 ```
 
-The second tag is the fixed string `developp`, not `$CI_COMMIT_BRANCH` — on `developp` itself the two are identical in value, but hard-coding it removes any dependency on the branch name never containing a `/` in the future (spec decision 5).
+The second tag is the fixed string `developp`, not `$CI_COMMIT_BRANCH` - on `developp` itself the two are identical in value, but hard-coding it removes any dependency on the branch name never containing a `/` in the future (spec decision 5).
 
 - [ ] **Step 2: Add the "CI/CD" section to `README.md`**
 
@@ -242,7 +242,7 @@ Pipeline GitLab CI (`.gitlab-ci.yml`), deux étapes :
 | `test` | `phpunit` | Tout push, toute branche | Installe PHP 8.4 + extensions, lance la suite PHPUnit contre un service TimescaleDB éphémère |
 | `build` | `build_and_push_image` | Uniquement `developp`, et seulement si `phpunit` a réussi | Construit l'image Docker backend, la publie sur le Container Registry GitLab (tags : SHA du commit + `developp`) |
 
-**Important — ceci n'est pas un déploiement.** L'image est publiée dans le Container Registry du projet ; rien ne la récupère ni ne la fait tourner automatiquement quelque part. Le déploiement d'un environnement de production réel est la tâche A3.8, plus tard dans le plan.
+**Important - ceci n'est pas un déploiement.** L'image est publiée dans le Container Registry du projet ; rien ne la récupère ni ne la fait tourner automatiquement quelque part. Le déploiement d'un environnement de production réel est la tâche A3.8, plus tard dans le plan.
 
 ### Suivre l'état d'un pipeline
 
@@ -254,7 +254,7 @@ Pipeline GitLab CI (`.gitlab-ci.yml`), deux étapes :
 
 ### Runners
 
-Aucun runner dédié n'est configuré pour ce projet — le pool de runners partagés gitlab.com (confirmé disponible : **Settings → CI/CD → Runners → Instance**) est utilisé.
+Aucun runner dédié n'est configuré pour ce projet - le pool de runners partagés gitlab.com (confirmé disponible : **Settings → CI/CD → Runners → Instance**) est utilisé.
 
 Détails de conception complets : voir [`docs/superpowers/specs/2026-08-24-a17-cicd-pipeline-design.md`](docs/superpowers/specs/2026-08-24-a17-cicd-pipeline-design.md).
 ```
@@ -264,7 +264,7 @@ Détails de conception complets : voir [`docs/superpowers/specs/2026-08-24-a17-c
 Append as a new numbered point at the end of that section's list (renumber if needed to keep it sequential):
 
 ```markdown
-9. **La liste d'extensions PHP du job `phpunit` (`.gitlab-ci.yml`) est dupliquée depuis `docker/backend/Dockerfile`, pas partagée.** Le job de test tourne dans une image PHP générique, pas dans l'image Docker du projet (choix documenté dans le spec A1.7, pour garder le pipeline rapide sur chaque push). Si une extension PHP est ajoutée/retirée du `Dockerfile`, il faut penser à répercuter le changement dans `.gitlab-ci.yml` — rien ne le fait automatiquement, et un oubli ne casse rien immédiatement (juste une divergence silencieuse entre l'environnement testé et l'environnement réel).
+9. **La liste d'extensions PHP du job `phpunit` (`.gitlab-ci.yml`) est dupliquée depuis `docker/backend/Dockerfile`, pas partagée.** Le job de test tourne dans une image PHP générique, pas dans l'image Docker du projet (choix documenté dans le spec A1.7, pour garder le pipeline rapide sur chaque push). Si une extension PHP est ajoutée/retirée du `Dockerfile`, il faut penser à répercuter le changement dans `.gitlab-ci.yml` - rien ne le fait automatiquement, et un oubli ne casse rien immédiatement (juste une divergence silencieuse entre l'environnement testé et l'environnement réel).
 ```
 
 - [ ] **Step 4: Update "État d'avancement"**
@@ -278,7 +278,7 @@ Change the A1.7 row from:
 to:
 
 ```markdown
-| A1.7 | Pipeline CI/CD (build, tests, publication d'image) | ✅ Fait — publie l'image sur le Container Registry, ne déploie pas (voir section CI/CD) |
+| A1.7 | Pipeline CI/CD (build, tests, publication d'image) | ✅ Fait - publie l'image sur le Container Registry, ne déploie pas (voir section CI/CD) |
 ```
 
 - [ ] **Step 5: Delete the throwaway verification branch**
@@ -314,4 +314,4 @@ Expected: `backend` image now has a tag matching this push's commit SHA, plus a 
 - [ ] `git log --oneline` on `developp` shows exactly one new commit for this task: `feat(a1.7): add GitLab CI/CD pipeline...` (the throwaway branch's iteration commits never touched `developp`).
 - [ ] The pipeline for the latest `developp` commit is green end-to-end (Task 4, Step 7).
 - [ ] The `backend` image exists in the Container Registry with both a commit-SHA tag and a `developp` tag.
-- [ ] Cross-check against the plan spreadsheet: A1.7's "Livrable attendu" was *"Pipeline CI/CD opérationnel sur le dépôt Git"* — confirmed by the green pipeline on `developp`.
+- [ ] Cross-check against the plan spreadsheet: A1.7's "Livrable attendu" was *"Pipeline CI/CD opérationnel sur le dépôt Git"* - confirmed by the green pipeline on `developp`.

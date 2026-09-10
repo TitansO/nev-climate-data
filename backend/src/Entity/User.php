@@ -129,6 +129,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function eraseCredentials(): void
     {
-        // No plaintext credential is ever held on this entity — nothing to erase.
+        // No plaintext credential is ever held on this entity - nothing to erase.
     }
 }

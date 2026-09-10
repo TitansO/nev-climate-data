@@ -1,16 +1,16 @@
-# B1.6 — Clôture du processor de validation et normalisation
+# B1.6 - Clôture du processor de validation et normalisation
 
 Status: Approved
 Author: Serge (with Claude)
 Date: 2026-08-31
-Plan reference: B1.6 (Phase B1 — Connecteurs sources officielles),
+Plan reference: B1.6 (Phase B1 - Connecteurs sources officielles),
 `Plan_Implementation_NEV_Climate_Data.xlsx`
 Spec reference: `Cahier_des_charges_NEV_Climate_Data_v2.docx`, section 6.4 (règles de gouvernance
 de la donnée : devise pivot, déduplication, absence ≠ zéro)
 Architecture reference: `docs/superpowers/specs/2026-08-26-volet-b-pipeline-architecture-design.md`
 (décisions 3, 7, 8, 9)
 
-## Contexte — pourquoi ce n'est pas un nouveau développement
+## Contexte - pourquoi ce n'est pas un nouveau développement
 
 B1.6 demande un "processor de validation et normalisation (devise pivot, upsert, valeurs
 manquantes)" appliquant les règles de gouvernance de la section 6.4. Vérification du code réel
@@ -21,19 +21,19 @@ et corrige le seul vrai manque trouvé en le vérifiant.
 
 ## Ce qui satisfait déjà B1.6, avec preuves
 
-1. **"Processor de validation opérationnel, consumer Kafka → TimescaleDB"** — `funding-validator`
+1. **"Processor de validation opérationnel, consumer Kafka → TimescaleDB"** - `funding-validator`
    et `emission-validator` sont deux services Kafka permanents (voir `docker-compose.yml`),
    actifs depuis B1.1, qui consomment `nev.funding.raw`/`nev.emissions.raw` et écrivent
    directement dans TimescaleDB (`funding_validator.py::run()`, `emission_validator.py::run()`).
 
-2. **"Déduplication" / "upsert"** — clé de dédoublonnage `(source_id, country_id, sector_id,
+2. **"Déduplication" / "upsert"** - clé de dédoublonnage `(source_id, country_id, sector_id,
    year, funding_type)` pour `Funding`, `(source_id, country_id, year)` pour `Emission` (spec
    architecture décision 7), implémentée par `upsert_funding()`/`upsert_emission()` : recherche
    de la ligne courante, clôture (`is_current = false`, `valid_to = now()`), insertion d'une
    nouvelle ligne historisée. Historisation SCD2 réelle (décision 8), jamais d'écrasement en
    place.
 
-3. **"Absence ≠ zéro"** — vérifié pour les 5 connecteurs : chaque `parse_*`/`build_payloads`
+3. **"Absence ≠ zéro"** - vérifié pour les 5 connecteurs : chaque `parse_*`/`build_payloads`
    retourne `None`/liste vide quand la donnée source est absente (ex.
    `world_bank.py::parse_project` : `if not total_amount ... return None`), donc rien n'est
    jamais publié sur Kafka pour une donnée manquante - l'absence reste une absence (aucune ligne),
@@ -42,7 +42,7 @@ et corrige le seul vrai manque trouvé en le vérifiant.
    représenté est "vraiment zéro" ou "manquant", cette ambiguïté est résolue avant qu'un message
    n'existe.
 
-4. **"Conversion en devise pivot"** — satisfaite en résultat (toutes les données `Funding` sont en
+4. **"Conversion en devise pivot"** - satisfaite en résultat (toutes les données `Funding` sont en
    USD) mais **pas par le mécanisme centralisé initialement prévu**. La spec d'architecture
    (décision 9) envisageait un processor convertissant via les taux quotidiens BCE. En pratique,
    vérifié en direct pour chaque connecteur : World Bank (`totalamt` déjà en USD à la source) et

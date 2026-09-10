@@ -153,7 +153,7 @@ function MapLegend({ rows }) {
         .map((tier) => {
           const lowest = tier.rows[tier.rows.length - 1].amount;
           const highest = tier.rows[0].amount;
-          const range = lowest === highest ? formatCompactUsd(lowest) : formatCompactUsd(lowest) + " – " + formatCompactUsd(highest);
+          const range = lowest === highest ? formatCompactUsd(lowest) : formatCompactUsd(lowest) + " - " + formatCompactUsd(highest);
           return (
             <span key={tier.key} className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: tier.color }}></span>

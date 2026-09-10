@@ -1,12 +1,12 @@
-# Problèmes connus — suite PHPUnit backend
+# Problèmes connus - suite PHPUnit backend
 
 > Découverts le 2026-08-29 en vérifiant le baseline de tests avant la tâche B1.4.
 > **Indépendants de B1.4** : confirmé par `git stash` (mêmes chiffres avec et sans les
 > fichiers B1.4). Documentés ici sur décision de Serge (« continuer B1.4, traiter ces bugs
-> plus tard »). La suite `pipeline/` (pytest) n'est **pas** concernée — elle est verte
+> plus tard »). La suite `pipeline/` (pytest) n'est **pas** concernée - elle est verte
 > (60 passed).
 
-## Bug 1 — `docker compose exec backend php bin/phpunit` tourne en `APP_ENV=dev`
+## Bug 1 - `docker compose exec backend php bin/phpunit` tourne en `APP_ENV=dev`
 
 ### Symptôme
 Lancé tel quel, `php bin/phpunit` s'exécute avec l'environnement `dev` (et la base de
@@ -31,7 +31,7 @@ docker compose exec -e APP_ENV=test backend php bin/phpunit
 
 ### Portée
 **Invocation locale uniquement.** Le job CI (`.gitlab-ci.yml`, job `phpunit`) définit
-`APP_ENV: test` comme variable de job — il n'est pas affecté par ce bug.
+`APP_ENV: test` comme variable de job - il n'est pas affecté par ce bug.
 
 ### Piste de correction (plus tard)
 Ajouter `-e APP_ENV=test` dans une cible Make / un script wrapper, ou retirer `APP_ENV` de
@@ -39,7 +39,7 @@ l'environnement du conteneur `backend` au profit d'un `.env` non commité.
 
 ---
 
-## Bug 2 — Isolation de tests cassée dans la suite Controller / Integration
+## Bug 2 - Isolation de tests cassée dans la suite Controller / Integration
 
 ### Symptôme
 La suite n'est verte dans **aucune** configuration de base de données, et les compteurs
@@ -48,7 +48,7 @@ varient selon l'état résiduel de PostgreSQL / Redis / clés JWT :
 | Config base de test | Résultat (144 tests) |
 |---|---|
 | Fixtures démo chargées (`doctrine:fixtures:load --env=test`) | **64 erreurs, 2 échecs** |
-| Migrée seulement, sans fixtures (= ce que fait la CI) | **2 erreurs, ~26–36 échecs** (dépend de l'ordre / de l'état Redis) |
+| Migrée seulement, sans fixtures (= ce que fait la CI) | **2 erreurs, ~26-36 échecs** (dépend de l'ordre / de l'état Redis) |
 
 ### Causes (plusieurs, cumulées)
 
@@ -74,11 +74,11 @@ varient selon l'état résiduel de PostgreSQL / Redis / clés JWT :
 ### Portée / statut CI
 Le job CI `phpunit` correspond à la ligne « migrée seulement, sans fixtures » du tableau
 (2 erreurs, ~26+ échecs). **Le statut réel du pipeline GitLab doit être vérifié par Serge**
-(pas d'accès API — cf. `docs/superpowers/HANDOFF.md`). Hypothèse : le job `phpunit` est
+(pas d'accès API - cf. `docs/superpowers/HANDOFF.md`). Hypothèse : le job `phpunit` est
 rouge depuis l'ajout de ces tests fonctionnels ; tout le travail B1.x récent a atterri dans
 `pipeline/` (pytest, vert), pas dans `backend/`.
 
-### Piste de correction (plus tard — chantier à part entière)
+### Piste de correction (plus tard - chantier à part entière)
 - Introduire une vraie isolation transactionnelle : `dama/doctrine-test-bundle`
   (`StaticDriver::setKeepStaticConnections(true)` + wrapper transactionnel automatique par
   test), ou recréation du schéma par test.

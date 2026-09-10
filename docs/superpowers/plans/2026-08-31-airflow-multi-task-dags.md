@@ -1,23 +1,23 @@
-# Refactoring des 5 DAGs Volet B en tâches réelles reliées — Implementation Plan
+# Refactoring des 5 DAGs Volet B en tâches réelles reliées - Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Faire apparaître, dans la vue "Graph" d'Airflow, une vraie chaîne de 3 tâches reliées (`extraire >> transformer >> publier`) pour chacun des 5 DAGs Volet B — sans changer aucun résultat final (mêmes messages Kafka, mêmes clés de payload, même dédoublonnage).
+**Goal:** Faire apparaître, dans la vue "Graph" d'Airflow, une vraie chaîne de 3 tâches reliées (`extraire >> transformer >> publier`) pour chacun des 5 DAGs Volet B - sans changer aucun résultat final (mêmes messages Kafka, mêmes clés de payload, même dédoublonnage).
 
-**Architecture:** Chaque DAG appelle désormais 3 fonctions au lieu d'une, chacune correspondant aux frontières de fonctions déjà existantes dans son collecteur (`fetch_*` / `parse_*`+`build_payloads` / `producer.send`). Les données intermédiaires transitent exclusivement par MinIO (zone `bronze/` puis `silver/`) — seul un chemin d'objet (texte court) circule en XCom entre les tâches.
+**Architecture:** Chaque DAG appelle désormais 3 fonctions au lieu d'une, chacune correspondant aux frontières de fonctions déjà existantes dans son collecteur (`fetch_*` / `parse_*`+`build_payloads` / `producer.send`). Les données intermédiaires transitent exclusivement par MinIO (zone `bronze/` puis `silver/`) - seul un chemin d'objet (texte court) circule en XCom entre les tâches.
 
 **Tech Stack:** Apache Airflow 2.9 (PythonOperator, XCom), MinIO (`minio` Python client, déjà une dépendance depuis B1.5), Kafka (`kafka-python-ng`, inchangé), pytest + `unittest.mock`.
 
 ## Global Constraints
 
 - Bucket MinIO : `nev-climate-data` (déjà créé, aucune migration nécessaire).
-- Aucune nouvelle dépendance Python — `minio`, `google-genai`, `pypdf` sont déjà dans `pipeline/requirements.txt` depuis B1.5. Aucun changement à `docker-compose.yml`.
+- Aucune nouvelle dépendance Python - `minio`, `google-genai`, `pypdf` sont déjà dans `pipeline/requirements.txt` depuis B1.5. Aucun changement à `docker-compose.yml`.
 - `task_id` identiques dans les 5 DAGs : `extraire`, `transformer`, `publier`.
 - Chemins d'objets bronze/silver : `bronze/<connecteur>/<ds>/raw.json` et `silver/<connecteur>/<ds>/payloads.json`, où `<ds>` est `context["ds"]` (date d'exécution Airflow). Exception `extraction_pdf` : voir Tâche 7 (chemins basés sur le hash du document, pas sur `<ds>`, pour rester cohérent avec le cache existant).
 - Aucune modification de `pipeline/processors/funding_validator.py` ni `pipeline/processors/emission_validator.py`.
-- Aucune modification des fonctions `fetch_*`/`parse_*`/`build_payloads`/`collect_and_publish` existantes dans les 5 collecteurs (`pipeline/collectors/*.py`) — les DAGs importent directement les fonctions `fetch_*`/`parse_*`/`build_payloads` au lieu de l'agrégat `collect_and_publish`. `collect_and_publish` reste en place, inutilisé par le DAG mais toujours testé par sa suite existante — c'est un point d'entrée manuel valide (backfill, exécution locale hors Airflow), pas du code mort à supprimer.
-- Le `funding-validator` construit son image via `COPY pipeline/ ./pipeline/` (pas de montage de volume) : **après toute modification d'un fichier sous `pipeline/`, exécuter `docker compose build funding-validator` avant de lancer les tests** via `docker compose run --rm funding-validator pytest ...`. Le service `airflow`, lui, monte `./pipeline:/opt/airflow/pipeline` en volume — les DAGs y sont visibles immédiatement sans rebuild.
-- Tous les commits sont poussés directement sur `developp` (convention déjà établie sur ce projet — pas de branche de fonctionnalité séparée), en gérant un éventuel push concurrent (`git pull --rebase`) comme pour B1.1-B1.5.
+- Aucune modification des fonctions `fetch_*`/`parse_*`/`build_payloads`/`collect_and_publish` existantes dans les 5 collecteurs (`pipeline/collectors/*.py`) - les DAGs importent directement les fonctions `fetch_*`/`parse_*`/`build_payloads` au lieu de l'agrégat `collect_and_publish`. `collect_and_publish` reste en place, inutilisé par le DAG mais toujours testé par sa suite existante - c'est un point d'entrée manuel valide (backfill, exécution locale hors Airflow), pas du code mort à supprimer.
+- Le `funding-validator` construit son image via `COPY pipeline/ ./pipeline/` (pas de montage de volume) : **après toute modification d'un fichier sous `pipeline/`, exécuter `docker compose build funding-validator` avant de lancer les tests** via `docker compose run --rm funding-validator pytest ...`. Le service `airflow`, lui, monte `./pipeline:/opt/airflow/pipeline` en volume - les DAGs y sont visibles immédiatement sans rebuild.
+- Tous les commits sont poussés directement sur `developp` (convention déjà établie sur ce projet - pas de branche de fonctionnalité séparée), en gérant un éventuel push concurrent (`git pull --rebase`) comme pour B1.1-B1.5.
 
 ---
 
@@ -28,7 +28,7 @@
 - Test: `pipeline/tests/test_minio_staging.py`
 
 **Interfaces:**
-- Produces: `MINIO_BUCKET: str`, `make_minio_client() -> Minio`, `upload_bytes(client: Minio, object_path: str, data: bytes) -> None`, `download_bytes(client: Minio, object_path: str) -> bytes`, `upload_json(client: Minio, object_path: str, data: Any) -> None`, `download_json(client: Minio, object_path: str) -> Any` — utilisés par toutes les tâches suivantes.
+- Produces: `MINIO_BUCKET: str`, `make_minio_client() -> Minio`, `upload_bytes(client: Minio, object_path: str, data: bytes) -> None`, `download_bytes(client: Minio, object_path: str) -> bytes`, `upload_json(client: Minio, object_path: str, data: Any) -> None`, `download_json(client: Minio, object_path: str) -> Any` - utilisés par toutes les tâches suivantes.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -111,7 +111,7 @@ def test_download_json_reads_and_deserializes():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `docker compose run --rm funding-validator pytest pipeline/tests/test_minio_staging.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'pipeline.common.minio_staging'` (the image still has the old `pipeline/` copied in — that's fine, the ImportError itself is the expected failure).
+Expected: FAIL with `ModuleNotFoundError: No module named 'pipeline.common.minio_staging'` (the image still has the old `pipeline/` copied in - that's fine, the ImportError itself is the expected failure).
 
 - [ ] **Step 3: Write the implementation**
 
@@ -191,14 +191,14 @@ git push
 
 **Interfaces:**
 - Consumes: `MINIO_BUCKET`, `make_minio_client`, `upload_bytes` from Task 1 (`pipeline.common.minio_staging`).
-- Produces: unchanged external surface — `pdf_extraction.py` still exports `MINIO_BUCKET`, `make_minio_client`, `upload_to_minio` (same names, same signatures) alongside its existing `sha256_hash`, `slice_pdf_pages`, `extract_json_via_gemini`, `is_already_processed`, `record_processed`.
+- Produces: unchanged external surface - `pdf_extraction.py` still exports `MINIO_BUCKET`, `make_minio_client`, `upload_to_minio` (same names, same signatures) alongside its existing `sha256_hash`, `slice_pdf_pages`, `extract_json_via_gemini`, `is_already_processed`, `record_processed`.
 
-This is a refactor of already-tested code — no new test needed, but the existing suite must stay green with zero test-file changes (proves the external contract didn't shift).
+This is a refactor of already-tested code - no new test needed, but the existing suite must stay green with zero test-file changes (proves the external contract didn't shift).
 
 - [ ] **Step 1: Run the existing test suite before changing anything (baseline)**
 
 Run: `docker compose run --rm funding-validator pytest pipeline/tests/test_pdf_extraction.py -v`
-Expected: PASS (10 tests) — confirms the current baseline before the refactor.
+Expected: PASS (10 tests) - confirms the current baseline before the refactor.
 
 - [ ] **Step 2: Remove the duplicated MinIO helpers and delegate to `minio_staging`**
 
@@ -219,7 +219,7 @@ The rest of the file (`sha256_hash`, `slice_pdf_pages`, `extract_json_via_gemini
 - [ ] **Step 3: Rebuild and run the same test file again**
 
 Run: `docker compose build funding-validator && docker compose run --rm funding-validator pytest pipeline/tests/test_pdf_extraction.py -v`
-Expected: PASS (10 tests, unchanged) — proves the refactor didn't shift behavior. `MINIO_BUCKET` and `upload_to_minio` are still importable from `pipeline.common.pdf_extraction` exactly as the test file already expects (no edit to the test file itself).
+Expected: PASS (10 tests, unchanged) - proves the refactor didn't shift behavior. `MINIO_BUCKET` and `upload_to_minio` are still importable from `pipeline.common.pdf_extraction` exactly as the test file already expects (no edit to the test file itself).
 
 - [ ] **Step 4: Commit**
 
@@ -232,7 +232,7 @@ git push
 
 ---
 
-### Tâche 3 : `collecte_worldbank` — 3 tâches reliées
+### Tâche 3 : `collecte_worldbank` - 3 tâches reliées
 
 **Files:**
 - Modify: `pipeline/dags/collecte_worldbank.py`
@@ -240,7 +240,7 @@ git push
 
 **Interfaces:**
 - Consumes: `make_minio_client`, `upload_json`, `download_json` from Task 1; `fetch_projects_for_country(country_iso: str) -> Iterator[dict]` and `parse_project(project: dict) -> dict | None` from `pipeline.collectors.world_bank` (unchanged); `get_connection()` from `pipeline.common.db`; `make_producer()` from `pipeline.common.kafka_client`.
-- Produces: `_extraire(**context) -> None`, `_transformer(**context) -> None`, `_publier(**context) -> None` in `pipeline.dags.collecte_worldbank` — pushes XCom keys `raw_path` (from `extraire`), `payloads_path` (from `transformer`), `published_count` (from `publier`, same key name as before the refactor).
+- Produces: `_extraire(**context) -> None`, `_transformer(**context) -> None`, `_publier(**context) -> None` in `pipeline.dags.collecte_worldbank` - pushes XCom keys `raw_path` (from `extraire`), `payloads_path` (from `transformer`), `published_count` (from `publier`, same key name as before the refactor).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -431,7 +431,7 @@ with DAG(
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `docker compose build funding-validator && docker compose run --rm funding-validator pytest pipeline/tests/test_dag_worldbank_tasks.py pipeline/tests/test_world_bank_collector.py -v`
-Expected: PASS (3 new tests + the existing collector suite unchanged and green — proves `fetch_projects_for_country`/`parse_project` weren't touched).
+Expected: PASS (3 new tests + the existing collector suite unchanged and green - proves `fetch_projects_for_country`/`parse_project` weren't touched).
 
 - [ ] **Step 5: Commit**
 
@@ -444,7 +444,7 @@ git push
 
 ---
 
-### Tâche 4 : `collecte_gcf` — 3 tâches reliées
+### Tâche 4 : `collecte_gcf` - 3 tâches reliées
 
 **Files:**
 - Modify: `pipeline/dags/collecte_gcf.py`
@@ -621,7 +621,7 @@ git push
 
 ---
 
-### Tâche 5 : `collecte_afdb` — 3 tâches reliées
+### Tâche 5 : `collecte_afdb` - 3 tâches reliées
 
 **Files:**
 - Modify: `pipeline/dags/collecte_afdb.py`
@@ -814,7 +814,7 @@ git push
 
 ---
 
-### Tâche 6 : `collecte_pnue` — 3 tâches reliées
+### Tâche 6 : `collecte_pnue` - 3 tâches reliées
 
 **Files:**
 - Modify: `pipeline/dags/collecte_pnue.py`
@@ -822,7 +822,7 @@ git push
 
 **Interfaces:**
 - Consumes: `make_minio_client`, `upload_json`, `download_json` from Task 1; `country_iso3_to_m49(country_iso: str) -> str | None`, `fetch_emissions_for_country(area_code: str) -> Iterator[dict]`, `parse_emission(row: dict, country_iso: str) -> dict | None` from `pipeline.collectors.pnue` (unchanged); `get_connection()` from `pipeline.common.db`; `make_producer()` from `pipeline.common.kafka_client`.
-- Produces: `_extraire`, `_transformer`, `_publier` in `pipeline.dags.collecte_pnue`. The bronze payload is a list of `{"country_iso": str, "row": dict}` entries — `country_iso` must travel with each raw row, per the real Angola bug fixed in B1.4 (`parse_emission` needs the caller's own `country_iso`, not a recomputation from `row["geoAreaCode"]`).
+- Produces: `_extraire`, `_transformer`, `_publier` in `pipeline.dags.collecte_pnue`. The bronze payload is a list of `{"country_iso": str, "row": dict}` entries - `country_iso` must travel with each raw row, per the real Angola bug fixed in B1.4 (`parse_emission` needs the caller's own `country_iso`, not a recomputation from `row["geoAreaCode"]`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1028,15 +1028,15 @@ git push
 
 ---
 
-### Tâche 7 : `extraction_pdf` — 3 tâches reliées avec court-circuit de cache
+### Tâche 7 : `extraction_pdf` - 3 tâches reliées avec court-circuit de cache
 
 **Files:**
 - Modify: `pipeline/dags/extraction_pdf.py`
 - Test: `pipeline/tests/test_dag_extraction_pdf_tasks.py`
 
 **Interfaces:**
-- Consumes: `make_minio_client`, `upload_bytes`, `download_bytes`, `upload_json`, `download_json` from Task 1; `sha256_hash`, `slice_pdf_pages`, `extract_json_via_gemini`, `is_already_processed`, `record_processed` from `pipeline.common.pdf_extraction` (Task 2 — same names, unchanged signatures); `ANNEX_2_START_PAGE`, `ANNEX_2_END_PAGE`, `EXTRACTION_PROMPT`, `REQUEST_TIMEOUT_SECONDS`, `SOURCE_NAME`, `SOURCE_URL`, `DOCUMENT_SLUG`, `build_payloads(row: dict, document_hash: str) -> list[dict]` from `pipeline.collectors.opec_fund_climate_finance` (unchanged); `get_connection()` from `pipeline.common.db`; `make_producer()` from `pipeline.common.kafka_client`.
-- Produces: `_extraire`, `_transformer`, `_publier` in `pipeline.dags.extraction_pdf`, propagating `cache_hit: bool` and `document_hash: str` at every step; `minio_path_pdf`, `minio_path_annex` (from `extraire`, cache-miss only); `payloads_path`, `rows_extracted` (from `transformer`, cache-miss only); `published_count` (from `publier`, always — `0` on any cache hit).
+- Consumes: `make_minio_client`, `upload_bytes`, `download_bytes`, `upload_json`, `download_json` from Task 1; `sha256_hash`, `slice_pdf_pages`, `extract_json_via_gemini`, `is_already_processed`, `record_processed` from `pipeline.common.pdf_extraction` (Task 2 - same names, unchanged signatures); `ANNEX_2_START_PAGE`, `ANNEX_2_END_PAGE`, `EXTRACTION_PROMPT`, `REQUEST_TIMEOUT_SECONDS`, `SOURCE_NAME`, `SOURCE_URL`, `DOCUMENT_SLUG`, `build_payloads(row: dict, document_hash: str) -> list[dict]` from `pipeline.collectors.opec_fund_climate_finance` (unchanged); `get_connection()` from `pipeline.common.db`; `make_producer()` from `pipeline.common.kafka_client`.
+- Produces: `_extraire`, `_transformer`, `_publier` in `pipeline.dags.extraction_pdf`, propagating `cache_hit: bool` and `document_hash: str` at every step; `minio_path_pdf`, `minio_path_annex` (from `extraire`, cache-miss only); `payloads_path`, `rows_extracted` (from `transformer`, cache-miss only); `published_count` (from `publier`, always - `0` on any cache hit).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1383,17 +1383,17 @@ git push
 **Files:**
 - Modify: `README.md`
 
-**Interfaces:** n/a — vérification et documentation, aucun nouveau code.
+**Interfaces:** n/a - vérification et documentation, aucun nouveau code.
 
 - [ ] **Step 1: Run the full offline pipeline test suite**
 
 Run: `docker compose run --rm funding-validator pytest pipeline/tests/ -v`
-Expected: every test green — the 5 collectors' own suites, `funding_validator`/`emission_validator`, `pdf_extraction`, `minio_staging`, and the 5 new `test_dag_*_tasks.py` files, with no regression from before this refactor.
+Expected: every test green - the 5 collectors' own suites, `funding_validator`/`emission_validator`, `pdf_extraction`, `minio_staging`, and the 5 new `test_dag_*_tasks.py` files, with no regression from before this refactor.
 
 - [ ] **Step 2: Confirm the Airflow scheduler has synced the 5 rewritten DAG files**
 
 Run: `docker compose exec airflow airflow dags list | grep -E "collecte_worldbank|collecte_gcf|collecte_afdb|collecte_pnue|extraction_pdf"`
-Expected: all 5 `dag_id`s listed (the `airflow` service volume-mounts `./pipeline`, so this should be near-instant — no rebuild needed for this service).
+Expected: all 5 `dag_id`s listed (the `airflow` service volume-mounts `./pipeline`, so this should be near-instant - no rebuild needed for this service).
 
 - [ ] **Step 3: Trigger each of the 5 DAGs for real and confirm the Graph view now shows 3 linked tasks**
 
@@ -1403,11 +1403,11 @@ For each `dag_id` in `collecte_worldbank`, `collecte_gcf`, `collecte_afdb`, `col
 docker compose exec airflow airflow dags trigger <dag_id>
 ```
 
-Poll `docker compose exec airflow airflow dags list-runs -d <dag_id>` until the run reaches `success` (or investigate/fix on `failed`, same troubleshooting approach as B1.5's own end-to-end verification — read the real task log under `/opt/airflow/logs/dag_id=<dag_id>/run_id=.../task_id=<task>/attempt=N.log` inside the container). Confirm in the Airflow UI's Graph view for each DAG that `extraire`, `transformer`, and `publier` appear as 3 separate nodes connected by arrows (`extraire → transformer → publier`) — this is the concrete fix for what Serge originally reported.
+Poll `docker compose exec airflow airflow dags list-runs -d <dag_id>` until the run reaches `success` (or investigate/fix on `failed`, same troubleshooting approach as B1.5's own end-to-end verification - read the real task log under `/opt/airflow/logs/dag_id=<dag_id>/run_id=.../task_id=<task>/attempt=N.log` inside the container). Confirm in the Airflow UI's Graph view for each DAG that `extraire`, `transformer`, and `publier` appear as 3 separate nodes connected by arrows (`extraire → transformer → publier`) - this is the concrete fix for what Serge originally reported.
 
 - [ ] **Step 4: Confirm published message counts are unchanged versus before the refactor**
 
-For `collecte_worldbank`/`collecte_gcf`/`collecte_afdb`/`collecte_pnue`: compare each run's `published_count` (visible via `docker compose exec airflow airflow tasks states-for-dag-run <dag_id> <run_id>` or by reading the `publier` task's XCom in the UI) against a note of what the equivalent single-task run published before this refactor, or simply confirm the count is plausible (non-zero, roughly matching the connector's known real scale — e.g. AfDB in the low thousands, GCF a few hundred). For `extraction_pdf` specifically: since the real target document was already processed and cached during B1.5's own end-to-end verification, this first post-refactor run is expected to be a **cache hit** — confirm `published_count == 0` and that the Graph view still shows all 3 tasks as `success` (proving the short-circuit itself runs cleanly end-to-end, not just its mocked unit tests).
+For `collecte_worldbank`/`collecte_gcf`/`collecte_afdb`/`collecte_pnue`: compare each run's `published_count` (visible via `docker compose exec airflow airflow tasks states-for-dag-run <dag_id> <run_id>` or by reading the `publier` task's XCom in the UI) against a note of what the equivalent single-task run published before this refactor, or simply confirm the count is plausible (non-zero, roughly matching the connector's known real scale - e.g. AfDB in the low thousands, GCF a few hundred). For `extraction_pdf` specifically: since the real target document was already processed and cached during B1.5's own end-to-end verification, this first post-refactor run is expected to be a **cache hit** - confirm `published_count == 0` and that the Graph view still shows all 3 tasks as `success` (proving the short-circuit itself runs cleanly end-to-end, not just its mocked unit tests).
 
 - [ ] **Step 5: Document the refactor in README.md**
 

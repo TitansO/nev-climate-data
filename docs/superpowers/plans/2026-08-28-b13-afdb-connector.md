@@ -2,24 +2,24 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Collect African Development Bank Group (BAD/AfDB) project financing for every NEV-tracked country, quarterly, and land it in the `funding` table via the shared Volet B pipeline — the first connector to convert a non-USD currency and populate `Funding.originalAmount`/`originalCurrency`/`exchangeRate` for real.
+**Goal:** Collect African Development Bank Group (BAD/AfDB) project financing for every NEV-tracked country, quarterly, and land it in the `funding` table via the shared Volet B pipeline - the first connector to convert a non-USD currency and populate `Funding.originalAmount`/`originalCurrency`/`exchangeRate` for real.
 
-**Architecture:** A new `pipeline/collectors/afdb.py` paginates AfDB's entire IATI Datastore portfolio (5,604 activities — too large for one request, unlike B1.2), sums each activity's real AfDB-Group-provided commitment (filtered by a fixed entity allowlist, not free text), converts XDR to USD via `open.er-api.com`, and publishes to the **existing** `nev.funding.raw` topic (`source: "afdb"`). The **existing** `funding-validator` service is extended to dispatch to a new `pipeline/processors/sector_mapping_afdb.py` and to persist the new currency-provenance fields. No new Kafka topics or services.
+**Architecture:** A new `pipeline/collectors/afdb.py` paginates AfDB's entire IATI Datastore portfolio (5,604 activities - too large for one request, unlike B1.2), sums each activity's real AfDB-Group-provided commitment (filtered by a fixed entity allowlist, not free text), converts XDR to USD via `open.er-api.com`, and publishes to the **existing** `nev.funding.raw` topic (`source: "afdb"`). The **existing** `funding-validator` service is extended to dispatch to a new `pipeline/processors/sector_mapping_afdb.py` and to persist the new currency-provenance fields. No new Kafka topics or services.
 
-**Tech Stack:** Python 3.12, `requests`, `pycountry` (already in the shared pipeline image), IATI Datastore REST API (same `IATI_API_KEY` as B1.2), `open.er-api.com` (free, no key), Apache Airflow 2.9 (existing `airflow` service), TimescaleDB (existing `funding`/`source`/`country`/`sector` tables — `original_amount`/`original_currency`/`exchange_rate` columns already exist since A1.3, unpopulated until this plan), pytest.
+**Tech Stack:** Python 3.12, `requests`, `pycountry` (already in the shared pipeline image), IATI Datastore REST API (same `IATI_API_KEY` as B1.2), `open.er-api.com` (free, no key), Apache Airflow 2.9 (existing `airflow` service), TimescaleDB (existing `funding`/`source`/`country`/`sector` tables - `original_amount`/`original_currency`/`exchange_rate` columns already exist since A1.3, unpopulated until this plan), pytest.
 
 ## Global Constraints
 
-- No new Kafka topics or services — reuses the existing `nev.funding.raw` topic and `funding-validator` service (spec decision 1 / architecture spec decision 4).
+- No new Kafka topics or services - reuses the existing `nev.funding.raw` topic and `funding-validator` service (spec decision 1 / architecture spec decision 4).
 - `fundingType` is always `Multilateral` (B1.3 spec decision 3).
-- Exact-phrase Solr query required: `q=reporting_org_ref:"XM-DAC-46002"` (quoted — same Solr tokenizing pitfall as B1.2).
-- Full pagination required — no server-side climate filter exists for this source (B1.3 spec decisions 1-2).
-- Currency: AfDB reports 100% in XDR. Convert via `https://open.er-api.com/v6/latest/XDR` (`rates.USD`) — the ECB structurally cannot serve this currency (B1.3 spec decision 4). Populate `original_amount`/`original_currency`/`exchange_rate` on every row this connector writes.
-- Financing entity allowlist — only these IATI provider refs count as real AfDB Group financing on a Commitment (`type = "2"`) transaction: `XM-DAC-46002` (AfDB), `XM-DAC-46003` (ADF), `XM-DAC-NTF` (Nigerian Trust Fund). Everything else (government counterpart commitments, other funds routed through AfDB — including `XM-DAC-GCF`, which would double-count against B1.2) is excluded (B1.3 spec decision 6).
-- No multi-country splitting logic — AfDB activities are never multi-country (verified; B1.3 spec decision 5). Activities with no recipient country at all are skipped pre-publish.
+- Exact-phrase Solr query required: `q=reporting_org_ref:"XM-DAC-46002"` (quoted - same Solr tokenizing pitfall as B1.2).
+- Full pagination required - no server-side climate filter exists for this source (B1.3 spec decisions 1-2).
+- Currency: AfDB reports 100% in XDR. Convert via `https://open.er-api.com/v6/latest/XDR` (`rates.USD`) - the ECB structurally cannot serve this currency (B1.3 spec decision 4). Populate `original_amount`/`original_currency`/`exchange_rate` on every row this connector writes.
+- Financing entity allowlist - only these IATI provider refs count as real AfDB Group financing on a Commitment (`type = "2"`) transaction: `XM-DAC-46002` (AfDB), `XM-DAC-46003` (ADF), `XM-DAC-NTF` (Nigerian Trust Fund). Everything else (government counterpart commitments, other funds routed through AfDB - including `XM-DAC-GCF`, which would double-count against B1.2) is excluded (B1.3 spec decision 6).
+- No multi-country splitting logic - AfDB activities are never multi-country (verified; B1.3 spec decision 5). Activities with no recipient country at all are skipped pre-publish.
 - `year` = the year of the earliest allowlisted Commitment transaction (B1.3 spec decision 7).
-- Sector mapping: fixed DAC 5-digit code table, first NEV-sector-in-priority-order with any matching code wins, no percentage weighting — same mechanism as B1.2, different (larger, more conservative) table. Never map generic energy-policy (`23111`) or non-renewable/coal codes (`23310`, `23320`) to Renewable Energy; never map generic environmental-policy (`41010`) to Adaptation (B1.3 spec decision 8).
-- Cancelled activities (`activity_status_code = "5"`) are **not** filtered out — a formal Board commitment is a real historical event regardless of later cancellation.
+- Sector mapping: fixed DAC 5-digit code table, first NEV-sector-in-priority-order with any matching code wins, no percentage weighting - same mechanism as B1.2, different (larger, more conservative) table. Never map generic energy-policy (`23111`) or non-renewable/coal codes (`23310`, `23320`) to Renewable Energy; never map generic environmental-policy (`41010`) to Adaptation (B1.3 spec decision 8).
+- Cancelled activities (`activity_status_code = "5"`) are **not** filtered out - a formal Board commitment is a real historical event regardless of later cancellation.
 - Repo root for all paths below: `nev-climate-data/`. All `docker compose` commands run from that root.
 
 ---
@@ -194,7 +194,7 @@ git commit -m "feat(b1.3): add AfDB DAC-code sector-mapping function"
 - Test: `pipeline/tests/test_afdb_collector_live.py`
 
 **Interfaces:**
-- Consumes: nothing from earlier tasks (pure HTTP + Kafka producer). `IATI_API_KEY` is already wired into `docker-compose.yml`'s `funding-validator`/`airflow` services since B1.2 Task 2 — no new environment plumbing needed.
+- Consumes: nothing from earlier tasks (pure HTTP + Kafka producer). `IATI_API_KEY` is already wired into `docker-compose.yml`'s `funding-validator`/`airflow` services since B1.2 Task 2 - no new environment plumbing needed.
 - Produces: `collect_and_publish(producer) -> int`. Consumed by Task 4 (the DAG).
 
 - [ ] **Step 1: Write the failing offline unit tests**
@@ -666,7 +666,7 @@ Save as `pipeline/tests/test_afdb_collector_live.py`.
 ```bash
 docker compose run --rm funding-validator python -m pytest pipeline/tests/test_afdb_collector_live.py -v -m live
 ```
-Expected: PASS (2 tests) — proves the real IATI Datastore and open.er-api.com contracts still
+Expected: PASS (2 tests) - proves the real IATI Datastore and open.er-api.com contracts still
 match what this task's implementation assumes.
 
 - [ ] **Step 7: Commit**
@@ -696,23 +696,23 @@ In `backend/src/DataFixtures/SourceFixtures.php`, add a new row to the `SOURCES`
 ```php
     private const SOURCES = [
         ['World Bank Data API', 'world-bank-api', SourceType::OfficialApi, SourceReliability::High],
-        ['Green Climate Fund — Annual Report (PDF)', 'gcf-pdf-report', SourceType::PdfReport, SourceReliability::Medium],
-        ['Green Climate Fund — IATI Datastore', 'gcf-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
-        ['African Development Bank Group — IATI Datastore', 'afdb-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
+        ['Green Climate Fund - Annual Report (PDF)', 'gcf-pdf-report', SourceType::PdfReport, SourceReliability::Medium],
+        ['Green Climate Fund - IATI Datastore', 'gcf-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
+        ['African Development Bank Group - IATI Datastore', 'afdb-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
-        ['NEV Climate Data — Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
+        ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];
 ```
 
-**Do not run `doctrine:fixtures:load` against the dev database** — it purges the whole
+**Do not run `doctrine:fixtures:load` against the dev database** - it purges the whole
 database and would destroy real pipeline-collected data (hit this exact problem during B1.2
 Task 3; see README "Points d'attention"). Insert the row directly instead:
 
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "INSERT INTO source (name, type, reliability) VALUES ('African Development Bank Group — IATI Datastore', 'official_api', 'high') ON CONFLICT (name) DO NOTHING"
+docker compose exec backend php bin/console dbal:run-sql "INSERT INTO source (name, type, reliability) VALUES ('African Development Bank Group - IATI Datastore', 'official_api', 'high') ON CONFLICT (name) DO NOTHING"
 ```
 
-For the test database (safe to reload — no real pipeline data lives there):
+For the test database (safe to reload - no real pipeline data lives there):
 ```bash
 docker compose exec -e APP_ENV=test backend php bin/console doctrine:fixtures:load --no-interaction
 ```
@@ -752,7 +752,7 @@ def test_afdb_message_inserts_a_new_funding_row_with_currency_provenance(db_curs
     assert accepted is True
     assert reason is None
 
-    db_cursor.execute("SELECT id FROM source WHERE name = 'African Development Bank Group — IATI Datastore'")
+    db_cursor.execute("SELECT id FROM source WHERE name = 'African Development Bank Group - IATI Datastore'")
     source_id = db_cursor.fetchone()[0]
     db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
     country_id = db_cursor.fetchone()[0]
@@ -820,7 +820,7 @@ def test_all_three_sources_stay_separate_for_the_same_dedup_key(db_cursor):
 docker compose run --rm funding-validator python -m pytest pipeline/tests/test_funding_validator.py -v
 ```
 Expected: the 4 new tests FAIL (`KeyError` on `raw_sector_codes` for the AfDB dispatch, or
-`TypeError`/column errors for the currency fields) — the existing 7 World Bank/GCF tests still
+`TypeError`/column errors for the currency fields) - the existing 7 World Bank/GCF tests still
 PASS unchanged.
 
 - [ ] **Step 4: Update the implementation**
@@ -832,7 +832,7 @@ from pipeline.processors.sector_mapping_afdb import map_afdb_sector
 ```
 
 ```python
-AFDB_SOURCE_NAME = "African Development Bank Group — IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
+AFDB_SOURCE_NAME = "African Development Bank Group - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_afdb_source(cursor) -> int:
@@ -978,7 +978,7 @@ docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m
 ```
 Expected: PASS (55 tests: 8 sector-mapping World Bank + 10 sector-mapping GCF + 13
 sector-mapping AfDB + 4 collector-offline World Bank + 5 collector-offline GCF + 7
-collector-offline AfDB + 3 validator World Bank + 4 validator GCF + 11 validator combined —
+collector-offline AfDB + 3 validator World Bank + 4 validator GCF + 11 validator combined -
 the exact count matters less than confirming everything from every earlier task still passes
 alongside the new work).
 
@@ -1006,7 +1006,7 @@ git commit -m "feat(b1.3): dispatch funding-validator to AfDB sector mapping and
 
 **Interfaces:**
 - Consumes: `collect_and_publish` from Task 2.
-- Produces: nothing consumed by a later task — Task 5 verifies this DAG end-to-end.
+- Produces: nothing consumed by a later task - Task 5 verifies this DAG end-to-end.
 
 - [ ] **Step 1: Write the DAG**
 
@@ -1084,7 +1084,7 @@ git commit -m "feat(b1.3): add quarterly AfDB collection DAG"
 
 **Interfaces:**
 - Consumes: the entire connector built in Tasks 1-4, running on B1.1/B1.2's already-provisioned infrastructure.
-- Produces: nothing — this is the plan's acceptance check.
+- Produces: nothing - this is the plan's acceptance check.
 
 - [ ] **Step 1: Trigger the DAG manually**
 
@@ -1093,7 +1093,7 @@ docker compose exec airflow airflow dags unpause collecte_afdb
 docker compose exec airflow airflow dags trigger collecte_afdb
 ```
 
-Wait for it to finish — this paginates 5,604 activities across 6 HTTP requests plus one
+Wait for it to finish - this paginates 5,604 activities across 6 HTTP requests plus one
 currency-rate request, likely several minutes. Check:
 
 ```bash
@@ -1107,7 +1107,7 @@ docker compose exec airflow sh -c "find /opt/airflow/logs/dag_id=collecte_afdb -
 ```
 
 If the run gets stuck in `queued` for more than a minute or two despite `airflow jobs check`
-reporting a healthy scheduler, don't wait longer — recreate the container (a known real
+reporting a healthy scheduler, don't wait longer - recreate the container (a known real
 Airflow issue hit during B1.2's own end-to-end verification):
 ```bash
 docker compose up -d --force-recreate airflow
@@ -1116,12 +1116,12 @@ docker compose up -d --force-recreate airflow
 - [ ] **Step 2: Verify real data landed in `funding`, with currency provenance populated**
 
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'African Development Bank Group — IATI Datastore')"
+docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'African Development Bank Group - IATI Datastore')"
 ```
 Expected: a count greater than 0.
 
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT country_id, sector_id, year, amount, original_amount, original_currency, exchange_rate, is_current FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'African Development Bank Group — IATI Datastore') ORDER BY amount DESC LIMIT 5"
+docker compose exec backend php bin/console dbal:run-sql "SELECT country_id, sector_id, year, amount, original_amount, original_currency, exchange_rate, is_current FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'African Development Bank Group - IATI Datastore') ORDER BY amount DESC LIMIT 5"
 ```
 Expected: rows with plausible amounts, `original_currency = XDR`, a real-looking
 `exchange_rate` (roughly 1.0-1.8), and `amount ≈ original_amount × exchange_rate`.
@@ -1129,16 +1129,16 @@ Expected: rows with plausible amounts, `original_currency = XDR`, a real-looking
 - [ ] **Step 3: Verify all three sources stay separate**
 
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT s.name, count(*) FROM funding f JOIN source s ON s.id = f.source_id WHERE s.name IN ('World Bank Data API', 'Green Climate Fund — IATI Datastore', 'African Development Bank Group — IATI Datastore') GROUP BY s.name"
+docker compose exec backend php bin/console dbal:run-sql "SELECT s.name, count(*) FROM funding f JOIN source s ON s.id = f.source_id WHERE s.name IN ('World Bank Data API', 'Green Climate Fund - IATI Datastore', 'African Development Bank Group - IATI Datastore') GROUP BY s.name"
 ```
 Expected: three distinct rows, each with a real count.
 
 - [ ] **Step 4: Verify no `Adaptation` rows came from AfDB**
 
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding f JOIN source s ON s.id = f.source_id JOIN sector sec ON sec.id = f.sector_id WHERE s.name = 'African Development Bank Group — IATI Datastore' AND sec.name = 'Adaptation'"
+docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding f JOIN source s ON s.id = f.source_id JOIN sector sec ON sec.id = f.sector_id WHERE s.name = 'African Development Bank Group - IATI Datastore' AND sec.name = 'Adaptation'"
 ```
-Expected: `0` — confirms the spec's verified gap (decision 8) holds against real data, not just
+Expected: `0` - confirms the spec's verified gap (decision 8) holds against real data, not just
 the mocked fixtures.
 
 - [ ] **Step 5: Verify the historization/summing behavior for real**
@@ -1149,7 +1149,7 @@ docker compose exec airflow airflow dags trigger collecte_afdb
 
 Wait for it to complete again, then:
 ```bash
-docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'African Development Bank Group — IATI Datastore') AND is_current = false"
+docker compose exec backend php bin/console dbal:run-sql "SELECT count(*) FROM funding WHERE source_id = (SELECT id FROM source WHERE name = 'African Development Bank Group - IATI Datastore') AND is_current = false"
 ```
 Expected: a count greater than 0.
 
@@ -1159,10 +1159,10 @@ Expected: a count greater than 0.
 docker compose exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic nev.funding.rejets --from-beginning --timeout-ms 30000 2>&1 | grep '"source": "afdb"' | head -3
 ```
 Expected: at least one AfDB-sourced rejected message with a `rejection_reason`
-(`unclassifiable_sector` is very likely — most of AfDB's real portfolio is outside NEV's five
+(`unclassifiable_sector` is very likely - most of AfDB's real portfolio is outside NEV's five
 sectors, per the spec's own verified numbers).
 
-- [ ] **Step 7: No commit** — this task only ran verification commands; nothing in the repo
+- [ ] **Step 7: No commit** - this task only ran verification commands; nothing in the repo
 changed.
 
 ---
@@ -1173,7 +1173,7 @@ changed.
 - Modify: `README.md`
 
 **Interfaces:**
-- Consumes: nothing. Produces: nothing consumed elsewhere — final task of this plan.
+- Consumes: nothing. Produces: nothing consumed elsewhere - final task of this plan.
 
 - [ ] **Step 1: Extend the "Pipeline (Volet B)" section**
 
@@ -1185,7 +1185,7 @@ Add a subsection after B1.2's "Connecteur GCF" subsection:
 Troisième connecteur du Volet B : collecte trimestrielle des financements de la Banque
 Africaine de Développement (Groupe BAD), via la même API IATI Datastore que B1.2. Premier
 connecteur à effectuer une vraie conversion de devise (XDR→USD, la BCE ne pouvant
-structurellement pas servir cette devise — voir la spec) et à peupler pour de vrai les colonnes
+structurellement pas servir cette devise - voir la spec) et à peupler pour de vrai les colonnes
 `originalAmount`/`originalCurrency`/`exchangeRate` de `Funding`, réservées depuis A1.3.
 Décisions de conception complètes :
 [`docs/superpowers/specs/2026-08-28-b13-afdb-connector-design.md`](docs/superpowers/specs/2026-08-28-b13-afdb-connector-design.md).
@@ -1194,7 +1194,7 @@ Décisions de conception complètes :
 docker compose exec airflow airflow dags trigger collecte_afdb
 ```
 
-Réutilise `IATI_API_KEY` (déjà configuré depuis B1.2) et l'infrastructure existante — aucun
+Réutilise `IATI_API_KEY` (déjà configuré depuis B1.2) et l'infrastructure existante - aucun
 nouveau service, aucun nouveau topic.
 ```
 
@@ -1203,9 +1203,9 @@ nouveau service, aucun nouveau topic.
 Append as the next numbered points (after B1.2's points 18-20):
 
 ```markdown
-21. **La BCE ne couvre pas toutes les devises — le XDR (Droits de Tirage Spéciaux du FMI) en est absent.** Vérifié en direct sur le flux quotidien officiel (`eurofxref-daily.xml`) : 28 devises nationales, aucune n'est le XDR (un panier de devises défini par le FMI, pas une devise nationale). Le FMI publie bien un taux quotidien officiel mais uniquement sur une page HTML, sans API. Pour toute devise non couverte par la BCE, vérifier d'abord sa couverture réelle avant de supposer qu'une "conversion de devise standard" suffira — voir `pipeline/collectors/afdb.py` pour la solution retenue (API tierce `open.er-api.com`, décision documentée dans la spec B1.3).
+21. **La BCE ne couvre pas toutes les devises - le XDR (Droits de Tirage Spéciaux du FMI) en est absent.** Vérifié en direct sur le flux quotidien officiel (`eurofxref-daily.xml`) : 28 devises nationales, aucune n'est le XDR (un panier de devises défini par le FMI, pas une devise nationale). Le FMI publie bien un taux quotidien officiel mais uniquement sur une page HTML, sans API. Pour toute devise non couverte par la BCE, vérifier d'abord sa couverture réelle avant de supposer qu'une "conversion de devise standard" suffira - voir `pipeline/collectors/afdb.py` pour la solution retenue (API tierce `open.er-api.com`, décision documentée dans la spec B1.3).
 
-22. **Un flux de données d'une organisation peut légitimement contenir l'argent d'*autres* organisations.** Le flux IATI de la BAD inclut des engagements de gouvernements récipiendaires ET d'autres fonds indépendants (dont le GCF, déjà suivi par un connecteur séparé) qui utilisent la BAD comme simple entité de mise en œuvre. Compter cet argent comme "financement BAD" aurait créé un vrai double comptage avec B1.2. Toujours vérifier, avec de vraies données, qui est le payeur réel derrière un enregistrement de financement multi-institutionnel — jamais supposer qu'une transaction appartient à l'organisation qui publie le flux.
+22. **Un flux de données d'une organisation peut légitimement contenir l'argent d'*autres* organisations.** Le flux IATI de la BAD inclut des engagements de gouvernements récipiendaires ET d'autres fonds indépendants (dont le GCF, déjà suivi par un connecteur séparé) qui utilisent la BAD comme simple entité de mise en œuvre. Compter cet argent comme "financement BAD" aurait créé un vrai double comptage avec B1.2. Toujours vérifier, avec de vraies données, qui est le payeur réel derrière un enregistrement de financement multi-institutionnel - jamais supposer qu'une transaction appartient à l'organisation qui publie le flux.
 ```
 
 - [ ] **Step 3: Commit**
@@ -1219,8 +1219,8 @@ git commit -m "docs(b1.3): document the AfDB connector"
 
 ## Final check before considering B1.3 done
 
-- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m "not live"` — all green.
-- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/test_afdb_collector_live.py -v -m live` — green (real IATI + open.er-api.com contracts still match assumptions).
-- [ ] `docker compose exec backend php bin/phpunit` (full existing suite) — still green, confirming the new `SourceFixtures.php` row caused no regression.
-- [ ] Two manual DAG triggers (Task 5) produced real `Funding` rows with `source = African Development Bank Group — IATI Datastore`, `funding_type = multilateral`, real `original_amount`/`original_currency`/`exchange_rate` populated, correct summing/historization on the second run, zero `Adaptation` rows, and all three sources (World Bank/GCF/AfDB) verified to stay separate under the shared dedup key.
-- [ ] Cross-check against the plan spreadsheet: B1.3's "Livrable attendu" was *"DAG Airflow trimestriel publiant vers le topic Kafka dédié"* — confirmed: `collecte_afdb` DAG exists, scheduled quarterly, publishes to `nev.funding.raw`.
+- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/ -v -m "not live"` - all green.
+- [ ] `docker compose run --rm funding-validator python -m pytest pipeline/tests/test_afdb_collector_live.py -v -m live` - green (real IATI + open.er-api.com contracts still match assumptions).
+- [ ] `docker compose exec backend php bin/phpunit` (full existing suite) - still green, confirming the new `SourceFixtures.php` row caused no regression.
+- [ ] Two manual DAG triggers (Task 5) produced real `Funding` rows with `source = African Development Bank Group - IATI Datastore`, `funding_type = multilateral`, real `original_amount`/`original_currency`/`exchange_rate` populated, correct summing/historization on the second run, zero `Adaptation` rows, and all three sources (World Bank/GCF/AfDB) verified to stay separate under the shared dedup key.
+- [ ] Cross-check against the plan spreadsheet: B1.3's "Livrable attendu" was *"DAG Airflow trimestriel publiant vers le topic Kafka dédié"* - confirmed: `collecte_afdb` DAG exists, scheduled quarterly, publishes to `nev.funding.raw`.

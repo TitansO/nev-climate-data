@@ -49,7 +49,7 @@ final class ReportFixtures extends Fixture implements DependentFixtureInterface
 
         /** @var Country $senegal */
         $senegal = $this->getReference(CountryFixtures::countryReference('SEN'), Country::class);
-        $report = new Report('Senegal — Climate Finance Country Profile', 'Country Report', 'reports/2025-senegal-country-profile.pdf');
+        $report = new Report('Senegal - Climate Finance Country Profile', 'Country Report', 'reports/2025-senegal-country-profile.pdf');
         $report->setStatus(ReportStatus::Published);
         $report->setCountry($senegal);
         $report->setPublicationDate(new \DateTimeImmutable('2026-04-10'));
@@ -57,7 +57,7 @@ final class ReportFixtures extends Fixture implements DependentFixtureInterface
 
         /** @var Country $kenya */
         $kenya = $this->getReference(CountryFixtures::countryReference('KEN'), Country::class);
-        $report = new Report('Kenya — Climate Finance Country Profile', 'Country Report', 'reports/2025-kenya-country-profile.pdf');
+        $report = new Report('Kenya - Climate Finance Country Profile', 'Country Report', 'reports/2025-kenya-country-profile.pdf');
         $report->setCountry($kenya);
         // Left in Draft (the constructor's default): no publicationDate yet,
         // and no PDF committed either - a draft has nothing to download
@@ -67,13 +67,13 @@ final class ReportFixtures extends Fixture implements DependentFixtureInterface
 
         /** @var Country $nigeria */
         $nigeria = $this->getReference(CountryFixtures::countryReference('NGA'), Country::class);
-        $report = new Report('Nigeria — Climate Finance Country Profile', 'Country Report', 'reports/2025-nigeria-country-profile.pdf');
+        $report = new Report('Nigeria - Climate Finance Country Profile', 'Country Report', 'reports/2025-nigeria-country-profile.pdf');
         $report->setStatus(ReportStatus::Published);
         $report->setCountry($nigeria);
         $report->setPublicationDate(new \DateTimeImmutable('2026-05-20'));
         $manager->persist($report);
 
-        $report = new Report('2026 Sector Deep Dive — Renewable Energy', 'Sector Report', 'reports/2026-renewable-energy-deep-dive.pdf');
+        $report = new Report('2026 Sector Deep Dive - Renewable Energy', 'Sector Report', 'reports/2026-renewable-energy-deep-dive.pdf');
         // Left in Draft: still being written, no publicationDate, no PDF
         // committed (see the Kenya report above for the same reasoning).
         $manager->persist($report);

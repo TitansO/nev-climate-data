@@ -18,13 +18,13 @@ use Doctrine\Persistence\ObjectManager;
 /**
  * The core A1.6 dataset: one Funding record per (country x sector x year)
  * combination, for every one of the 54 countries and all 5 sectors, across
- * a 4-year window — 54 x 5 x 4 = 1,080 records.
+ * a 4-year window - 54 x 5 x 4 = 1,080 records.
  *
  * A full country x sector cross-join was kept (rather than a sparser sample)
  * because it's what makes every filter combination and every trend chart
  * meaningful in a demo; the year window was kept short (4 years, not the
  * project's full history) specifically to keep that cross-join's volume
- * reasonable — see README's A1.6 section for the reasoning spelled out.
+ * reasonable - see README's A1.6 section for the reasoning spelled out.
  *
  * Every value below is computed from deterministic formulas seeded by each
  * combination's position (country index, sector index, year offset) rather
@@ -34,18 +34,18 @@ use Doctrine\Persistence\ObjectManager;
  * real-world financial data.
  *
  * cahier des charges 5.7 / A1.6: every record uses
- * ValidationStatus::Demo — never ::Validated.
+ * ValidationStatus::Demo - never ::Validated.
  */
 final class FundingFixtures extends Fixture implements DependentFixtureInterface
 {
-    /** Inclusive — 4 consecutive years, the most recent full years relative to the project's 2026 timeline. */
+    /** Inclusive - 4 consecutive years, the most recent full years relative to the project's 2026 timeline. */
     private const START_YEAR = 2022;
     private const END_YEAR = 2025;
 
     /**
      * Base annual amount (USD) per sector, in SectorFixtures::SECTORS order
      * (Renewable Energy, Sustainable Transport, Agriculture, Forestry,
-     * Adaptation) — loosely reflects that energy typically attracts the
+     * Adaptation) - loosely reflects that energy typically attracts the
      * largest share of climate finance and forestry the smallest, without
      * claiming to represent real-world figures.
      *
