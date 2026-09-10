@@ -21,14 +21,29 @@ nev-climate-data/
 │   │                          doc API, connexion, 404) + profil et clés API (voir frontend/README.md)
 │   ├── assets/js/              api.js (GET /api/funding), auth.js (session JWT, clés API), main.js (UI)
 │   └── src/                    Thème Tailwind (input.css) + CSS compilé
+├── pipeline/                  Pipeline de données Volet B (collecteurs, DAGs Airflow, processors Kafka)
 ├── docker/
 │   └── backend/               Dockerfile et configuration Apache du backend
+├── docs/
+│   ├── exploitation/          Runbooks, suivi des coûts, support de formation (tâches transverses T.1-T.3)
+│   └── superpowers/           Specs de conception, plans d'implémentation, HANDOFF
 ├── docker-compose.yml         Orchestration des services (backend + base de données)
 ├── .env.example                Modèle des variables d'environnement
 └── README.md
 ```
 
 > Détail complet du frontend (structure, identité visuelle, comment le lancer) : [`frontend/README.md`](frontend/README.md).
+
+## Exploitation (runbooks, coûts, formation)
+
+Documentation opérationnelle, produite au titre des tâches transverses T.1 à T.3 du plan
+d'implémentation (voir aussi la section « Tâches transverses (T) » de l'« État d'avancement ») :
+
+| Document | Contenu |
+|---|---|
+| [`docs/exploitation/runbooks.md`](docs/exploitation/runbooks.md) | **Procédures opérationnelles** : démarrer/arrêter la pile (15 services), reprise après `git pull`, lancer les tests (avec le `-d memory_limit=512M` obligatoire), déclencher les 5 collectes et vérifier qu'elles aboutissent, incidents (téléchargement des rapports en production, valeurs `NaN`), sauvegarde/restauration de la base, circuit de déploiement + vérification CI, réveil et limites du Codespace, contrôles de cohérence dev↔production, réserves ouvertes |
+| [`docs/exploitation/suivi-couts.md`](docs/exploitation/suivi-couts.md) | **Suivi des coûts** : tableau mensuel à dupliquer (13 postes), historique, 7 risques de bascule vers un coût non nul (dont l'expiration à 30 jours de la base PostgreSQL gratuite Render), leviers d'optimisation en place, procédure de relevé mensuel. Configuration actuelle : coût monétaire ~nul |
+| [`docs/exploitation/formation-equipe.md`](docs/exploitation/formation-equipe.md) | **Support de formation de l'équipe interne** : objectifs pédagogiques, 3 parcours selon le public (métier / analystes / technique), modules (nature des données, lecture des tableaux de bord, pipeline en pratique, gestion d'incident), exercices pratiques, glossaire, journal des sessions à tenir |
 
 ## Prérequis
 
