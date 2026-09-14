@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Entity;
 
 use App\Entity\Country;
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
@@ -49,6 +50,16 @@ final class FundingTest extends TestCase
         self::assertNull($funding->getValidFrom());
         self::assertNull($funding->getValidTo());
         self::assertTrue($funding->isCurrent());
+        self::assertSame(FundingInstrument::Unknown, $funding->getInstrument());
+    }
+
+    public function testInstrumentCanBeSet(): void
+    {
+        $funding = $this->makeFunding();
+
+        $funding->setInstrument(FundingInstrument::LoanConcessional);
+
+        self::assertSame(FundingInstrument::LoanConcessional, $funding->getInstrument());
     }
 
     public function testOriginalCurrencyFieldsCanBeSet(): void

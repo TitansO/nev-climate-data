@@ -139,7 +139,8 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
                     funding_type: str, delta: Decimal, collection_date: str,
                     original_amount: Decimal | None = None,
                     original_currency: str | None = None,
-                    exchange_rate: Decimal | None = None) -> None:
+                    exchange_rate: Decimal | None = None,
+                    instrument: str = "unknown") -> None:
     """Applies `delta` (can be negative - see apply_project_contribution's
     sector/year-change case) to the current row for this dedup key,
     historizing the previous version, or inserts a fresh row if none
@@ -151,7 +152,12 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
     historized versions, same treatment as `collection_date`) - only
     populated by connectors reporting in a non-pivot currency (B1.3's
     AfDB connector is the first; World Bank/GCF never pass them, so they
-    stay NULL as before).
+    stay NULL as before). `instrument` (F1) gets the exact same
+    treatment: it reflects only the latest contributing message, not a
+    value merged across every project aggregated into this dedup key - a
+    dedup key is not currently split by instrument (unlike funding_type,
+    which already was one), so two projects with different instruments
+    sharing the same key will show whichever one wrote most recently.
     """
     if delta == 0:
         return
@@ -181,17 +187,17 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
         INSERT INTO funding (
             country_id, sector_id, year, amount, funding_type, source_id,
             collection_date, validation_status, valid_from, is_current,
-            original_amount, original_currency, exchange_rate,
+            original_amount, original_currency, exchange_rate, instrument,
             created_at, updated_at
         ) VALUES (
             %s, %s, %s, %s, %s, %s,
             %s, 'validated', now(), true,
-            %s, %s, %s,
+            %s, %s, %s, %s,
             now(), now()
         )
         """,
         (country_id, sector_id, year, new_amount, funding_type, source_id, collection_date,
-         original_amount, original_currency, exchange_rate),
+         original_amount, original_currency, exchange_rate, instrument),
     )
 
 
@@ -200,7 +206,8 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
                                 collection_date: str,
                                 original_amount: Decimal | None = None,
                                 original_currency: str | None = None,
-                                exchange_rate: Decimal | None = None) -> None:
+                                exchange_rate: Decimal | None = None,
+                                instrument: str = "unknown") -> None:
     """Applies one project's real, current contribution to the `funding`
     aggregate for its dedup key - idempotently. Fixes a real production
     bug (2026-08-31): every collection DAG re-publishes its entire current
@@ -231,7 +238,7 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
             year=year, funding_type=funding_type, delta=amount, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
-            exchange_rate=exchange_rate,
+            exchange_rate=exchange_rate, instrument=instrument,
         )
         cursor.execute(
             """
@@ -252,9 +259,14 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
             year=year, funding_type=funding_type, delta=delta, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
-            exchange_rate=exchange_rate,
+            exchange_rate=exchange_rate, instrument=instrument,
         )
     else:
+        # Closing out the old key: `instrument` isn't tracked per
+        # contribution in `funding_project_contribution` (same simplification
+        # as original_amount/original_currency/exchange_rate just above),
+        # so this call has no real instrument to preserve for the old
+        # bucket - left at the "unknown" default rather than guessing.
         upsert_funding(
             cursor, source_id=source_id, country_id=country_id, sector_id=old_sector_id,
             year=old_year, funding_type=old_funding_type, delta=-old_amount,
@@ -264,7 +276,7 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
             year=year, funding_type=funding_type, delta=amount, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
-            exchange_rate=exchange_rate,
+            exchange_rate=exchange_rate, instrument=instrument,
         )
 
     cursor.execute(
@@ -357,6 +369,12 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
     else:
         original_amount, original_currency, exchange_rate = None, None, None
 
+    # F1: only the IATI sources (gcf, afdb) currently carry this field
+    # (see pipeline/collectors/gcf.py and afdb.py) - world_bank and
+    # opec_fund_pdf messages have no instrument signal at all and always
+    # fall back to "unknown", matching the column's own DB default.
+    instrument = message.get("instrument", "unknown")
+
     apply_project_contribution(
         cursor,
         source_id=source_id,
@@ -370,6 +388,7 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         original_amount=original_amount,
         original_currency=original_currency,
         exchange_rate=exchange_rate,
+        instrument=instrument,
     )
     return True, None
 

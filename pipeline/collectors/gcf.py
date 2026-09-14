@@ -12,6 +12,8 @@ from typing import Any, Iterator
 import pycountry
 import requests
 
+from pipeline.processors.instrument_mapping import map_iati_finance_type
+
 IATI_DATASTORE_URL = "https://api.iatistandard.org/datastore/activity/select"
 GCF_REPORTING_ORG_REF = "XM-DAC-41317"
 # GCF's real portfolio was 350 activities when this connector was designed
@@ -25,7 +27,7 @@ FIELDS = ",".join([
     "iati_identifier", "recipient_country_code", "recipient_country_percentage",
     "sector_code", "sector_percentage", "transaction_transaction_type_code",
     "transaction_description_narrative", "transaction_value",
-    "transaction_transaction_date_iso_date",
+    "transaction_transaction_date_iso_date", "default_finance_type_code",
 ])
 
 COMMITMENT_TRANSACTION_TYPE = "2"
@@ -105,6 +107,12 @@ def parse_activity(activity: dict[str, Any]) -> list[dict[str, Any]]:
     sector_codes = activity.get("sector_code", [])
     sector_percentages = activity.get("sector_percentage", [])
 
+    # F1 : activity-level field (not per-transaction), returned as a
+    # single-element list by the Datastore's Solr schema like
+    # `iati_identifier` - never observed with more than one value.
+    finance_type_codes = activity.get("default_finance_type_code", [])
+    instrument = map_iati_finance_type(finance_type_codes[0] if finance_type_codes else None)
+
     country_codes = activity.get("recipient_country_code", [])
     country_percentages = activity.get("recipient_country_percentage", [])
     if not country_codes or len(country_percentages) != len(country_codes):
@@ -126,6 +134,7 @@ def parse_activity(activity: dict[str, Any]) -> list[dict[str, Any]]:
             "year": year,
             "amount_usd": prorated_amount,
             "funding_type": "multilateral",
+            "instrument": instrument,
             "raw_sector_codes": sector_codes,
             "raw_sector_percentages": sector_percentages,
             "board_approval_date": board_approval_date,

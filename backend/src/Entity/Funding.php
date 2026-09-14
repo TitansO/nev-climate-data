@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\ValidationStatus;
 use App\Repository\FundingRepository;
@@ -80,6 +81,16 @@ class Funding
 
     #[ORM\Column(type: Types::STRING, enumType: FundingType::class, length: 20)]
     private FundingType $fundingType;
+
+    // F1 : jamais NULL - une ligne sans signal d'instrument reste
+    // `Unknown` plutôt que d'être laissée indéterminée, pour que tout
+    // agrégat `GROUP BY instrument` (C1.7) n'ait jamais à traiter un cas
+    // NULL séparément. Reflète le dernier message ayant contribué à cette
+    // ligne agrégée, pas une vérité mergée entre plusieurs instruments -
+    // même traitement que originalAmount/originalCurrency/exchangeRate
+    // ci-dessus (voir le docblock d'upsert_funding() côté pipeline).
+    #[ORM\Column(type: Types::STRING, enumType: FundingInstrument::class, length: 25, options: ['default' => 'unknown'])]
+    private FundingInstrument $instrument = FundingInstrument::Unknown;
 
     #[ORM\ManyToOne(targetEntity: Source::class)]
     #[ORM\JoinColumn(nullable: false)]
@@ -225,6 +236,18 @@ class Funding
     public function setFundingType(FundingType $fundingType): static
     {
         $this->fundingType = $fundingType;
+
+        return $this;
+    }
+
+    public function getInstrument(): FundingInstrument
+    {
+        return $this->instrument;
+    }
+
+    public function setInstrument(FundingInstrument $instrument): static
+    {
+        $this->instrument = $instrument;
 
         return $this;
     }

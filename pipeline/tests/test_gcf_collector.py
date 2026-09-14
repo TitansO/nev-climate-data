@@ -97,6 +97,20 @@ def test_parse_activity_returns_empty_list_when_no_gcf_commitment_transaction():
     assert parse_activity(_SAMPLE_ACTIVITY_NO_GCF_COMMITMENT) == []
 
 
+def test_parse_activity_defaults_instrument_to_unknown_when_finance_type_absent():
+    # F1: none of the fixtures above carry default_finance_type_code -
+    # matches every real activity captured before this field was added to
+    # FIELDS (B1.2 design, 2026-08-28).
+    payloads = parse_activity(_SAMPLE_ACTIVITY_SINGLE_COUNTRY)
+    assert payloads[0]["instrument"] == "unknown"
+
+
+def test_parse_activity_maps_default_finance_type_code_to_instrument():
+    activity = dict(_SAMPLE_ACTIVITY_SINGLE_COUNTRY, default_finance_type_code=["110"])
+    payloads = parse_activity(activity)
+    assert payloads[0]["instrument"] == "grant"
+
+
 def test_fetch_gcf_activities_uses_exact_phrase_query_and_yields_docs():
     mock_response = MagicMock()
     mock_response.json.return_value = {

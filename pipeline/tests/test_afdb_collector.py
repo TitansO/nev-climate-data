@@ -107,6 +107,20 @@ def test_parse_activity_returns_none_when_no_recipient_country():
     assert parse_activity(_SAMPLE_ACTIVITY_NO_COUNTRY, xdr_to_usd_rate=1.5) is None
 
 
+def test_parse_activity_defaults_instrument_to_unknown_when_finance_type_absent():
+    # F1: none of the fixtures above carry default_finance_type_code -
+    # matches every real activity captured before this field was added to
+    # FIELDS (B1.3 design, 2026-08-28).
+    payload = parse_activity(_SAMPLE_ACTIVITY_MULTI_COMMITMENT, xdr_to_usd_rate=1.5)
+    assert payload["instrument"] == "unknown"
+
+
+def test_parse_activity_maps_default_finance_type_code_to_instrument():
+    activity = dict(_SAMPLE_ACTIVITY_MULTI_COMMITMENT, default_finance_type_code=["421"])
+    payload = parse_activity(activity, xdr_to_usd_rate=1.5)
+    assert payload["instrument"] == "loan_concessional"
+
+
 def test_fetch_afdb_activities_paginates_using_start_offset():
     page_one = {
         "response": {

@@ -37,6 +37,19 @@ def _funding_row(cursor, source_id, country_id, sector_id, year, funding_type):
     return cursor.fetchone()
 
 
+def _funding_instrument(cursor, source_id, country_id, sector_id, year, funding_type):
+    cursor.execute(
+        """
+        SELECT instrument FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = true
+        """,
+        (source_id, country_id, sector_id, year, funding_type),
+    )
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
 def _sample_message(amount_usd: int, project_id: str = "P-TEST") -> dict:
     return {
         "source": "world_bank",
@@ -135,6 +148,36 @@ def test_gcf_message_inserts_a_new_funding_row_under_the_gcf_source(db_cursor):
 
     row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "multilateral")
     assert row == (Decimal("2000000.00"), True)
+
+
+def test_world_bank_message_without_instrument_field_defaults_to_unknown(db_cursor):
+    # F1: world_bank never carries an "instrument" key (no IATI signal) -
+    # process_message must default it, not KeyError.
+    process_message(db_cursor, _sample_message(1_000_000))
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    assert _funding_instrument(db_cursor, source_id, country_id, sector_id, 2026, "multilateral") == "unknown"
+
+
+def test_gcf_message_instrument_is_persisted_on_the_funding_row(db_cursor):
+    message = _gcf_sample_message(2_000_000)
+    message["instrument"] = "loan_concessional"
+    process_message(db_cursor, message)
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Green Climate Fund - IATI Datastore'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    assert _funding_instrument(db_cursor, source_id, country_id, sector_id, 2026, "multilateral") == "loan_concessional"
 
 
 def test_gcf_and_world_bank_rows_stay_separate_for_the_same_dedup_key(db_cursor):

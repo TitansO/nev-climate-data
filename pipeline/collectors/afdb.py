@@ -15,6 +15,8 @@ from typing import Any, Iterator
 import pycountry
 import requests
 
+from pipeline.processors.instrument_mapping import map_iati_finance_type
+
 IATI_DATASTORE_URL = "https://api.iatistandard.org/datastore/activity/select"
 AFDB_REPORTING_ORG_REF = "XM-DAC-46002"
 PAGE_SIZE = 1000
@@ -31,6 +33,7 @@ FIELDS = ",".join([
     "iati_identifier", "recipient_country_code", "sector_code",
     "transaction_transaction_type_code", "transaction_provider_org_ref",
     "transaction_value", "transaction_transaction_date_iso_date",
+    "default_finance_type_code",
 ])
 
 COMMITMENT_TRANSACTION_TYPE = "2"
@@ -155,6 +158,12 @@ def parse_activity(activity: dict[str, Any], xdr_to_usd_rate: float) -> dict[str
 
     amount_usd = int(round(total_amount_xdr * xdr_to_usd_rate))
 
+    # F1 : activity-level field (not per-transaction), returned as a
+    # single-element list by the Datastore's Solr schema like
+    # `iati_identifier` - never observed with more than one value.
+    finance_type_codes = activity.get("default_finance_type_code", [])
+    instrument = map_iati_finance_type(finance_type_codes[0] if finance_type_codes else None)
+
     return {
         "source": "afdb",
         "project_id": activity["iati_identifier"],
@@ -165,6 +174,7 @@ def parse_activity(activity: dict[str, Any], xdr_to_usd_rate: float) -> dict[str
         "original_currency": "XDR",
         "exchange_rate": xdr_to_usd_rate,
         "funding_type": "multilateral",
+        "instrument": instrument,
         "raw_sector_codes": activity.get("sector_code", []),
         "board_approval_date": board_approval_date,
         "collected_at": dt.datetime.now(dt.timezone.utc).isoformat(),
