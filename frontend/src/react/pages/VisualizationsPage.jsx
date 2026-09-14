@@ -8,7 +8,7 @@ import TypeDonutChart from "../components/charts/TypeDonutChart";
 import SectorDonutChart from "../components/charts/SectorDonutChart";
 import FinancingBarChart from "../components/charts/FinancingBarChart";
 import FinancingTable from "../components/charts/FinancingTable";
-import CountryMap from "../components/charts/CountryMap";
+import FilterableCountryMap from "../components/charts/FilterableCountryMap";
 import { formatCompactUsd, formatCount } from "../data/analyticsConstants";
 import NevKpi from "../components/ui/NevKpi";
 import NevChartCard from "../components/ui/NevChartCard";
@@ -112,9 +112,12 @@ export default function VisualizationsPage() {
 
   const financing = useAnalyticsFetch("/api/analytics/financing-trends", { emptyWhen: (body) => 0 === body.data.length });
   const sectors = useAnalyticsFetch("/api/analytics/sector-distribution", { emptyWhen: (body) => 0 === body.data.length });
-  const countries = useAnalyticsFetch("/api/analytics/country-distribution", { emptyWhen: (body) => 0 === body.data.length });
 
   const financingTotals = useMemo(() => (financing.data ? sumTotals(financing.data.data) : null), [financing.data]);
+  // C1.2: years for the CountryMap layer selector's "Année" filter - reuses
+  // financing-trends' own periods (already fetched above) instead of a
+  // second endpoint just to list which years have data.
+  const availableYears = useMemo(() => (financing.data ? financing.data.data.map((row) => row.period) : []), [financing.data]);
 
   // A3.2: live KPI snapshot pushed by the backend's mercure-publisher over
   // Mercure/SSE (A3.1) - when connected, its most recent snapshot overrides
@@ -199,9 +202,7 @@ export default function VisualizationsPage() {
         {/* Country map */}
         <section className="mb-16">
           <NevChartCard title={t("vizPage.byCountry", "Financement par pays (Afrique)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
-            <ChartStateBox state={countries.state} message={countries.message} onRetry={countries.reload} minHeight={false}>
-              {countries.data && <CountryMap rows={countries.data.data} />}
-            </ChartStateBox>
+            <FilterableCountryMap availableYears={availableYears} />
           </NevChartCard>
         </section>
 

@@ -21,6 +21,21 @@ export const TYPE_COLORS = { public: "#16a34a", private: "#052e1c", multilateral
 export const TYPE_LABELS = { public: "Public", private: "Privé", multilateral: "Multilatéral" };
 
 /**
+ * C1.2: labels for the CountryMap layer selector's "Instrument" filter -
+ * App\Entity\Enum\FundingInstrument's values verbatim (backend is the
+ * source of truth; this is display text only, never sent as-is to the API).
+ */
+export const INSTRUMENT_LABELS = {
+  grant: "Don",
+  loan_concessional: "Prêt concessionnel",
+  loan_non_concessional: "Prêt non concessionnel",
+  guarantee: "Garantie",
+  equity: "Prise de participation",
+  results_based: "Financement basé sur les résultats",
+  unknown: "Inconnu",
+};
+
+/**
  * ISO 3166-1 alpha-3 -> alpha-2, the 54 African countries seeded by
  * backend/src/DataFixtures/CountryFixtures.php (same list as
  * backend/src/Reference/AfricanCurrencies.php::COUNTRY_CURRENCY).

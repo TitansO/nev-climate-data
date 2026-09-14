@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Dto\CountryDistributionCriteria;
 use App\Dto\FundingSearchCriteria;
 use App\Entity\Enum\ValidationStatus;
 use App\Entity\Funding;
@@ -139,14 +140,38 @@ class FundingRepository extends ServiceEntityRepository
      * row per country, summed in SQL, ordered by total DESC with
      * country.id ASC as a deterministic tiebreaker.
      *
+     * C1.2: $criteria's sector/instrument/year/fundingType filters are all
+     * optional and cumulable, applied the same way criteriaQueryBuilder()
+     * applies GET /api/funding's own filters - an all-null $criteria adds
+     * no WHERE clause at all, so an unfiltered call behaves exactly as it
+     * did before C1.2.
+     *
      * @return list<array{isoCode: string, countryName: string, total: string}>
      */
-    public function findCountryDistributionAggregate(): array
+    public function findCountryDistributionAggregate(CountryDistributionCriteria $criteria): array
     {
-        return $this->onlyValidated($this->createQueryBuilder('funding')
+        $qb = $this->onlyValidated($this->createQueryBuilder('funding')
             ->select('country.isoCode AS isoCode', 'country.name AS countryName', 'SUM(funding.amount) AS total')
             ->join('funding.country', 'country')
-            ->where('funding.isCurrent = true'))
+            ->where('funding.isCurrent = true'));
+
+        if (null !== $criteria->sectorId) {
+            $qb->andWhere('funding.sector = :sectorId')->setParameter('sectorId', $criteria->sectorId);
+        }
+
+        if (null !== $criteria->instrument) {
+            $qb->andWhere('funding.instrument = :instrument')->setParameter('instrument', $criteria->instrument);
+        }
+
+        if (null !== $criteria->year) {
+            $qb->andWhere('funding.year = :year')->setParameter('year', $criteria->year);
+        }
+
+        if (null !== $criteria->fundingType) {
+            $qb->andWhere('funding.fundingType = :fundingType')->setParameter('fundingType', $criteria->fundingType);
+        }
+
+        return $qb
             ->groupBy('country.id')
             ->addGroupBy('country.isoCode')
             ->addGroupBy('country.name')

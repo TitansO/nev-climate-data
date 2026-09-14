@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Dto\CountryDistributionCriteria;
 use App\Service\AnalyticsService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -16,10 +18,12 @@ use Symfony\Component\Routing\Attribute\Route;
  * funding map) and the Hero stats strip on index.html (A2.7).
  * Deliberately PUBLIC_ACCESS, like GET /api/funding (see security.yaml):
  * neither page has a login requirement, so there is no reason for the data
- * feeding them to require one either. No query parameters - neither page
- * has a filter UI to drive them (see the A2.5/A2.6 implementation report).
- * Every response is served through a 15-minute Redis cache
- * (App\Service\AnalyticsService).
+ * feeding them to require one either. Every endpoint but
+ * country-distribution takes no query parameters (see the A2.5/A2.6
+ * implementation report) - country-distribution gained optional
+ * sector/instrument/year/fundingType filters in C1.2, for the Dashboard's
+ * (C1.1) and Visualisations' map layer selector. Every response is served
+ * through a 15-minute Redis cache (App\Service\AnalyticsService).
  */
 final class AnalyticsController extends AbstractController
 {
@@ -117,9 +121,15 @@ final class AnalyticsController extends AbstractController
     #[Route('/api/analytics/country-distribution', name: 'api_analytics_country_distribution', methods: ['GET'])]
     #[OA\Get(
         summary: 'Répartition des financements par pays (mis en cache 15 min)',
-        description: 'Montants agrégés (SUM) par pays réel, triés du plus grand au plus petit (ordre déterministe : égalité départagée par id de pays). Le pourcentage est calculé côté serveur sur le total agrégé. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
+        description: 'Montants agrégés (SUM) par pays réel, triés du plus grand au plus petit (ordre déterministe : égalité départagée par id de pays). Le pourcentage est calculé côté serveur sur le total agrégé (déjà filtré par les paramètres ci-dessous, s\'il y en a). C1.2 : filtres optionnels et cumulables par secteur/instrument/année/type de financement - une requête sans aucun paramètre se comporte exactement comme avant C1.2 (même agrégat, même clé de cache). Chaque combinaison de filtres a sa propre entrée de cache Redis dédiée, TTL 900 secondes.',
         tags: ['Analytics'],
         security: [],
+        parameters: [
+            new OA\Parameter(name: 'sector', in: 'query', required: false, description: 'Identifiant du secteur (Sector.id - voir la répartition GET /api/analytics/sector-distribution pour les noms, ou GET /api/funding pour des lignes portant leur secteur)', schema: new OA\Schema(type: 'integer', example: 3)),
+            new OA\Parameter(name: 'instrument', in: 'query', required: false, description: 'Instrument financier (F1)', schema: new OA\Schema(type: 'string', enum: ['grant', 'loan_concessional', 'loan_non_concessional', 'guarantee', 'equity', 'results_based', 'unknown'])),
+            new OA\Parameter(name: 'year', in: 'query', required: false, description: 'Année du financement', schema: new OA\Schema(type: 'integer', example: 2025)),
+            new OA\Parameter(name: 'fundingType', in: 'query', required: false, description: 'Nature du bailleur', schema: new OA\Schema(type: 'string', enum: ['public', 'private', 'multilateral'])),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -137,11 +147,14 @@ final class AnalyticsController extends AbstractController
                     ]
                 )
             ),
+            new OA\Response(response: 400, description: 'Un paramètre a une valeur invalide (ex : "instrument" hors de l\'énumération connue)'),
         ]
     )]
-    public function countryDistribution(): JsonResponse
+    public function countryDistribution(Request $request): JsonResponse
     {
-        return $this->json(['data' => $this->analyticsService->getCountryDistribution()]);
+        $criteria = CountryDistributionCriteria::fromQuery($request->query);
+
+        return $this->json(['data' => $this->analyticsService->getCountryDistribution($criteria)]);
     }
 
     #[Route('/api/analytics/co2-reduction', name: 'api_analytics_co2_reduction', methods: ['GET'])]

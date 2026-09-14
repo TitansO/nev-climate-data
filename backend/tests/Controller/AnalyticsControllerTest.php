@@ -6,6 +6,7 @@ namespace App\Tests\Controller;
 
 use App\Entity\Country;
 use App\Entity\Emission;
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
@@ -212,6 +213,136 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertSame('KEN', $data[1]['isoCode']);
         self::assertEquals(200.0, $data[1]['amount']);
         self::assertEquals(20.0, $data[1]['percentage']);
+    }
+
+    /**
+     * C1.2: sector/instrument/year/fundingType filters, all optional and
+     * cumulable. Reuses seedDataset()'s 3 rows (Senegal only) plus one
+     * Kenya/Renewable Energy/2024/public/grant row added here specifically
+     * so every filter has an unambiguous single-country expectation.
+     */
+    public function testCountryDistributionFiltersBySector(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
+
+        $client->request('GET', '/api/analytics/country-distribution?sector='.$agriculture->getId());
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertCount(1, $data);
+        self::assertSame('SEN', $data[0]['isoCode']);
+        self::assertEquals(100.0, $data[0]['amount']); // only the Agriculture/private row
+        self::assertEquals(100.0, $data[0]['percentage']);
+    }
+
+    public function testCountryDistributionFiltersByYear(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/country-distribution?year=2025');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertCount(1, $data);
+        self::assertSame('SEN', $data[0]['isoCode']);
+        self::assertEquals(400.0, $data[0]['amount']); // only the 2025 multilateral row
+    }
+
+    public function testCountryDistributionFiltersByFundingType(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/country-distribution?fundingType=private');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertCount(1, $data);
+        self::assertSame('SEN', $data[0]['isoCode']);
+        self::assertEquals(100.0, $data[0]['amount']); // only the Agriculture/private row
+    }
+
+    public function testCountryDistributionFiltersByInstrument(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client); // every seeded row defaults to FundingInstrument::Unknown
+
+        $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $this->entityManager->persist($kenya);
+        $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
+        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
+        $grantFunded = new Funding($kenya, $renewableEnergy, 2024, '200.00', FundingType::Public, $source, new \DateTimeImmutable('2024-05-01'), ValidationStatus::Validated);
+        $grantFunded->setInstrument(FundingInstrument::Grant);
+        $this->entityManager->persist($grantFunded);
+        $this->entityManager->flush();
+        static::getContainer()->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/country-distribution?instrument=grant');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertCount(1, $data);
+        self::assertSame('KEN', $data[0]['isoCode']);
+        self::assertEquals(200.0, $data[0]['amount']);
+        self::assertEquals(100.0, $data[0]['percentage']);
+    }
+
+    public function testCountryDistributionCombinesMultipleFiltersAsAnd(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        // year=2024 AND fundingType=private matches only the Agriculture
+        // row (100) - year=2024 alone would also match the public 300 one.
+        $client->request('GET', '/api/analytics/country-distribution?year=2024&fundingType=private');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertCount(1, $data);
+        self::assertEquals(100.0, $data[0]['amount']);
+    }
+
+    public function testCountryDistributionRejectsAnUnknownInstrumentValue(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/country-distribution?instrument=not-a-real-instrument');
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testCountryDistributionRejectsANonIntegerYear(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/country-distribution?year=not-a-year');
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testCountryDistributionUsesASeparateCacheKeyPerFilterCombination(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $redis = $this->redisClient();
+
+        $client->request('GET', '/api/analytics/country-distribution');
+        $unfilteredData = json_decode($client->getResponse()->getContent(), true)['data'];
+
+        $client->request('GET', '/api/analytics/country-distribution?year=2025');
+        $filteredData = json_decode($client->getResponse()->getContent(), true)['data'];
+
+        // Different results prove the filtered call was not served from the
+        // unfiltered request's cache entry (800 total vs 400 for 2025 only).
+        self::assertEquals(800.0, $unfilteredData[0]['amount']);
+        self::assertEquals(400.0, $filteredData[0]['amount']);
+
+        self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_COUNTRY_DISTRIBUTION), 'unfiltered call must still use the plain, pre-C1.2 cache key');
+        // findCacheKey() matches a *suffix* (Redis "KEYS *X"), which "year=2025"
+        // isn't here - the fragment format always ends in "fundingType=<...>"
+        // - so this checks the full key list for the substring directly.
+        $allKeys = $redis->keys('*');
+        self::assertNotEmpty(array_filter($allKeys, static fn (string $key): bool => str_contains($key, 'year=2025')), 'the filtered call must have its own cache entry');
     }
 
     public function testCo2ReductionExplicitlyReportsUnavailableRatherThanFabricatingAValue(): void

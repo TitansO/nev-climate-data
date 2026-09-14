@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Dto\CountryDistributionCriteria;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\ValidationStatus;
 use App\Repository\EmissionRepository;
@@ -90,14 +91,28 @@ final class AnalyticsService
     }
 
     /**
+     * C1.2: $criteria's sector/instrument/year/fundingType filters are all
+     * optional - an all-null instance ($criteria->isEmpty()) keeps the
+     * exact pre-C1.2 cache key, so existing unfiltered callers keep hitting
+     * the same cached entry; any actual filter combination gets its own
+     * dedicated key (CountryDistributionCriteria::toCacheKeyFragment()) so
+     * two different filters can never collide or serve each other's data.
+     *
      * @return list<array{isoCode: string, country: string, amount: float, percentage: float}>
      */
-    public function getCountryDistribution(): array
+    public function getCountryDistribution(CountryDistributionCriteria $criteria): array
     {
-        return $this->cache->get(self::CACHE_KEY_COUNTRY_DISTRIBUTION, function (ItemInterface $item): array {
+        // "|", not ":" - Symfony's cache key validator (PSR-6) rejects any
+        // key containing "{}()/\@:" (confirmed live: a ":" here threw
+        // InvalidArgumentException on every single filtered request).
+        $cacheKey = $criteria->isEmpty()
+            ? self::CACHE_KEY_COUNTRY_DISTRIBUTION
+            : self::CACHE_KEY_COUNTRY_DISTRIBUTION.'|'.$criteria->toCacheKeyFragment();
+
+        return $this->cache->get($cacheKey, function (ItemInterface $item) use ($criteria): array {
             $item->expiresAfter(self::CACHE_TTL_SECONDS);
 
-            return $this->computeCountryDistribution();
+            return $this->computeCountryDistribution($criteria);
         });
     }
 
@@ -279,9 +294,9 @@ final class AnalyticsService
     /**
      * @return list<array{isoCode: string, country: string, amount: float, percentage: float}>
      */
-    private function computeCountryDistribution(): array
+    private function computeCountryDistribution(CountryDistributionCriteria $criteria): array
     {
-        $rows = $this->fundingRepository->findCountryDistributionAggregate();
+        $rows = $this->fundingRepository->findCountryDistributionAggregate($criteria);
 
         $grandTotal = array_sum(array_map(static fn (array $row): float => (float) $row['total'], $rows));
 

@@ -5,7 +5,7 @@ import useAnalyticsFetch from "../hooks/useAnalyticsFetch";
 import ChartStateBox from "../components/charts/ChartStateBox";
 import SectorDonutChart from "../components/charts/SectorDonutChart";
 import FinancingBarChart from "../components/charts/FinancingBarChart";
-import CountryMap from "../components/charts/CountryMap";
+import FilterableCountryMap from "../components/charts/FilterableCountryMap";
 import { formatCompactUsd, formatCount } from "../data/analyticsConstants";
 import NevKpi from "../components/ui/NevKpi";
 import NevChartCard from "../components/ui/NevChartCard";
@@ -114,9 +114,11 @@ export default function DashboardPage() {
 
   const financing = useAnalyticsFetch("/api/analytics/financing-trends", { emptyWhen: (body) => 0 === body.data.length });
   const sectors = useAnalyticsFetch("/api/analytics/sector-distribution", { emptyWhen: (body) => 0 === body.data.length });
-  const countries = useAnalyticsFetch("/api/analytics/country-distribution", { emptyWhen: (body) => 0 === body.data.length });
 
   const fundingTotalUsd = useMemo(() => (financing.data ? sumTotals(financing.data.data) : null), [financing.data]);
+  // C1.2: years for the CountryMap layer selector's "Année" filter - reuses
+  // financing-trends' own periods instead of a second endpoint.
+  const availableYears = useMemo(() => (financing.data ? financing.data.data.map((row) => row.period) : []), [financing.data]);
 
   return (
     <>
@@ -228,9 +230,7 @@ export default function DashboardPage() {
         {/* Country map */}
         <section className="mb-16">
           <NevChartCard title={t("dashboardPage.byCountry", "Financement par pays (Afrique)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
-            <ChartStateBox state={countries.state} message={countries.message} onRetry={countries.reload} minHeight={false}>
-              {countries.data && <CountryMap rows={countries.data.data} />}
-            </ChartStateBox>
+            <FilterableCountryMap availableYears={availableYears} />
           </NevChartCard>
         </section>
       </div>
