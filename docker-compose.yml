@@ -368,6 +368,56 @@ services:
     networks:
       - nev-network
 
+  # F5 : base pgvector DEDIEE au service ai - pas l'extension vector
+  # ajoutee a "database" (Doctrine-owned, partagee avec le pipeline
+  # funding/emission reel) - voir le docblock d'ai/db.py pour le
+  # raisonnement. Meme principe que postgres-airflow (une base dediee
+  # par souci isole) deja etabli dans ce projet.
+  ai-db:
+    image: pgvector/pgvector:pg16
+    container_name: nev-climate-data-ai-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nev_ai
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ai_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nev-network
+
+  # F5 : service IA dedie, isole du backend PHP - RAG de l'AI Copilot
+  # (C2.1) via /ai/ask. Pas de port publie : joignable uniquement depuis
+  # le reseau Docker interne (le backend PHP proxifiera /api/ai/* vers ce
+  # service au moment de C2.1 ; la DAG indexer_rag l'appelle directement
+  # en HTTP pour F6). docs/ et README.md montes en lecture seule : c'est
+  # le corpus RAG (F6), jamais modifie par ce service.
+  ai:
+    build:
+      context: .
+      dockerfile: ai/Dockerfile
+    container_name: nev-climate-data-ai
+    restart: unless-stopped
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      AI_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@ai-db:5432/nev_ai
+      BACKEND_BASE_URL: http://backend
+    volumes:
+      - ./docs:/app/docs:ro
+      - ./README.md:/app/README.md:ro
+    depends_on:
+      ai-db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - nev-network
+
 networks:
   nev-network:
     driver: bridge
@@ -379,3 +429,4 @@ volumes:
   airflow_postgres_data:
   airflow_logs:
   minio_data:
+  ai_db_data:

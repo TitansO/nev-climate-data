@@ -1,0 +1,78 @@
+"""F5 : FastAPI entrypoint for the ai service. No public port in
+docker-compose.yml - reached only from inside the Docker network (the
+Symfony backend proxies /api/ai/* to it, per C2.1's own scope; nothing in
+this sprint exposes this service directly to the internet).
+"""
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+from ai import db, ingest, rag
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db.ensure_schema()
+    yield
+
+
+app = FastAPI(title="NEV Climate Data - AI service", version="0.1.0", lifespan=lifespan)
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok"}
+
+
+class AskRequest(BaseModel):
+    question: str
+
+
+@app.post("/ai/ask")
+def ask(request: AskRequest) -> dict:
+    return rag.answer(request.question)
+
+
+@app.post("/ai/reindex")
+def reindex() -> dict:
+    """F6 : (re)builds the RAG corpus - called by the `indexer_rag`
+    Airflow DAG (quarterly, same cadence as the rest of Volet B) rather
+    than run as a bin script inside this container, so a manual trigger
+    from the Airflow UI works exactly like every other NEV connector.
+    """
+    return ingest.run()
+
+
+class ClassifyRequest(BaseModel):
+    title: str
+    description: str
+    sector: str
+
+
+@app.post("/ai/classify", status_code=501)
+def classify(request: ClassifyRequest) -> dict:
+    """Squelette F5 - la classification taxonomique reelle (attenuation/
+    adaptation/double/non pertinent) est le travail de C2.7, pas de F5.
+    Route deja en place pour que le backend ait un contrat stable a
+    integrer des maintenant.
+    """
+    return {"available": False, "reason": "not_implemented_yet", "planned_in": "C2.7"}
+
+
+class GreenwashingRequest(BaseModel):
+    title: str
+    description: str
+    amount_usd: float
+    taxonomy_class: str | None = None
+
+
+@app.post("/ai/greenwashing", status_code=501)
+def greenwashing(request: GreenwashingRequest) -> dict:
+    """Squelette F5 - la detection de red-flags d'ecoblanchiment est le
+    travail de C3.5, pas de F5. Voir classify() ci-dessus pour le meme
+    raisonnement.
+    """
+    return {"available": False, "reason": "not_implemented_yet", "planned_in": "C3.5"}
