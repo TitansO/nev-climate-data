@@ -157,6 +157,27 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * C1.1 : dernière collecte réelle connue par source (tuile de
+     * fraîcheur des données). Une ligne par source, `lastCollectionDate`
+     * étant le MAX sur ses lignes courantes validées - reflète quand cette
+     * source a été vue pour la dernière fois, pas une moyenne.
+     *
+     * @return list<array{sourceId: int, sourceName: string, lastCollectionDate: \DateTimeImmutable}>
+     */
+    public function findSourceFreshnessAggregate(): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('source.id AS sourceId', 'source.name AS sourceName', 'MAX(funding.collectionDate) AS lastCollectionDate')
+            ->join('funding.source', 'source')
+            ->where('funding.isCurrent = true'))
+            ->groupBy('source.id')
+            ->addGroupBy('source.name')
+            ->orderBy('lastCollectionDate', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Shared WHERE-clause builder for findByCriteria()/countByCriteria(), so
      * the two queries can never apply a different set of filters. `country`
      * is always joined (needed to filter on Country.isoCode, and it's a

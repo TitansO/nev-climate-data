@@ -24,6 +24,7 @@ import AuthSlot from "./AuthSlot";
  */
 const NAV_LINKS = [
   { href: "index.html", key: "nav.home", fallback: "Accueil" },
+  { href: "dashboard.html", key: "nav.dashboard", fallback: "Tableau de bord" },
   { href: "data.html", key: "nav.data", fallback: "Données" },
   { href: "visualizations.html", key: "nav.visualizations", fallback: "Visualisations" },
   { href: "reports.html", key: "nav.reports", fallback: "Rapports" },

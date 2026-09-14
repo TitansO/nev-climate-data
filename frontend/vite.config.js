@@ -27,7 +27,9 @@ import { resolve } from "path";
  * before. Lot 0: 404.html, login.html. Lot 1: about.html, sources.html,
  * api-docs.html. Lot 2: account-profile.html, account-api-keys.html,
  * account-users.html, notifications.html. Lot 3: data.html, reports.html.
- * Lot 4: index.html. Lot 5 (this commit, final page): visualizations.html.
+ * Lot 4: index.html. Lot 5: visualizations.html.
+ * C1.1: dashboard.html - new consolidated Dashboard view, not a migration
+ * of an existing static page.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -50,6 +52,7 @@ export default defineConfig({
         reports: resolve(__dirname, "reports.html"),
         index: resolve(__dirname, "index.html"),
         visualizations: resolve(__dirname, "visualizations.html"),
+        dashboard: resolve(__dirname, "dashboard.html"),
       },
     },
   },

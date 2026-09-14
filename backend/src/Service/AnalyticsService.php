@@ -45,6 +45,16 @@ final class AnalyticsService
     private const CACHE_KEY_COUNTRY_DISTRIBUTION = 'analytics_country_distribution';
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
     private const CACHE_KEY_HERO_STATS = 'analytics_hero_stats';
+    private const CACHE_KEY_DATA_FRESHNESS = 'analytics_data_freshness';
+
+    // C1.1 : au-delà de ce nombre de jours sans nouvelle collecte, une
+    // source est signalée comme "en retard" plutôt que simplement
+    // "dernière collecte le...". Choisi un peu au-dessus du cycle
+    // trimestriel (~91 jours, voir runbooks.md §4) de tous les
+    // connecteurs Volet B, pour ne jamais signaler comme en retard une
+    // source qui n'est simplement pas encore retombée sur sa prochaine
+    // collecte planifiée.
+    private const STALE_THRESHOLD_DAYS = 100;
 
     public function __construct(
         private readonly FundingRepository $fundingRepository,
@@ -171,6 +181,52 @@ final class AnalyticsService
                 // this themselves; count() builds its own WHERE from the array.
                 'fundingRecords' => $this->fundingRepository->count(['isCurrent' => true, 'validationStatus' => ValidationStatus::Validated]),
                 'activeSources' => $this->fundingRepository->countDistinctSources(),
+            ];
+        });
+    }
+
+    /**
+     * C1.1 : fraîcheur des données, par source réelle (financements +
+     * émissions) - la tuile du futur Dashboard consolidé. `sources` est
+     * trié de la source la plus en retard à la plus fraîche (la plus
+     * utile à surveiller en premier). `oldestCollectionAt` reprend le
+     * `lastCollectedAt` de cette source la plus en retard (`null` s'il
+     * n'existe aucune donnée réelle du tout - jamais une date fabriquée).
+     *
+     * @return array{sources: list<array{name: string, lastCollectedAt: string, daysSinceCollection: int}>, oldestCollectionAt: ?string, staleSourceCount: int}
+     */
+    public function getDataFreshness(): array
+    {
+        return $this->cache->get(self::CACHE_KEY_DATA_FRESHNESS, function (ItemInterface $item): array {
+            $item->expiresAfter(self::CACHE_TTL_SECONDS);
+
+            $now = new \DateTimeImmutable();
+            $rows = [
+                ...$this->fundingRepository->findSourceFreshnessAggregate(),
+                ...$this->emissionRepository->findSourceFreshnessAggregate(),
+            ];
+
+            $sources = array_map(function (array $row) use ($now): array {
+                $lastCollectedAt = $row['lastCollectionDate'] instanceof \DateTimeImmutable
+                    ? $row['lastCollectionDate']
+                    : new \DateTimeImmutable((string) $row['lastCollectionDate']);
+
+                return [
+                    'name' => $row['sourceName'],
+                    'lastCollectedAt' => $lastCollectedAt->format('Y-m-d'),
+                    'daysSinceCollection' => (int) $now->diff($lastCollectedAt)->days,
+                ];
+            }, $rows);
+
+            usort($sources, static fn (array $a, array $b): int => $b['daysSinceCollection'] <=> $a['daysSinceCollection']);
+
+            return [
+                'sources' => $sources,
+                'oldestCollectionAt' => $sources[0]['lastCollectedAt'] ?? null,
+                'staleSourceCount' => count(array_filter(
+                    $sources,
+                    static fn (array $source): bool => $source['daysSinceCollection'] > self::STALE_THRESHOLD_DAYS,
+                )),
             ];
         });
     }

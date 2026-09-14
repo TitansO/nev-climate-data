@@ -42,6 +42,29 @@ class EmissionRepository extends ServiceEntityRepository
     }
 
     /**
+     * C1.1 : même agrégat que FundingRepository::findSourceFreshnessAggregate(),
+     * côté émissions - fusionné avec l'autre dans
+     * AnalyticsService::getDataFreshness() pour couvrir les deux familles
+     * de données réelles (financements + émissions) dans une seule tuile.
+     *
+     * @return list<array{sourceId: int, sourceName: string, lastCollectionDate: \DateTimeImmutable}>
+     */
+    public function findSourceFreshnessAggregate(): array
+    {
+        return $this->createQueryBuilder('emission')
+            ->select('source.id AS sourceId', 'source.name AS sourceName', 'MAX(emission.collectionDate) AS lastCollectionDate')
+            ->join('emission.source', 'source')
+            ->where('emission.isCurrent = true')
+            ->andWhere('emission.validationStatus = :validated')
+            ->setParameter('validated', ValidationStatus::Validated)
+            ->groupBy('source.id')
+            ->addGroupBy('source.name')
+            ->orderBy('lastCollectionDate', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Total valueMt per country for a given year, current rows only.
      *
      * @return array<int, float> keyed by country id

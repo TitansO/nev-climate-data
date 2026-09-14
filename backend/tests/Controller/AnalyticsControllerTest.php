@@ -44,6 +44,7 @@ final class AnalyticsControllerTest extends WebTestCase
     private const CACHE_KEY_SECTOR_DISTRIBUTION = 'analytics_sector_distribution';
     private const CACHE_KEY_COUNTRY_DISTRIBUTION = 'analytics_country_distribution';
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
+    private const CACHE_KEY_DATA_FRESHNESS = 'analytics_data_freshness';
 
     private EntityManagerInterface $entityManager;
 
@@ -285,6 +286,83 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertEqualsWithDelta(-4.0, $data['data']['reductionMt'], 0.001);
     }
 
+    public function testDataFreshnessIsPubliclyAccessible(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/data-freshness');
+
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testDataFreshnessReturnsTheLastCollectionDatePerSource(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client); // "Test Source": 2024-03-15, 2024-06-01, 2025-01-10
+
+        $client->request('GET', '/api/analytics/data-freshness');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertCount(1, $data['sources']);
+        self::assertSame('Test Source', $data['sources'][0]['name']);
+        self::assertSame('2025-01-10', $data['sources'][0]['lastCollectedAt']); // the MAX, not the first or last inserted
+        self::assertSame('2025-01-10', $data['oldestCollectionAt']); // only one source, so it's also the oldest
+    }
+
+    public function testDataFreshnessIncludesEmissionSourcesAlongsideFundingSources(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $container = static::getContainer();
+        $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $emissionSource = new Source('UN SDG Global Database', SourceType::OfficialApi, SourceReliability::High);
+        $this->entityManager->persist($kenya);
+        $this->entityManager->persist($emissionSource);
+        $this->entityManager->persist(new Emission($kenya, 2025, '12.500', $emissionSource, new \DateTimeImmutable('2026-01-01'), ValidationStatus::Validated));
+        $this->entityManager->flush();
+        $container->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/data-freshness');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $names = array_column($data['sources'], 'name');
+        self::assertContains('Test Source', $names);
+        self::assertContains('UN SDG Global Database', $names);
+        self::assertCount(2, $data['sources']);
+    }
+
+    public function testDataFreshnessWithNoDataReturnsAnEmptyArrayNotAnError(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $container = static::getContainer();
+        $this->entityManager = $container->get(EntityManagerInterface::class);
+        $this->entityManager->getConnection()->beginTransaction();
+        $container->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/data-freshness');
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $data['sources']);
+        self::assertNull($data['oldestCollectionAt']);
+        self::assertSame(0, $data['staleSourceCount']);
+    }
+
+    public function testDataFreshnessIsServedFromRedisCacheOnSecondCall(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $redis = $this->redisClient();
+
+        $client->request('GET', '/api/analytics/data-freshness');
+        self::assertResponseIsSuccessful();
+
+        self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_DATA_FRESHNESS), 'first request must populate Redis');
+    }
+
     public function testEmptyDatasetReturnsEmptyDataArraysNotAnError(): void
     {
         $client = static::createClient();
@@ -315,7 +393,7 @@ final class AnalyticsControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $spec = json_decode($client->getResponse()->getContent(), true);
-        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/country-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats'] as $path) {
+        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/country-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats', '/api/analytics/data-freshness'] as $path) {
             self::assertArrayHasKey($path, $spec['paths']);
             self::assertArrayHasKey('get', $spec['paths'][$path]);
         }

@@ -178,4 +178,35 @@ final class AnalyticsController extends AbstractController
     {
         return $this->json($this->analyticsService->getCo2Reduction());
     }
+
+    #[Route('/api/analytics/data-freshness', name: 'api_analytics_data_freshness', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Fraîcheur des données par source (mis en cache 15 min)',
+        description: 'Date de dernière collecte réelle connue pour chaque source (financements + émissions), triée de la plus en retard à la plus fraîche. `staleSourceCount` compte les sources sans nouvelle collecte depuis plus de 100 jours (un peu au-delà du cycle trimestriel de tous les connecteurs Volet B). `oldestCollectionAt` est `null` s\'il n\'existe aucune donnée réelle du tout. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
+        tags: ['Analytics'],
+        security: [],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Fraîcheur des données par source',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'sources', type: 'array', items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'name', type: 'string', example: 'World Bank Data API'),
+                                new OA\Property(property: 'lastCollectedAt', type: 'string', format: 'date', example: '2026-07-01'),
+                                new OA\Property(property: 'daysSinceCollection', type: 'integer', example: 42),
+                            ]
+                        )),
+                        new OA\Property(property: 'oldestCollectionAt', type: 'string', format: 'date', nullable: true, example: '2026-04-01'),
+                        new OA\Property(property: 'staleSourceCount', type: 'integer', example: 0),
+                    ]
+                )
+            ),
+        ]
+    )]
+    public function dataFreshness(): JsonResponse
+    {
+        return $this->json($this->analyticsService->getDataFreshness());
+    }
 }
