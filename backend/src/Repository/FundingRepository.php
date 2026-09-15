@@ -181,6 +181,67 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * C1.7 (instrument-distribution) : un instrument par ligne, summed en
+     * SQL - même forme/raisonnement que findSectorDistributionAggregate().
+     *
+     * @return list<array{instrument: string, total: string}>
+     */
+    public function findInstrumentDistributionAggregate(): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('funding.instrument AS instrument', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true'))
+            ->groupBy('funding.instrument')
+            ->orderBy('total', 'DESC')
+            ->addOrderBy('instrument', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.7 (instrument-distribution) : croisement instrument x secteur -
+     * une ligne par combinaison réellement présente, summed en SQL. Sert à
+     * explorer, par exemple, quels secteurs sont majoritairement financés
+     * par don plutôt que par prêt (part de concessionnalité).
+     *
+     * @return list<array{instrument: string, sectorId: int, sectorName: string, total: string}>
+     */
+    public function findInstrumentSectorCrossTab(): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('funding.instrument AS instrument', 'sector.id AS sectorId', 'sector.name AS sectorName', 'SUM(funding.amount) AS total')
+            ->join('funding.sector', 'sector')
+            ->where('funding.isCurrent = true'))
+            ->groupBy('funding.instrument')
+            ->addGroupBy('sector.id')
+            ->addGroupBy('sector.name')
+            ->orderBy('total', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.7 (instrument-distribution) : croisement instrument x pays - même
+     * raisonnement que findInstrumentSectorCrossTab(), par pays plutôt que
+     * par secteur.
+     *
+     * @return list<array{instrument: string, isoCode: string, countryName: string, total: string}>
+     */
+    public function findInstrumentCountryCrossTab(): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('funding.instrument AS instrument', 'country.isoCode AS isoCode', 'country.name AS countryName', 'SUM(funding.amount) AS total')
+            ->join('funding.country', 'country')
+            ->where('funding.isCurrent = true'))
+            ->groupBy('funding.instrument')
+            ->addGroupBy('country.isoCode')
+            ->addGroupBy('country.name')
+            ->orderBy('total', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Country-distribution aggregate (visualizations.html's funding map, on
      * top of the A2.5 perimeter - same shape/reasoning as
      * findSectorDistributionAggregate(), country instead of sector). One

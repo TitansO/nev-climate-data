@@ -6,6 +6,7 @@ namespace App\Service;
 
 use App\Dto\CountryDistributionCriteria;
 use App\Entity\Enum\FinancingTrendsGroupBy;
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\ValidationStatus;
 use App\Repository\EmissionRepository;
@@ -58,6 +59,7 @@ final class AnalyticsService
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
     private const CACHE_KEY_HERO_STATS = 'analytics_hero_stats';
     private const CACHE_KEY_DATA_FRESHNESS = 'analytics_data_freshness';
+    private const CACHE_KEY_INSTRUMENT_DISTRIBUTION = 'analytics_instrument_distribution';
 
     // C1.1 : au-delà de ce nombre de jours sans nouvelle collecte, une
     // source est signalée comme "en retard" plutôt que simplement
@@ -130,6 +132,31 @@ final class AnalyticsService
             $item->expiresAfter(self::CACHE_TTL_SECONDS);
 
             return $this->computeSectorDistribution();
+        });
+    }
+
+    /**
+     * C1.7 : répartition par instrument financier ("part de
+     * concessionnalité") + deux croisements (instrument x secteur,
+     * instrument x pays) pour explorer, par exemple, quels secteurs sont
+     * majoritairement financés par don plutôt que par prêt. `data` porte
+     * les pourcentages (mêmes conventions que getSectorDistribution()) ;
+     * `bySector`/`byCountry` sont des montants bruts, non pourcentés (une
+     * cellule de croisement n'a pas de "total" naturel à rapporter à un
+     * pourcentage sans choisir arbitrairement lequel des deux axes).
+     *
+     * @return array{
+     *     data: list<array{instrument: string, amount: float, percentage: float}>,
+     *     bySector: list<array{instrument: string, sector: string, amount: float}>,
+     *     byCountry: list<array{instrument: string, isoCode: string, country: string, amount: float}>
+     * }
+     */
+    public function getInstrumentDistribution(): array
+    {
+        return $this->cache->get(self::CACHE_KEY_INSTRUMENT_DISTRIBUTION, function (ItemInterface $item): array {
+            $item->expiresAfter(self::CACHE_TTL_SECONDS);
+
+            return $this->computeInstrumentDistribution();
         });
     }
 
@@ -386,6 +413,44 @@ final class AnalyticsService
                 'percentage' => $grandTotal > 0.0 ? round($amount / $grandTotal * 100, 1) : 0.0,
             ];
         }, $rows);
+    }
+
+    /**
+     * @return array{
+     *     data: list<array{instrument: string, amount: float, percentage: float}>,
+     *     bySector: list<array{instrument: string, sector: string, amount: float}>,
+     *     byCountry: list<array{instrument: string, isoCode: string, country: string, amount: float}>
+     * }
+     */
+    private function computeInstrumentDistribution(): array
+    {
+        $rows = $this->fundingRepository->findInstrumentDistributionAggregate();
+        $grandTotal = array_sum(array_map(static fn (array $row): float => (float) $row['total'], $rows));
+
+        $data = array_map(static function (array $row) use ($grandTotal): array {
+            $amount = (float) $row['total'];
+            $instrument = $row['instrument'] instanceof FundingInstrument ? $row['instrument']->value : (string) $row['instrument'];
+
+            return [
+                'instrument' => $instrument,
+                'amount' => $amount,
+                'percentage' => $grandTotal > 0.0 ? round($amount / $grandTotal * 100, 1) : 0.0,
+            ];
+        }, $rows);
+
+        $bySector = array_map(static function (array $row): array {
+            $instrument = $row['instrument'] instanceof FundingInstrument ? $row['instrument']->value : (string) $row['instrument'];
+
+            return ['instrument' => $instrument, 'sector' => $row['sectorName'], 'amount' => (float) $row['total']];
+        }, $this->fundingRepository->findInstrumentSectorCrossTab());
+
+        $byCountry = array_map(static function (array $row): array {
+            $instrument = $row['instrument'] instanceof FundingInstrument ? $row['instrument']->value : (string) $row['instrument'];
+
+            return ['instrument' => $instrument, 'isoCode' => $row['isoCode'], 'country' => $row['countryName'], 'amount' => (float) $row['total']];
+        }, $this->fundingRepository->findInstrumentCountryCrossTab());
+
+        return ['data' => $data, 'bySector' => $bySector, 'byCountry' => $byCountry];
     }
 
     /**

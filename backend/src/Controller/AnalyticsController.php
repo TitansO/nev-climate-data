@@ -140,6 +140,50 @@ final class AnalyticsController extends AbstractController
         return $this->json(['data' => $this->analyticsService->getSectorDistribution()]);
     }
 
+    #[Route('/api/analytics/instrument-distribution', name: 'api_analytics_instrument_distribution', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Répartition des financements par instrument financier + croisements secteur/pays (mis en cache 15 min)',
+        description: 'C1.7 : montants agrégés (SUM) par instrument financier (F1), pour explorer la part de concessionnalité des financements (don vs prêt vs garantie, etc). `bySector`/`byCountry` sont deux croisements instrument x secteur et instrument x pays (montants bruts, non pourcentés - une cellule de croisement n\'a pas de total naturel à rapporter à un pourcentage). Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
+        tags: ['Analytics'],
+        security: [],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Répartition par instrument + croisements',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'instrument', type: 'string', example: 'grant'),
+                                new OA\Property(property: 'amount', type: 'number', format: 'float', example: 1500000),
+                                new OA\Property(property: 'percentage', type: 'number', format: 'float', example: 42.3),
+                            ]
+                        )),
+                        new OA\Property(property: 'bySector', type: 'array', items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'instrument', type: 'string', example: 'grant'),
+                                new OA\Property(property: 'sector', type: 'string', example: 'Agriculture'),
+                                new OA\Property(property: 'amount', type: 'number', format: 'float', example: 500000),
+                            ]
+                        )),
+                        new OA\Property(property: 'byCountry', type: 'array', items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'instrument', type: 'string', example: 'grant'),
+                                new OA\Property(property: 'isoCode', type: 'string', example: 'SEN'),
+                                new OA\Property(property: 'country', type: 'string', example: 'Senegal'),
+                                new OA\Property(property: 'amount', type: 'number', format: 'float', example: 300000),
+                            ]
+                        )),
+                    ]
+                )
+            ),
+        ]
+    )]
+    public function instrumentDistribution(): JsonResponse
+    {
+        return $this->json($this->analyticsService->getInstrumentDistribution());
+    }
+
     #[Route('/api/analytics/country-distribution', name: 'api_analytics_country_distribution', methods: ['GET'])]
     #[OA\Get(
         summary: 'Répartition des financements par pays (mis en cache 15 min)',

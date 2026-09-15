@@ -46,6 +46,7 @@ final class AnalyticsControllerTest extends WebTestCase
     private const CACHE_KEY_COUNTRY_DISTRIBUTION = 'analytics_country_distribution';
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
     private const CACHE_KEY_DATA_FRESHNESS = 'analytics_data_freshness';
+    private const CACHE_KEY_INSTRUMENT_DISTRIBUTION = 'analytics_instrument_distribution';
 
     private EntityManagerInterface $entityManager;
 
@@ -314,6 +315,85 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertSame('Agriculture', $data[1]['sector']);
         self::assertEquals(100.0, $data[1]['amount']);
         self::assertEquals(12.5, $data[1]['percentage']);
+    }
+
+    public function testInstrumentDistributionIsPubliclyAccessible(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/instrument-distribution');
+
+        self::assertResponseIsSuccessful();
+    }
+
+    /**
+     * C1.7: seedDataset()'s 3 rows all default to FundingInstrument::Unknown
+     * (800 total) - adds one explicit Grant row (200, a fresh year to avoid
+     * the dedup unique constraint) so the distribution has two real buckets.
+     */
+    public function testInstrumentDistributionAggregatesAndComputesPercentage(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
+        $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
+        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
+
+        $grantFunded = new Funding($senegal, $renewableEnergy, 2026, '200.00', FundingType::Public, $source, new \DateTimeImmutable('2026-01-01'), ValidationStatus::Validated);
+        $grantFunded->setInstrument(FundingInstrument::Grant);
+        $this->entityManager->persist($grantFunded);
+        $this->entityManager->flush();
+        static::getContainer()->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/instrument-distribution');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        $byInstrument = array_column($data, null, 'instrument');
+        self::assertEquals(800.0, $byInstrument['unknown']['amount']);
+        self::assertEquals(80.0, $byInstrument['unknown']['percentage']);
+        self::assertEquals(200.0, $byInstrument['grant']['amount']);
+        self::assertEquals(20.0, $byInstrument['grant']['percentage']);
+    }
+
+    public function testInstrumentDistributionCrossTabsBySectorAndCountry(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
+        $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
+        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
+
+        $grantFunded = new Funding($senegal, $renewableEnergy, 2026, '200.00', FundingType::Public, $source, new \DateTimeImmutable('2026-01-01'), ValidationStatus::Validated);
+        $grantFunded->setInstrument(FundingInstrument::Grant);
+        $this->entityManager->persist($grantFunded);
+        $this->entityManager->flush();
+        static::getContainer()->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/instrument-distribution');
+        $body = json_decode($client->getResponse()->getContent(), true);
+
+        $grantSectorRow = current(array_filter($body['bySector'], static fn (array $r): bool => 'grant' === $r['instrument']));
+        self::assertNotFalse($grantSectorRow);
+        self::assertSame('Renewable Energy', $grantSectorRow['sector']);
+        self::assertEquals(200.0, $grantSectorRow['amount']);
+
+        $grantCountryRow = current(array_filter($body['byCountry'], static fn (array $r): bool => 'grant' === $r['instrument']));
+        self::assertNotFalse($grantCountryRow);
+        self::assertSame('SEN', $grantCountryRow['isoCode']);
+        self::assertEquals(200.0, $grantCountryRow['amount']);
+    }
+
+    public function testInstrumentDistributionIsServedFromRedisCacheOnSecondCall(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $redis = $this->redisClient();
+
+        $client->request('GET', '/api/analytics/instrument-distribution');
+        self::assertResponseIsSuccessful();
+
+        self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_INSTRUMENT_DISTRIBUTION), 'first request must populate Redis');
     }
 
     public function testCountryDistributionAggregatesAndComputesPercentage(): void
@@ -644,6 +724,13 @@ final class AnalyticsControllerTest extends WebTestCase
         $client->request('GET', '/api/analytics/country-distribution');
         self::assertResponseIsSuccessful();
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
+
+        $client->request('GET', '/api/analytics/instrument-distribution');
+        self::assertResponseIsSuccessful();
+        $instrumentBody = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $instrumentBody['data']);
+        self::assertSame([], $instrumentBody['bySector']);
+        self::assertSame([], $instrumentBody['byCountry']);
     }
 
     public function testAnalyticsEndpointsAreDocumentedInSwagger(): void
@@ -654,7 +741,7 @@ final class AnalyticsControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $spec = json_decode($client->getResponse()->getContent(), true);
-        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/country-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats', '/api/analytics/data-freshness'] as $path) {
+        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/country-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats', '/api/analytics/data-freshness', '/api/analytics/instrument-distribution'] as $path) {
             self::assertArrayHasKey($path, $spec['paths']);
             self::assertArrayHasKey('get', $spec['paths'][$path]);
         }
@@ -744,11 +831,13 @@ final class AnalyticsControllerTest extends WebTestCase
         $client->request('GET', '/api/analytics/sector-distribution');
         $client->request('GET', '/api/analytics/country-distribution');
         $client->request('GET', '/api/analytics/co2-reduction');
+        $client->request('GET', '/api/analytics/instrument-distribution');
 
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_FINANCING_TRENDS));
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_SECTOR_DISTRIBUTION));
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_COUNTRY_DISTRIBUTION));
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_CO2_REDUCTION));
+        self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_INSTRUMENT_DISTRIBUTION));
     }
 
     /**

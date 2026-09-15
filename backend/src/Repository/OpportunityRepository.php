@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Dto\OpportunityCriteria;
 use App\Dto\SearchQuery;
 use App\Entity\Opportunity;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -58,6 +59,45 @@ class OpportunityRepository extends ServiceEntityRepository
         return $qb
             ->orderBy('opportunity.title', 'ASC')
             ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.8 : GET /api/opportunities. `status` (open/upcoming/closed) is
+     * never filtered here in SQL - it isn't a stored column (see
+     * OpportunityCriteria's own docblock) and this table is tiny (a
+     * manually-seeded handful of rows, same "no reason to optimize a
+     * dozen-row table" reasoning as SearchService) - App\Service\
+     * OpportunityService computes and filters it in PHP after this method
+     * returns. `sector`/`country` (a free-text substring against
+     * eligibilityCriteria) are applied here since they genuinely are SQL
+     * filters. Ordered by closing date ascending (soonest deadline first -
+     * the reading order an "opportunity radar" needs); NULLS LAST is
+     * PostgreSQL's own default for ASC, so an opportunity with no closing
+     * date sorts after every dated one, never fabricating an implied one.
+     *
+     * @return list<Opportunity>
+     */
+    public function findByCriteria(OpportunityCriteria $criteria): array
+    {
+        $qb = $this->createQueryBuilder('opportunity')
+            ->addSelect('source', 'sector')
+            ->join('opportunity.source', 'source')
+            ->leftJoin('opportunity.sector', 'sector');
+
+        if (null !== $criteria->sectorId) {
+            $qb->andWhere('opportunity.sector = :sectorId')->setParameter('sectorId', $criteria->sectorId);
+        }
+
+        if (null !== $criteria->countryTerm) {
+            $qb->andWhere('UNACCENT(LOWER(opportunity.eligibilityCriteria)) LIKE UNACCENT(:countryPattern)')
+                ->setParameter('countryPattern', $criteria->countryLikePattern());
+        }
+
+        return $qb
+            ->orderBy('opportunity.applicationWindowClosesAt', 'ASC')
+            ->addOrderBy('opportunity.id', 'ASC')
             ->getQuery()
             ->getResult();
     }

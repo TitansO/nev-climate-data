@@ -35,6 +35,9 @@ import { resolve } from "path";
  * C1.4: institution-profile.html - per-source profile page, not in the
  * main nav (reached via a search result's own destination, like
  * account-profile.html is reached from the account menu, not the navbar).
+ * C1.7: instruments.html, C1.8: opportunities.html - same "not in the
+ * main nav" reasoning as search.html/institution-profile.html, reached by
+ * direct URL for now rather than adding two more permanent navbar entries.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -60,6 +63,8 @@ export default defineConfig({
         dashboard: resolve(__dirname, "dashboard.html"),
         search: resolve(__dirname, "search.html"),
         "institution-profile": resolve(__dirname, "institution-profile.html"),
+        instruments: resolve(__dirname, "instruments.html"),
+        opportunities: resolve(__dirname, "opportunities.html"),
       },
     },
   },

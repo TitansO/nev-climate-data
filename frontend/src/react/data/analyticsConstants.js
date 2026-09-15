@@ -35,6 +35,17 @@ export const INSTRUMENT_LABELS = {
   unknown: "Inconnu",
 };
 
+/** C1.7: one color per FundingInstrument case, same palette family as SECTOR_COLORS (this platform's green scale) plus two distinct hues for the two loan variants so they read apart on a donut. */
+export const INSTRUMENT_COLORS = {
+  grant: "#16a34a",
+  loan_concessional: "#2563eb",
+  loan_non_concessional: "#1d4ed8",
+  guarantee: "#0b3d24",
+  equity: "#86efac",
+  results_based: "#22c55e",
+  unknown: "#9ca3af",
+};
+
 /**
  * ISO 3166-1 alpha-3 -> alpha-2, the 54 African countries seeded by
  * backend/src/DataFixtures/CountryFixtures.php (same list as
