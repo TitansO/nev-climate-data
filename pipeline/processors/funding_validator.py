@@ -144,24 +144,34 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
     """Applies `delta` (can be negative - see apply_project_contribution's
     sector/year-change case) to the current row for this dedup key,
     historizing the previous version, or inserts a fresh row if none
-    exists yet. A zero delta is a genuine no-op - see the 2026-08-31
-    idempotency fix spec: it must never create a needless new historized
-    version (that was the exact shape of the real double-counting bug).
-    `original_amount`/`original_currency`/`exchange_rate` describe the
-    latest contributing message's raw figures (not accumulated across
-    historized versions, same treatment as `collection_date`) - only
-    populated by connectors reporting in a non-pivot currency (B1.3's
-    AfDB connector is the first; World Bank/GCF never pass them, so they
-    stay NULL as before). `instrument` (F1) gets the exact same
-    treatment: it reflects only the latest contributing message, not a
-    value merged across every project aggregated into this dedup key - a
-    dedup key is not currently split by instrument (unlike funding_type,
-    which already was one), so two projects with different instruments
-    sharing the same key will show whichever one wrote most recently.
+    exists yet. A zero delta never historizes a needless new version (see
+    the 2026-08-31 idempotency fix spec - that was the exact shape of the
+    real double-counting bug), but the current row's own provenance
+    metadata (`collection_date`/`original_amount`/`original_currency`/
+    `exchange_rate`/`instrument`) is still refreshed in place: found live
+    (2026-09-15) re-running collecte_gcf/collecte_afdb right after fixing
+    a bug in how `instrument` was computed - GCF/AfDB republish their
+    entire portfolio every run, so almost every project's *amount* delta
+    was genuinely 0, and the original "delta == 0 -> return immediately"
+    short-circuit silently froze `instrument` (and the other provenance
+    fields) at whatever the very first message for that dedup key
+    happened to carry, forever - not just skipping a needless historized
+    version, but skipping the metadata refresh entirely, even on an
+    already-current row. The financial *amount* truth hasn't changed when
+    delta is 0, so there is still no need for a new SCD2 version - this
+    only ever runs a plain UPDATE on the existing current row, never an
+    INSERT. `original_amount`/`original_currency`/`exchange_rate` describe
+    the latest contributing message's raw figures (not accumulated across
+    historized versions) - only populated by connectors reporting in a
+    non-pivot currency (B1.3's AfDB connector is the first; World Bank/GCF
+    never pass them, so they stay NULL as before). `instrument` (F1) gets
+    the exact same treatment: it reflects only the latest contributing
+    message, not a value merged across every project aggregated into this
+    dedup key - a dedup key is not currently split by instrument (unlike
+    funding_type, which already was one), so two projects with different
+    instruments sharing the same key will show whichever one wrote most
+    recently.
     """
-    if delta == 0:
-        return
-
     cursor.execute(
         """
         SELECT id, amount FROM funding
@@ -171,6 +181,20 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
         (source_id, country_id, sector_id, year, funding_type),
     )
     existing = cursor.fetchone()
+
+    if delta == 0:
+        if existing is not None:
+            existing_id, _ = existing
+            cursor.execute(
+                """
+                UPDATE funding
+                SET collection_date = %s, original_amount = %s, original_currency = %s,
+                    exchange_rate = %s, instrument = %s, updated_at = now()
+                WHERE id = %s
+                """,
+                (collection_date, original_amount, original_currency, exchange_rate, instrument, existing_id),
+            )
+        return
 
     if existing is not None:
         existing_id, existing_amount = existing

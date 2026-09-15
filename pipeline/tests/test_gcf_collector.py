@@ -106,6 +106,17 @@ def test_parse_activity_defaults_instrument_to_unknown_when_finance_type_absent(
 
 
 def test_parse_activity_maps_default_finance_type_code_to_instrument():
+    """The real Datastore shape (confirmed live 2026-09-15): a plain
+    string, not a single-element list - see instrument_mapping.
+    first_finance_type_code()'s own docblock for the bug this used to mask."""
+    activity = dict(_SAMPLE_ACTIVITY_SINGLE_COUNTRY, default_finance_type_code="110")
+    payloads = parse_activity(activity)
+    assert payloads[0]["instrument"] == "grant"
+
+
+def test_parse_activity_also_accepts_a_list_shaped_finance_type_code():
+    """Defensive: if the Datastore ever reverts to a list for this field,
+    the pipeline must not silently regress back to "unknown" for every row."""
     activity = dict(_SAMPLE_ACTIVITY_SINGLE_COUNTRY, default_finance_type_code=["110"])
     payloads = parse_activity(activity)
     assert payloads[0]["instrument"] == "grant"

@@ -180,6 +180,49 @@ def test_gcf_message_instrument_is_persisted_on_the_funding_row(db_cursor):
     assert _funding_instrument(db_cursor, source_id, country_id, sector_id, 2026, "multilateral") == "loan_concessional"
 
 
+def test_instrument_is_refreshed_even_when_the_republished_amount_is_unchanged(db_cursor):
+    """Real bug found live (2026-09-15): a DAG re-run within the same
+    collection window (or after a code fix like this one's own) republishes
+    the exact same amount for a project it already knows about - delta is
+    then exactly 0, and the old upsert_funding() returned immediately on
+    that check *before* ever touching the row, silently freezing instrument
+    (and collection_date/original_amount/original_currency/exchange_rate)
+    at whatever value the first-ever message happened to carry. This is
+    exactly why re-triggering collecte_gcf/collecte_afdb after fixing F1's
+    first_finance_type_code() bug didn't change a single row: GCF/AfDB
+    republish their entire portfolio every run, so almost every project's
+    delta was 0 (same amount, only the instrument field's *value* changed).
+    """
+    first = _gcf_sample_message(2_000_000)
+    first["instrument"] = "unknown"
+    process_message(db_cursor, first)
+
+    second = _gcf_sample_message(2_000_000)  # exact same amount -> delta 0
+    second["instrument"] = "loan_concessional"
+    process_message(db_cursor, second)
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Green Climate Fund - IATI Datastore'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    assert _funding_instrument(db_cursor, source_id, country_id, sector_id, 2026, "multilateral") == "loan_concessional"
+
+    # The refresh must be in place, not a new SCD2 version - the financial
+    # amount truth genuinely didn't change, only its provenance metadata did.
+    db_cursor.execute(
+        """
+        SELECT count(*) FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = false
+        """,
+        (source_id, country_id, sector_id, 2026, "multilateral"),
+    )
+    assert db_cursor.fetchone()[0] == 0
+
+
 def test_gcf_and_world_bank_rows_stay_separate_for_the_same_dedup_key(db_cursor):
     # Same country/sector/year/type, different source - the dedup key
     # includes source_id, so these must NOT be summed together.

@@ -12,7 +12,7 @@ from typing import Any, Iterator
 import pycountry
 import requests
 
-from pipeline.processors.instrument_mapping import map_iati_finance_type
+from pipeline.processors.instrument_mapping import first_finance_type_code, map_iati_finance_type
 
 IATI_DATASTORE_URL = "https://api.iatistandard.org/datastore/activity/select"
 GCF_REPORTING_ORG_REF = "XM-DAC-41317"
@@ -107,11 +107,11 @@ def parse_activity(activity: dict[str, Any]) -> list[dict[str, Any]]:
     sector_codes = activity.get("sector_code", [])
     sector_percentages = activity.get("sector_percentage", [])
 
-    # F1 : activity-level field (not per-transaction), returned as a
-    # single-element list by the Datastore's Solr schema like
-    # `iati_identifier` - never observed with more than one value.
-    finance_type_codes = activity.get("default_finance_type_code", [])
-    instrument = map_iati_finance_type(finance_type_codes[0] if finance_type_codes else None)
+    # F1 : activity-level field (not per-transaction). See
+    # first_finance_type_code()'s own docblock - the Datastore returns this
+    # one as a plain string, not a list like `iati_identifier`/
+    # `recipient_country_code`.
+    instrument = map_iati_finance_type(first_finance_type_code(activity.get("default_finance_type_code")))
 
     country_codes = activity.get("recipient_country_code", [])
     country_percentages = activity.get("recipient_country_percentage", [])

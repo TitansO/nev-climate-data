@@ -32,6 +32,34 @@ _GUARANTEE_CODES = frozenset({"451", "452", "453"})
 _EQUITY_CODES = frozenset({"432", "510", "511", "512", "520", "530"})
 
 
+def first_finance_type_code(raw: object) -> str | None:
+    """Normalizes IATI Datastore's `default_finance_type_code` field before
+    it reaches map_iati_finance_type() below.
+
+    Found live (2026-09-15) querying the real Datastore API: this field
+    comes back as a plain string (e.g. `"421"`), not the single-element
+    list (`["421"]`) both connectors originally assumed (matching how
+    Solr returns genuinely multi-valued fields like `recipient_country_code`
+    or `iati_identifier`) - `default_finance_type_code` is schema-defined
+    as single-valued instead. Indexing a string as if it were that list
+    (`"421"[0]`) silently produced `"4"`, which matches no code in any set
+    below and mapped every single AfDB/GCF row to "unknown" - the bug
+    causing GET /api/analytics/instrument-distribution to show 100%
+    "unknown" even for these two sources, discovered by comparing real
+    API output against the live pipeline rather than by the unit tests
+    (both had mocked this field as a list, unknowingly matching the wrong
+    assumption instead of the real Datastore response shape).
+
+    Handles both shapes so a future Datastore schema change back to a list
+    doesn't silently reintroduce the same bug.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        return raw[0] if raw else None
+    return raw
+
+
 def map_iati_finance_type(code: str | None) -> str:
     """Returns one of "grant", "loan_concessional", "guarantee", "equity"
     or "unknown". Never raises and never quarantines a message on an
