@@ -112,6 +112,12 @@ export default function SourcesPage() {
           <p className="mt-8 text-xs text-dark-5">
             {t("sourcesPage.disclaimer", "Descriptions basées sur les connecteurs prévus par le plan d'implémentation (Volet B). Les statuts « Active »/« Prévue » restent statiques à ce stade.")}
           </p>
+          {/* C1.8: these sources/bailleurs are also the ones opening the calls for
+              proposals listed there (Opportunity.source) - natural next step from
+              "who provides the data" to "who is currently funding". */}
+          <a href="opportunities.html" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-dark hover:underline">
+            {t("sourcesPage.seeOpportunities", "Voir les appels à projets ouverts par ces bailleurs →")}
+          </a>
         </section>
       </div>
     </>

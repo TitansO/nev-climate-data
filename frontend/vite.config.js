@@ -35,9 +35,10 @@ import { resolve } from "path";
  * C1.4: institution-profile.html - per-source profile page, not in the
  * main nav (reached via a search result's own destination, like
  * account-profile.html is reached from the account menu, not the navbar).
- * C1.7: instruments.html, C1.8: opportunities.html - same "not in the
- * main nav" reasoning as search.html/institution-profile.html, reached by
- * direct URL for now rather than adding two more permanent navbar entries.
+ * C1.7: instruments.html, C1.8: opportunities.html - not in the main nav
+ * (kept short on purpose), reached instead via a contextual link from the
+ * page closest to their role: VisualizationsPage's "type de financement"
+ * card links to instruments.html, SourcesPage links to opportunities.html.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],

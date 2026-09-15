@@ -176,6 +176,12 @@ export default function VisualizationsPage() {
               <ChartStateBox state={financing.state} message={financing.message} onRetry={financing.reload}>
                 {financingTotals && <TypeDonutChart totals={financingTotals} />}
               </ChartStateBox>
+              {/* C1.7: "type de financement" (bailleur) is one classification axis;
+                  "instrument financier" (don/prêt/garantie) is the other - this card's
+                  natural next step for a reader exploring how money is structured. */}
+              <a href="instruments.html" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-dark hover:underline">
+                {t("vizPage.seeInstruments", "Voir la répartition par instrument financier →")}
+              </a>
             </NevChartCard>
             <NevChartCard title={t("vizPage.bySector", "Répartition par secteur")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
               <ChartStateBox state={sectors.state} message={sectors.message} onRetry={sectors.reload}>
