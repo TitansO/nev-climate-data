@@ -41,7 +41,7 @@ use Symfony\Contracts\Cache\CacheInterface;
  */
 final class AnalyticsControllerTest extends WebTestCase
 {
-    private const CACHE_KEY_FINANCING_TRENDS = 'analytics_financing_trends';
+    private const CACHE_KEY_FINANCING_TRENDS = 'analytics_financing_trends_v2'; // bumped by C1.6, see AnalyticsService's own comment
     private const CACHE_KEY_SECTOR_DISTRIBUTION = 'analytics_sector_distribution';
     private const CACHE_KEY_COUNTRY_DISTRIBUTION = 'analytics_country_distribution';
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
@@ -164,6 +164,136 @@ final class AnalyticsControllerTest extends WebTestCase
 
         $periods = array_column(json_decode($client->getResponse()->getContent(), true)['data'], 'period');
         self::assertSame([2024, 2025], $periods);
+    }
+
+    /**
+     * C1.6: groupBy=sector - seedDataset()'s 2024 row splits across two
+     * sectors (Renewable Energy $300, Agriculture $100), 2025 has only
+     * Renewable Energy ($400).
+     */
+    public function testFinancingTrendsGroupedBySectorAggregatesCorrectly(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=sector');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertSame(2024, $data[0]['period']);
+        self::assertEquals(300.0, $data[0]['groups']['Renewable Energy']);
+        self::assertEquals(100.0, $data[0]['groups']['Agriculture']);
+        self::assertEquals(400.0, $data[0]['total']);
+
+        self::assertSame(2025, $data[1]['period']);
+        self::assertEquals(400.0, $data[1]['groups']['Renewable Energy']);
+        self::assertArrayNotHasKey('Agriculture', $data[1]['groups']);
+    }
+
+    /**
+     * C1.6: groupBy=fundingType must reproduce the exact same per-year
+     * totals as the default (ungrouped) shape - only the JSON shape
+     * differs (a generic `groups` object instead of hardcoded keys).
+     */
+    public function testFinancingTrendsGroupedByFundingTypeMatchesDefaultTotals(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=fundingType');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertEquals(300.0, $data[0]['groups']['public']);
+        self::assertEquals(100.0, $data[0]['groups']['private']);
+        self::assertEquals(400.0, $data[0]['total']);
+        self::assertEquals(400.0, $data[1]['groups']['multilateral']);
+    }
+
+    public function testFinancingTrendsGroupedByCountryAggregatesCorrectly(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client); // Senegal: 400 in 2024
+
+        $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $this->entityManager->persist($kenya);
+        $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
+        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
+        $this->entityManager->persist(new Funding($kenya, $renewableEnergy, 2024, '200.00', FundingType::Public, $source, new \DateTimeImmutable('2024-05-01'), ValidationStatus::Validated));
+        $this->entityManager->flush();
+        static::getContainer()->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=country');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertSame(2024, $data[0]['period']);
+        self::assertEquals(400.0, $data[0]['groups']['SEN']);
+        self::assertEquals(200.0, $data[0]['groups']['KEN']);
+        self::assertEquals(600.0, $data[0]['total']);
+    }
+
+    /**
+     * C1.6: every seedDataset() row defaults to FundingInstrument::Unknown
+     * (never set explicitly) - groupBy=instrument must fold them all under
+     * that single key rather than, say, silently dropping unset instruments.
+     */
+    public function testFinancingTrendsGroupedByInstrumentFoldsUnsetRowsUnderUnknown(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=instrument');
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertEquals(400.0, $data[0]['groups']['unknown']);
+        self::assertSame(['unknown'], array_keys($data[0]['groups']));
+    }
+
+    public function testFinancingTrendsRejectsAnInvalidGroupByValue(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=not-a-real-dimension');
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testFinancingTrendsGroupedBySectorAndDefaultUseDifferentCacheKeys(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $redis = $this->redisClient();
+
+        $client->request('GET', '/api/analytics/financing-trends');
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=sector');
+
+        self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_FINANCING_TRENDS), 'the default call must use its own plain cache key');
+        self::assertNotNull($this->findCacheKey($redis, 'groupBy=sector'), 'the grouped call must have its own cache entry');
+    }
+
+    /**
+     * C1.6: `movingAverageTotal` is a trailing 3-year average of `total` -
+     * adds a third year (2023) to seedDataset()'s 2024/2025 so the window
+     * actually fills up: 2023 alone -> 100; 2023+2024 -> (100+400)/2=250;
+     * 2023+2024+2025 -> (100+400+400)/3=300.
+     */
+    public function testFinancingTrendsIncludesAThreeYearMovingAverageOfTheTotal(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
+        $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
+        $this->entityManager->persist(new Funding($this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']), $agriculture, 2023, '100.00', FundingType::Public, $source, new \DateTimeImmutable('2023-03-15'), ValidationStatus::Validated));
+        $this->entityManager->flush();
+        static::getContainer()->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/financing-trends');
+
+        $movingAverage = json_decode($client->getResponse()->getContent(), true)['movingAverageTotal'];
+        self::assertSame([2023, 2024, 2025], array_column($movingAverage, 'period'));
+        self::assertEquals(100.0, $movingAverage[0]['value']);
+        self::assertEquals(250.0, $movingAverage[1]['value']);
+        self::assertEquals(300.0, $movingAverage[2]['value']);
     }
 
     public function testSectorDistributionAggregatesAndComputesPercentage(): void

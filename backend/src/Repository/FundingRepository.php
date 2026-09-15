@@ -6,6 +6,7 @@ namespace App\Repository;
 
 use App\Dto\CountryDistributionCriteria;
 use App\Dto\FundingSearchCriteria;
+use App\Entity\Enum\FinancingTrendsGroupBy;
 use App\Entity\Enum\ValidationStatus;
 use App\Entity\Funding;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -106,6 +107,52 @@ class FundingRepository extends ServiceEntityRepository
             ->addGroupBy('funding.fundingType')
             ->orderBy('funding.year', 'ASC')
             ->addOrderBy('funding.fundingType', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.6: same data as findFinancingTrendsAggregate() (one row per year,
+     * summed in SQL), broken down by an arbitrary dimension instead of the
+     * hardcoded fundingType - "groupKey" is that dimension's own label
+     * (sector name, instrument value, country ISO code, or fundingType
+     * value), shaped identically regardless of which one was requested so
+     * AnalyticsService::computeFinancingTrendsGroupedBy() can reshape any
+     * of the 4 the same way.
+     *
+     * @return list<array{year: int, groupKey: string, total: string}>
+     */
+    public function findFinancingTrendsAggregateGroupedBy(FinancingTrendsGroupBy $groupBy): array
+    {
+        $qb = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('funding.year AS year', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true'))
+            ->groupBy('funding.year');
+
+        switch ($groupBy) {
+            case FinancingTrendsGroupBy::Sector:
+                $qb->addSelect('sector.name AS groupKey')
+                    ->join('funding.sector', 'sector')
+                    ->addGroupBy('sector.name');
+                break;
+            case FinancingTrendsGroupBy::Instrument:
+                $qb->addSelect('funding.instrument AS groupKey')
+                    ->addGroupBy('funding.instrument');
+                break;
+            case FinancingTrendsGroupBy::Country:
+                $qb->addSelect('country.isoCode AS groupKey')
+                    ->join('funding.country', 'country')
+                    ->addGroupBy('country.isoCode');
+                break;
+            case FinancingTrendsGroupBy::FundingType:
+                $qb->addSelect('funding.fundingType AS groupKey')
+                    ->addGroupBy('funding.fundingType');
+                break;
+        }
+
+        return $qb
+            ->orderBy('funding.year', 'ASC')
+            ->addOrderBy('groupKey', 'ASC')
             ->getQuery()
             ->getResult();
     }

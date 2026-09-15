@@ -141,6 +141,30 @@ final readonly class SearchQuery
     }
 
     /**
+     * Start of the `year` facet's range, inclusive - `null` if no year
+     * facet is set. A [yearStart, yearEnd) comparison, not Doctrine's
+     * YEAR() DQL function: this project only registers UNACCENT as a
+     * custom DQL function (config/packages/doctrine.yaml) - YEAR() isn't
+     * part of standard DQL and isn't registered here, confirmed live
+     * (every repository that tried it failed in CI with a DQL syntax
+     * error the Codespace's own broken KernelTestCase environment
+     * couldn't have caught). A date-range bound works with plain DQL and,
+     * as a side effect, naturally excludes a NULL date column (Report.
+     * publicationDate, Opportunity.applicationWindowOpensAt) without any
+     * special-casing - NULL never satisfies either comparison.
+     */
+    public function yearStart(): ?\DateTimeImmutable
+    {
+        return null !== $this->year ? new \DateTimeImmutable($this->year.'-01-01') : null;
+    }
+
+    /** End of the `year` facet's range, exclusive - see yearStart(). */
+    public function yearEnd(): ?\DateTimeImmutable
+    {
+        return null !== $this->year ? new \DateTimeImmutable(($this->year + 1).'-01-01') : null;
+    }
+
+    /**
      * True if any facet *outside* $allowedFacets is set - lets a
      * repository's search method skip its query entirely (return [])
      * rather than run it, whenever the request narrows by a dimension that

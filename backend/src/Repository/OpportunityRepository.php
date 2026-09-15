@@ -46,7 +46,9 @@ class OpportunityRepository extends ServiceEntityRepository
         }
 
         if (null !== $searchQuery->year) {
-            $qb->andWhere('YEAR(opportunity.applicationWindowOpensAt) = :year')->setParameter('year', $searchQuery->year);
+            $qb->andWhere('opportunity.applicationWindowOpensAt >= :yearStart')->andWhere('opportunity.applicationWindowOpensAt < :yearEnd')
+                ->setParameter('yearStart', $searchQuery->yearStart())
+                ->setParameter('yearEnd', $searchQuery->yearEnd());
         }
 
         if (null !== $searchQuery->minAmount) {

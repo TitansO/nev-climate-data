@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Dto\CountryDistributionCriteria;
+use App\Entity\Enum\FinancingTrendsGroupBy;
 use App\Service\AnalyticsService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -60,10 +62,13 @@ final class AnalyticsController extends AbstractController
 
     #[Route('/api/analytics/financing-trends', name: 'api_analytics_financing_trends', methods: ['GET'])]
     #[OA\Get(
-        summary: 'Tendances de financement par année et type (mis en cache 15 min)',
-        description: 'Montants agrégés (SUM) par année, ventilés par type de financement (public/private/multilateral). Ordre chronologique stable. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
+        summary: 'Tendances de financement par année, éventuellement ventilées par dimension (mis en cache 15 min)',
+        description: 'Sans paramètre : montants agrégés (SUM) par année, ventilés par type de financement (public/private/multilateral) - comportement inchangé depuis A2.5. C1.6 : avec `groupBy`, `data` porte à la place un objet `groups` générique, ventilé par secteur/instrument/pays/type selon la valeur choisie. `movingAverageTotal` (nouveau, C1.6) est toujours présent : moyenne mobile du total sur 3 ans (les 1-2 premières années de la série moyennent sur moins de 3 points, jamais une valeur fabriquée). Ordre chronologique stable. Réponse servie depuis un cache Redis dédié par combinaison de paramètres, TTL 900 secondes.',
         tags: ['Analytics'],
         security: [],
+        parameters: [
+            new OA\Parameter(name: 'groupBy', in: 'query', required: false, description: 'Dimension de ventilation (par défaut : type de financement, forme historique)', schema: new OA\Schema(type: 'string', enum: ['sector', 'instrument', 'country', 'fundingType'])),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -79,14 +84,31 @@ final class AnalyticsController extends AbstractController
                                 new OA\Property(property: 'total', type: 'number', format: 'float', example: 2950000),
                             ]
                         )),
+                        new OA\Property(property: 'movingAverageTotal', type: 'array', items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'period', type: 'integer', example: 2025),
+                                new OA\Property(property: 'value', type: 'number', format: 'float', example: 2450000),
+                            ]
+                        )),
                     ]
                 )
             ),
+            new OA\Response(response: 400, description: '"groupBy" a une valeur hors de l\'énumération connue'),
         ]
     )]
-    public function financingTrends(): JsonResponse
+    public function financingTrends(Request $request): JsonResponse
     {
-        return $this->json(['data' => $this->analyticsService->getFinancingTrends()]);
+        $groupByRaw = $request->query->get('groupBy');
+        $groupBy = null;
+        if (null !== $groupByRaw && '' !== $groupByRaw) {
+            $groupBy = FinancingTrendsGroupBy::tryFrom((string) $groupByRaw);
+            if (null === $groupBy) {
+                $allowed = implode(', ', array_map(static fn (FinancingTrendsGroupBy $case) => $case->value, FinancingTrendsGroupBy::cases()));
+                throw new BadRequestHttpException(\sprintf('Invalid value for parameter "groupBy": must be one of %s.', $allowed));
+            }
+        }
+
+        return $this->json($this->analyticsService->getFinancingTrends($groupBy));
     }
 
     #[Route('/api/analytics/sector-distribution', name: 'api_analytics_sector_distribution', methods: ['GET'])]

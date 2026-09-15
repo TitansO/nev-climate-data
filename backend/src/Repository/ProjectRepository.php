@@ -51,7 +51,9 @@ class ProjectRepository extends ServiceEntityRepository
         }
 
         if (null !== $searchQuery->year) {
-            $qb->andWhere('YEAR(project.createdAt) = :year')->setParameter('year', $searchQuery->year);
+            $qb->andWhere('project.createdAt >= :yearStart')->andWhere('project.createdAt < :yearEnd')
+                ->setParameter('yearStart', $searchQuery->yearStart())
+                ->setParameter('yearEnd', $searchQuery->yearEnd());
         }
 
         if (null !== $searchQuery->minAmount) {

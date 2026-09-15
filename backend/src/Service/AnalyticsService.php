@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Dto\CountryDistributionCriteria;
+use App\Entity\Enum\FinancingTrendsGroupBy;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\ValidationStatus;
 use App\Repository\EmissionRepository;
@@ -32,16 +33,26 @@ use Symfony\Contracts\Cache\ItemInterface;
  * A2.5 describes, expressed through the framework's own cache contract
  * rather than manual Redis calls.
  *
- * No query parameters exist on any of these endpoints (visualizations.html
- * has no filter UI to drive them - see the A2.5/A2.6 report), so every cache
- * key here is a fixed string; nothing user-supplied ever enters a key.
+ * Most of these endpoints take no query parameters at all (visualizations.html
+ * has no filter UI to drive them - see the A2.5/A2.6 report), so most cache
+ * keys here are a fixed string. getCountryDistribution() (C1.2) and
+ * getFinancingTrends() (C1.6) are the exceptions - each validated parameter
+ * combination gets its own dedicated cache key, built from that method's own
+ * DTO/enum, never from unvalidated raw user input.
  */
 final class AnalyticsService
 {
     /** 15 minutes, exactly as required by A2.5. */
     private const CACHE_TTL_SECONDS = 900;
 
-    private const CACHE_KEY_FINANCING_TRENDS = 'analytics_financing_trends';
+    // "_v2", not "analytics_financing_trends": C1.6 changed the response
+    // envelope for every call to this endpoint (added movingAverageTotal
+    // alongside data) - confirmed live that reusing the old key let an
+    // already-cached pre-C1.6 entry (a bare array) go straight back out
+    // unwrapped for up to CACHE_TTL_SECONDS after deploying this change,
+    // since a cache HIT never re-runs the code that would wrap it. A new
+    // key guarantees a clean cutover instead of a stale-cache window.
+    private const CACHE_KEY_FINANCING_TRENDS = 'analytics_financing_trends_v2';
     private const CACHE_KEY_SECTOR_DISTRIBUTION = 'analytics_sector_distribution';
     private const CACHE_KEY_COUNTRY_DISTRIBUTION = 'analytics_country_distribution';
     private const CACHE_KEY_CO2_REDUCTION = 'analytics_co2_reduction';
@@ -57,6 +68,16 @@ final class AnalyticsService
     // collecte planifiée.
     private const STALE_THRESHOLD_DAYS = 100;
 
+    /**
+     * C1.6: trailing window size for `movingAverageTotal` - 3 years is the
+     * shortest window that actually smooths anything (a window of 1 would
+     * just echo the raw total back). The first 1-2 periods of any series
+     * necessarily average over fewer points than this (there's nothing
+     * before them to include) rather than being omitted or padded with a
+     * fabricated value.
+     */
+    private const MOVING_AVERAGE_WINDOW = 3;
+
     public function __construct(
         private readonly FundingRepository $fundingRepository,
         private readonly SectorRepository $sectorRepository,
@@ -67,14 +88,36 @@ final class AnalyticsService
     }
 
     /**
-     * @return list<array{period: int, public: float, private: float, multilateral: float, total: float}>
+     * C1.6: $groupBy is optional - omitted, `data` rows keep exactly the
+     * pre-C1.6 shape (hardcoded public/private/multilateral keys). Passed,
+     * `data` rows instead carry a generic `groups` object keyed by that
+     * dimension's own labels (sector name / instrument / country ISO code
+     * / fundingType). `movingAverageTotal` (a trailing
+     * self::MOVING_AVERAGE_WINDOW-period average of each period's grand
+     * total) is included either way - an additive field alongside `data`,
+     * safe for any existing consumer that only reads the latter. Every
+     * parameter combination (including "none") gets its own cache key
+     * (self::CACHE_KEY_FINANCING_TRENDS, itself bumped to "_v2" by C1.6 -
+     * see its own comment for why a *response-shape* change needs a new
+     * key even when the request shape didn't change).
+     *
+     * @return array{data: list<array<string, mixed>>, movingAverageTotal: list<array{period: int, value: float}>}
      */
-    public function getFinancingTrends(): array
+    public function getFinancingTrends(?FinancingTrendsGroupBy $groupBy = null): array
     {
-        return $this->cache->get(self::CACHE_KEY_FINANCING_TRENDS, function (ItemInterface $item): array {
+        $cacheKey = null === $groupBy
+            ? self::CACHE_KEY_FINANCING_TRENDS
+            : self::CACHE_KEY_FINANCING_TRENDS.'|groupBy='.$groupBy->value;
+
+        return $this->cache->get($cacheKey, function (ItemInterface $item) use ($groupBy): array {
             $item->expiresAfter(self::CACHE_TTL_SECONDS);
 
-            return $this->computeFinancingTrends();
+            $rows = null === $groupBy ? $this->computeFinancingTrends() : $this->computeFinancingTrendsGroupedBy($groupBy);
+
+            return [
+                'data' => $rows,
+                'movingAverageTotal' => self::movingAverageOf($rows, self::MOVING_AVERAGE_WINDOW),
+            ];
         });
     }
 
@@ -269,6 +312,60 @@ final class AnalyticsService
         ksort($byYear);
 
         return array_values($byYear);
+    }
+
+    /**
+     * C1.6: same reshaping as computeFinancingTrends() (one row per year,
+     * SQL-summed contributions folded together in PHP), generalized to an
+     * arbitrary `groups` object instead of hardcoded public/private/
+     * multilateral keys - see FundingRepository::findFinancingTrendsAggregateGroupedBy().
+     *
+     * @return list<array{period: int, groups: array<string, float>, total: float}>
+     */
+    private function computeFinancingTrendsGroupedBy(FinancingTrendsGroupBy $groupBy): array
+    {
+        $byYear = [];
+
+        foreach ($this->fundingRepository->findFinancingTrendsAggregateGroupedBy($groupBy) as $row) {
+            $year = (int) $row['year'];
+            $byYear[$year] ??= ['period' => $year, 'groups' => [], 'total' => 0.0];
+
+            $groupKey = $row['groupKey'] instanceof \BackedEnum ? $row['groupKey']->value : (string) $row['groupKey'];
+            $amount = (float) $row['total'];
+
+            $byYear[$year]['groups'][$groupKey] = $amount;
+            $byYear[$year]['total'] += $amount;
+        }
+
+        ksort($byYear);
+
+        return array_values($byYear);
+    }
+
+    /**
+     * C1.6: trailing moving average of `total` across consecutive periods
+     * ($rows must already be sorted chronologically, as both
+     * computeFinancingTrends() and computeFinancingTrendsGroupedBy()
+     * guarantee). The first ($window - 1) periods average over fewer than
+     * $window points (whatever actually precedes them) rather than being
+     * omitted or padded with a fabricated zero.
+     *
+     * @param list<array{period: int, total: float}> $rows
+     *
+     * @return list<array{period: int, value: float}>
+     */
+    private static function movingAverageOf(array $rows, int $window): array
+    {
+        return array_values(array_map(
+            static function (int $index, array $row) use ($rows, $window): array {
+                $windowRows = \array_slice($rows, max(0, $index - $window + 1), min($window, $index + 1));
+                $average = array_sum(array_map(static fn (array $r): float => (float) $r['total'], $windowRows)) / count($windowRows);
+
+                return ['period' => $row['period'], 'value' => round($average, 2)];
+            },
+            array_keys($rows),
+            $rows,
+        ));
     }
 
     /**

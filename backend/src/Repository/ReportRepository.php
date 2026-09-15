@@ -118,7 +118,9 @@ class ReportRepository extends ServiceEntityRepository
         }
 
         if (null !== $searchQuery->year) {
-            $qb->andWhere('YEAR(report.publicationDate) = :year')->setParameter('year', $searchQuery->year);
+            $qb->andWhere('report.publicationDate >= :yearStart')->andWhere('report.publicationDate < :yearEnd')
+                ->setParameter('yearStart', $searchQuery->yearStart())
+                ->setParameter('yearEnd', $searchQuery->yearEnd());
         }
 
         return $qb
