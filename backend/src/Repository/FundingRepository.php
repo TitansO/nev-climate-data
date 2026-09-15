@@ -250,6 +250,127 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * C1.4 (institution profile - "portefeuille") : vue d'ensemble des
+     * financements d'une source donnée - montant total, nombre
+     * d'enregistrements, et nombre de pays/secteurs distincts touchés.
+     * `null` si cette source n'a aucun financement réel (jamais un zéro
+     * fabriqué qui laisserait croire qu'elle a été vérifiée et trouvée
+     * vide).
+     *
+     * @return array{totalAmount: string, fundingRecordCount: int, countriesFundedCount: int, sectorsFundedCount: int}|null
+     */
+    public function findInstitutionPortfolioSummary(int $sourceId): ?array
+    {
+        $result = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select(
+                'SUM(funding.amount) AS totalAmount',
+                'COUNT(funding.id) AS fundingRecordCount',
+                'COUNT(DISTINCT funding.country) AS countriesFundedCount',
+                'COUNT(DISTINCT funding.sector) AS sectorsFundedCount',
+            )
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.source = :sourceId'))
+            ->setParameter('sourceId', $sourceId)
+            ->getQuery()
+            ->getSingleResult();
+
+        if (null === $result['totalAmount']) {
+            return null;
+        }
+
+        return [
+            'totalAmount' => $result['totalAmount'],
+            'fundingRecordCount' => (int) $result['fundingRecordCount'],
+            'countriesFundedCount' => (int) $result['countriesFundedCount'],
+            'sectorsFundedCount' => (int) $result['sectorsFundedCount'],
+        ];
+    }
+
+    /**
+     * C1.4 (institution profile - "répartition" par secteur), scoped to a
+     * single source - same shape/reasoning as findSectorDistributionAggregate().
+     *
+     * @return list<array{sectorId: int, sectorName: string, total: string}>
+     */
+    public function findInstitutionSectorBreakdown(int $sourceId): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('sector.id AS sectorId', 'sector.name AS sectorName', 'SUM(funding.amount) AS total')
+            ->join('funding.sector', 'sector')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.source = :sourceId'))
+            ->setParameter('sourceId', $sourceId)
+            ->groupBy('sector.id')
+            ->addGroupBy('sector.name')
+            ->orderBy('total', 'DESC')
+            ->addOrderBy('sector.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.4 (institution profile - "répartition" par pays), scoped to a
+     * single source - same shape/reasoning as findCountryDistributionAggregate().
+     *
+     * @return list<array{isoCode: string, countryName: string, total: string}>
+     */
+    public function findInstitutionCountryBreakdown(int $sourceId): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('country.isoCode AS isoCode', 'country.name AS countryName', 'SUM(funding.amount) AS total')
+            ->join('funding.country', 'country')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.source = :sourceId'))
+            ->setParameter('sourceId', $sourceId)
+            ->groupBy('country.id')
+            ->addGroupBy('country.isoCode')
+            ->addGroupBy('country.name')
+            ->orderBy('total', 'DESC')
+            ->addOrderBy('country.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.4 (institution profile - "évolution"), scoped to a single source -
+     * one row per year, summed in SQL, chronological.
+     *
+     * @return list<array{year: int, total: string}>
+     */
+    public function findInstitutionYearlyTrend(int $sourceId): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('funding.year AS year', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.source = :sourceId'))
+            ->setParameter('sourceId', $sourceId)
+            ->groupBy('funding.year')
+            ->orderBy('funding.year', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.4 (institution profile - "transparence") : dernière collecte
+     * réelle connue pour cette seule source - même donnée que
+     * findSourceFreshnessAggregate() (C1.1), mais scoped à une source pour
+     * éviter de charger l'agrégat des ~5 sources entières juste pour en
+     * lire une. `null` si cette source n'a aucun financement réel.
+     */
+    public function findLastCollectionDateForSource(int $sourceId): ?\DateTimeImmutable
+    {
+        $date = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('MAX(funding.collectionDate) AS lastCollectionDate')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.source = :sourceId'))
+            ->setParameter('sourceId', $sourceId)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return null !== $date ? ($date instanceof \DateTimeImmutable ? $date : new \DateTimeImmutable((string) $date)) : null;
+    }
+
+    /**
      * Shared WHERE-clause builder for findByCriteria()/countByCriteria(), so
      * the two queries can never apply a different set of filters. `country`
      * is always joined (needed to filter on Country.isoCode, and it's a

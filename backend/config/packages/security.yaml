@@ -74,6 +74,9 @@ security:
         # /api/funding (A2.1) - only published reports are ever exposed by
         # the controller itself (see App\Repository\ReportRepository).
         - { path: ^/api/reports, roles: PUBLIC_ACCESS }
+        # C1.4: every Source is already public data (exposed via
+        # GET /api/funding's own responses) - same reasoning as /api/analytics.
+        - { path: ^/api/institutions, roles: PUBLIC_ACCESS }
         # User management (create accounts, change roles, delete accounts)
         # is reserved to SuperAdmin - must come before the catch-all below,
         # same reasoning as /api/funding/export above it in this file.

@@ -95,7 +95,10 @@ final class PublishKpiSnapshotCommand extends Command
     private function publishSnapshot(SymfonyStyle $io): void
     {
         try {
-            $trends = $this->analyticsService->getFinancingTrends();
+            // C1.6: getFinancingTrends() now returns {data, movingAverageTotal},
+            // not a bare list of rows - ['data'] is the same per-year rows
+            // this command always summed.
+            $trends = $this->analyticsService->getFinancingTrends()['data'];
             $heroStats = $this->analyticsService->getHeroStats();
             $co2Reduction = $this->analyticsService->getCo2Reduction();
 

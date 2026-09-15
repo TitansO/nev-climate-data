@@ -143,9 +143,10 @@ final class SearchService
             'id' => $source->getId(),
             'title' => $source->getName(),
             'description' => \sprintf('Source de données (%s)', $source->getType()->value),
-            // sources.html lists every source; there is no per-source page
-            // to deep-link to (that page is still fully static - A2.13).
-            'destination' => 'sources.html',
+            // C1.4: institution-profile.html now exists as a real per-source
+            // page (GET /api/institutions/{sourceId}) - deep-links there
+            // instead of the generic sources.html listing.
+            'destination' => 'institution-profile.html?sourceId='.$source->getId(),
         ];
     }
 

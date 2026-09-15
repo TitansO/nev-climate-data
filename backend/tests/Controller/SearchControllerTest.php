@@ -234,7 +234,7 @@ final class SearchControllerTest extends WebTestCase
         $sourceResults = array_values(array_filter($data['results'], static fn (array $r) => 'source' === $r['type']));
         self::assertCount(1, $sourceResults);
         self::assertSame('World Bank Data API', $sourceResults[0]['title']);
-        self::assertSame('sources.html', $sourceResults[0]['destination']);
+        self::assertSame('institution-profile.html?sourceId='.$sourceResults[0]['id'], $sourceResults[0]['destination']);
     }
 
     public function testSearchFindsAPublishedReportButNeverADraft(): void
