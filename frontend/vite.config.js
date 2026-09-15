@@ -32,6 +32,9 @@ import { resolve } from "path";
  * of an existing static page. C1.3: search.html - new full-page,
  * facetable search results view (GlobalSearch.jsx's navbar dropdown stays
  * the quick, capped-at-5-per-type entry point; this is where it links to).
+ * C1.4: institution-profile.html - per-source profile page, not in the
+ * main nav (reached via a search result's own destination, like
+ * account-profile.html is reached from the account menu, not the navbar).
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -56,6 +59,7 @@ export default defineConfig({
         visualizations: resolve(__dirname, "visualizations.html"),
         dashboard: resolve(__dirname, "dashboard.html"),
         search: resolve(__dirname, "search.html"),
+        "institution-profile": resolve(__dirname, "institution-profile.html"),
       },
     },
   },

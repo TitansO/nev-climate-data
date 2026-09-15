@@ -224,11 +224,11 @@ final class InstitutionControllerTest extends WebTestCase
         $demo = new Funding(
             $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'KEN']),
             $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']),
-            2025,
+            2026, // not 2025 - seedDataset() already has a current row for this exact (source, country, sector, year, fundingType), which would otherwise collide with the dedup unique constraint
             '999999.00',
             FundingType::Multilateral,
             $worldBank,
-            new \DateTimeImmutable('2025-01-10'),
+            new \DateTimeImmutable('2026-01-10'),
             ValidationStatus::Demo
         );
         $this->entityManager->persist($demo);
