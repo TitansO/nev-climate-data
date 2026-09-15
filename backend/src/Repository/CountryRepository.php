@@ -25,13 +25,28 @@ class CountryRepository extends ServiceEntityRepository
      * sides - see App\Doctrine\DQL\UnaccentFunction), so "senegal" also
      * finds "Sénégal". Ordered by name for a deterministic result order.
      *
+     * C1.3: supports only the "country" facet (an exact isoCode match, on
+     * top of the free-text name search above) - Country has no
+     * sector/instrument/year/amount, so any other facet excludes Country
+     * from the results entirely (see SearchQuery::hasFacetOutside()).
+     *
      * @return list<Country>
      */
     public function searchByName(SearchQuery $searchQuery, int $limit): array
     {
-        return $this->createQueryBuilder('country')
+        if ($searchQuery->hasFacetOutside(['country'])) {
+            return [];
+        }
+
+        $qb = $this->createQueryBuilder('country')
             ->andWhere('UNACCENT(LOWER(country.name)) LIKE UNACCENT(:pattern)')
-            ->setParameter('pattern', $searchQuery->likePattern())
+            ->setParameter('pattern', $searchQuery->likePattern());
+
+        if (null !== $searchQuery->countryIsoCode) {
+            $qb->andWhere('country.isoCode = :countryIsoCode')->setParameter('countryIsoCode', $searchQuery->countryIsoCode);
+        }
+
+        return $qb
             ->orderBy('country.name', 'ASC')
             ->setMaxResults($limit)
             ->getQuery()

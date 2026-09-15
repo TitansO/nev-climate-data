@@ -24,13 +24,27 @@ class SectorRepository extends ServiceEntityRepository
      * App\Doctrine\DQL\UnaccentFunction). Ordered by name for a
      * deterministic result order.
      *
+     * C1.3: supports only the "sector" facet (an exact id match) - Sector
+     * has no country/instrument/year/amount, so any other facet excludes
+     * Sector from the results entirely (see SearchQuery::hasFacetOutside()).
+     *
      * @return list<Sector>
      */
     public function searchByName(SearchQuery $searchQuery, int $limit): array
     {
-        return $this->createQueryBuilder('sector')
+        if ($searchQuery->hasFacetOutside(['sector'])) {
+            return [];
+        }
+
+        $qb = $this->createQueryBuilder('sector')
             ->andWhere('UNACCENT(LOWER(sector.name)) LIKE UNACCENT(:pattern)')
-            ->setParameter('pattern', $searchQuery->likePattern())
+            ->setParameter('pattern', $searchQuery->likePattern());
+
+        if (null !== $searchQuery->sectorId) {
+            $qb->andWhere('sector.id = :sectorId')->setParameter('sectorId', $searchQuery->sectorId);
+        }
+
+        return $qb
             ->orderBy('sector.name', 'ASC')
             ->setMaxResults($limit)
             ->getQuery()

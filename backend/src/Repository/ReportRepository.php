@@ -91,15 +91,37 @@ class ReportRepository extends ServiceEntityRepository
      * (UNACCENT() on both sides - see App\Doctrine\DQL\UnaccentFunction).
      * Ordered by title for a deterministic result order.
      *
+     * C1.3: supports the "country" and "year" facets (year against
+     * `publicationDate`, itself nullable - a report with no publication
+     * date simply never matches a year filter). Report has no
+     * sector/instrument/amount, so either of those excludes Report from
+     * the results entirely (see SearchQuery::hasFacetOutside()).
+     *
      * @return list<Report>
      */
     public function searchPublishedByTitle(SearchQuery $searchQuery, int $limit): array
     {
-        return $this->createQueryBuilder('report')
+        if ($searchQuery->hasFacetOutside(['country', 'year'])) {
+            return [];
+        }
+
+        $qb = $this->createQueryBuilder('report')
             ->andWhere('UNACCENT(LOWER(report.title)) LIKE UNACCENT(:pattern)')
             ->andWhere('report.status = :status')
             ->setParameter('pattern', $searchQuery->likePattern())
-            ->setParameter('status', ReportStatus::Published)
+            ->setParameter('status', ReportStatus::Published);
+
+        if (null !== $searchQuery->countryIsoCode) {
+            $qb->join('report.country', 'country')
+                ->andWhere('country.isoCode = :countryIsoCode')
+                ->setParameter('countryIsoCode', $searchQuery->countryIsoCode);
+        }
+
+        if (null !== $searchQuery->year) {
+            $qb->andWhere('YEAR(report.publicationDate) = :year')->setParameter('year', $searchQuery->year);
+        }
+
+        return $qb
             ->orderBy('report.title', 'ASC')
             ->setMaxResults($limit)
             ->getQuery()

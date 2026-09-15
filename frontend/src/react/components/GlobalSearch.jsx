@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
-import { GlobeIcon, BoltIcon, LinkIcon, DocumentIcon } from "./ui/icons";
+import { GlobeIcon, BoltIcon, LinkIcon, DocumentIcon, BuildingIcon, SparklesIcon } from "./ui/icons";
 
 /**
  * React port of assets/js/search.js (A2.8/A2.9). Every keystroke that
@@ -20,18 +20,25 @@ import { GlobeIcon, BoltIcon, LinkIcon, DocumentIcon } from "./ui/icons";
 const MIN_LENGTH = 2; // matches backend/src/Dto/SearchQuery.php
 const DEBOUNCE_MS = 300;
 
-const CATEGORY_ORDER = ["country", "sector", "source", "report"];
+// C1.3: "project"/"opportunity" added alongside GET /api/search's own
+// extension - without an entry here, groupByType()'s CATEGORY_ORDER.filter()
+// would silently drop those two result types from this dropdown.
+const CATEGORY_ORDER = ["country", "sector", "source", "report", "project", "opportunity"];
 const CATEGORY_LABELS = {
   country: "Pays",
   sector: "Secteurs",
   source: "Sources",
   report: "Rapports",
+  project: "Projets",
+  opportunity: "Appels à projets",
 };
 const CATEGORY_ICONS = {
   country: GlobeIcon,
   sector: BoltIcon,
   source: LinkIcon,
   report: DocumentIcon,
+  project: BuildingIcon,
+  opportunity: SparklesIcon,
 };
 
 const SEARCH_ICON = (
@@ -217,6 +224,17 @@ export default function GlobalSearch() {
                 </div>
                 );
               })}
+              {/* C1.3: the compact dropdown above stays capped at 5 results
+                  per type (same as the API itself) - this is the bridge to
+                  SearchResultsPage.jsx's full, facetable results view. */}
+              <div className="px-1 pt-1.5">
+                <a
+                  href={"search.html?q=" + encodeURIComponent(term.trim())}
+                  className="block rounded-md px-3 py-2 text-center text-xs font-semibold text-primary-dark transition hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  Voir tous les résultats sur une page dédiée
+                </a>
+              </div>
             </div>
           )}
         </div>

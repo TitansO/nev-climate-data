@@ -29,7 +29,9 @@ import { resolve } from "path";
  * account-users.html, notifications.html. Lot 3: data.html, reports.html.
  * Lot 4: index.html. Lot 5: visualizations.html.
  * C1.1: dashboard.html - new consolidated Dashboard view, not a migration
- * of an existing static page.
+ * of an existing static page. C1.3: search.html - new full-page,
+ * facetable search results view (GlobalSearch.jsx's navbar dropdown stays
+ * the quick, capped-at-5-per-type entry point; this is where it links to).
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -53,6 +55,7 @@ export default defineConfig({
         index: resolve(__dirname, "index.html"),
         visualizations: resolve(__dirname, "visualizations.html"),
         dashboard: resolve(__dirname, "dashboard.html"),
+        search: resolve(__dirname, "search.html"),
       },
     },
   },

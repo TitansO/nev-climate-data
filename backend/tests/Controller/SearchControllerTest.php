@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Entity\Country;
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\ReportStatus;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
+use App\Entity\Opportunity;
+use App\Entity\Project;
 use App\Entity\Report;
 use App\Entity\Sector;
 use App\Entity\Source;
@@ -16,13 +19,17 @@ use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 /**
- * GET /api/search (A2.8). Dataset seeded by seedDataset():
+ * GET /api/search (A2.8, C1.3). Dataset seeded by seedDataset():
  *   - Countries: Senegal (SEN), Kenya (KEN), Côte d'Ivoire (CIV - accented,
  *     for the accent-insensitivity tests)
  *   - Sectors: Renewable Energy, Agriculture
  *   - Sources: World Bank Data API, Local Registry
  *   - Reports: "Senegal Climate Finance Report" (Published),
  *              "Senegal Draft Notes" (Draft - must never appear)
+ *   - Project: "Wind Corridor Expansion" (Kenya, Renewable Energy, grant,
+ *     750000) - titled to never collide with another test's search term
+ *   - Opportunity: "Coastal Resilience Facility" (World Bank, Agriculture,
+ *     3000000, application window opens 2024-06-01) - same reasoning
  */
 final class SearchControllerTest extends WebTestCase
 {
@@ -67,7 +74,14 @@ final class SearchControllerTest extends WebTestCase
         $draft = new Report('Senegal Draft Notes', 'country', 'reports/senegal-draft.pdf');
         // Left in Draft (constructor default) - must never appear in search results.
 
-        foreach ([$senegal, $kenya, $coteDivoire, $renewableEnergy, $agriculture, $worldBank, $localRegistry, $published, $draft] as $entity) {
+        $project = new Project('Wind Corridor Expansion', $kenya, $renewableEnergy, '750000.00', 'A wind corridor project.', 'GreenCo');
+        $project->setInstrumentSought(FundingInstrument::Grant);
+
+        $opportunity = new Opportunity('Coastal Resilience Facility', $worldBank, 'Open to coastal adaptation projects.', '3000000.00');
+        $opportunity->setSector($agriculture);
+        $opportunity->setApplicationWindowOpensAt(new \DateTimeImmutable('2024-06-01'));
+
+        foreach ([$senegal, $kenya, $coteDivoire, $renewableEnergy, $agriculture, $worldBank, $localRegistry, $published, $draft, $project, $opportunity] as $entity) {
             $this->entityManager->persist($entity);
         }
 
@@ -302,6 +316,208 @@ final class SearchControllerTest extends WebTestCase
         foreach ($data['results'] as $result) {
             self::assertSame(['type', 'id', 'title', 'description', 'destination'], array_keys($result));
         }
+    }
+
+    public function testSearchFindsAProjectByTitle(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=wind+corridor');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $projectResults = array_values(array_filter($data['results'], static fn (array $r) => 'project' === $r['type']));
+        self::assertCount(1, $projectResults);
+        self::assertSame('Wind Corridor Expansion', $projectResults[0]['title']);
+        self::assertSame('dashboard.html', $projectResults[0]['destination']);
+    }
+
+    public function testSearchFindsAnOpportunityByTitle(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=coastal+resilience');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $opportunityResults = array_values(array_filter($data['results'], static fn (array $r) => 'opportunity' === $r['type']));
+        self::assertCount(1, $opportunityResults);
+        self::assertSame('Coastal Resilience Facility', $opportunityResults[0]['title']);
+        self::assertSame('dashboard.html', $opportunityResults[0]['destination']);
+    }
+
+    /**
+     * C1.3: the "sector" facet only applies to Sector/Project/Opportunity -
+     * Country has no sector of its own, so setting it excludes Country from
+     * the results entirely, even though "kenya" alone would otherwise match it.
+     */
+    public function testSectorFacetExcludesCountryEntirely(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
+
+        $client->request('GET', '/api/search?q=kenya&sector='.$agriculture->getId());
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $data['results']);
+    }
+
+    /**
+     * C1.3: the "country" facet only applies to Country/Report/Project -
+     * Sector has no country of its own, so setting it excludes Sector from
+     * the results entirely, even though "agriculture" alone would otherwise
+     * match it.
+     */
+    public function testCountryFacetExcludesSectorEntirely(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=agriculture&country=KEN');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $data['results']);
+    }
+
+    public function testInstrumentFacetNarrowsProjectResults(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=wind&instrument=grant');
+        $matching = json_decode($client->getResponse()->getContent(), true)['results'];
+        self::assertCount(1, $matching);
+
+        $client->request('GET', '/api/search?q=wind&instrument=guarantee');
+        $nonMatching = json_decode($client->getResponse()->getContent(), true)['results'];
+        self::assertSame([], $nonMatching);
+    }
+
+    /**
+     * C1.3: "instrument" only applies to Project - even a text match on
+     * another type (Kenya) is excluded once this facet is set.
+     */
+    public function testInstrumentFacetExcludesCountryEntirely(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=kenya&instrument=grant');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $data['results']);
+    }
+
+    public function testYearFacetNarrowsOpportunityByItsApplicationWindow(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=coastal&year=2024');
+        $matching = json_decode($client->getResponse()->getContent(), true)['results'];
+        self::assertCount(1, $matching);
+
+        $client->request('GET', '/api/search?q=coastal&year=2023');
+        $nonMatching = json_decode($client->getResponse()->getContent(), true)['results'];
+        self::assertSame([], $nonMatching);
+    }
+
+    public function testYearFacetNarrowsProjectByItsCreationYear(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $currentYear = (int) (new \DateTimeImmutable())->format('Y');
+
+        $client->request('GET', '/api/search?q=wind&year='.$currentYear);
+        $matching = json_decode($client->getResponse()->getContent(), true)['results'];
+        self::assertCount(1, $matching);
+
+        $client->request('GET', '/api/search?q=wind&year='.($currentYear - 1));
+        $nonMatching = json_decode($client->getResponse()->getContent(), true)['results'];
+        self::assertSame([], $nonMatching);
+    }
+
+    /**
+     * C1.3: "year" excludes both Report (publicationDate is null on the
+     * seeded report - never matches any year) and Country (no year
+     * dimension at all) - "senegal" alone would otherwise match both.
+     */
+    public function testYearFacetExcludesAReportWithNoPublicationDateAndCountryEntirely(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=senegal&year=2025');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $data['results']);
+    }
+
+    public function testMinAmountFacetNarrowsProjectAndOpportunityResults(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=wind&minAmount=750000');
+        self::assertCount(1, json_decode($client->getResponse()->getContent(), true)['results']);
+
+        $client->request('GET', '/api/search?q=wind&minAmount=750001');
+        self::assertSame([], json_decode($client->getResponse()->getContent(), true)['results']);
+
+        $client->request('GET', '/api/search?q=coastal&minAmount=3000000');
+        self::assertCount(1, json_decode($client->getResponse()->getContent(), true)['results']);
+    }
+
+    public function testMinAmountFacetExcludesCountryEntirely(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=kenya&minAmount=1');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $data['results']);
+    }
+
+    public function testInvalidInstrumentFacetReturns400(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=wind&instrument=not-a-real-instrument');
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testInvalidYearFacetReturns400(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=wind&year=not-a-year');
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testInvalidMinAmountFacetReturns400(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=wind&minAmount=-5');
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testInvalidSectorFacetReturns400(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/search?q=wind&sector=not-a-number');
+
+        self::assertResponseStatusCodeSame(400);
     }
 
     public function testSearchIsDocumentedInSwagger(): void
