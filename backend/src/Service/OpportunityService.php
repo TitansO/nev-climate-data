@@ -50,7 +50,14 @@ final class OpportunityService
         return $results;
     }
 
-    private static function statusOf(Opportunity $opportunity, \DateTimeImmutable $now): OpportunityStatus
+    /**
+     * Public since C2.2: App\Service\ProjectMatchingService reuses this
+     * exact open/upcoming/closed computation for its own "fenêtre
+     * temporelle" score component - one source of truth for what "open"
+     * means for an Opportunity, not two independent date comparisons that
+     * could drift apart.
+     */
+    public static function statusOf(Opportunity $opportunity, \DateTimeImmutable $now): OpportunityStatus
     {
         $closesAt = $opportunity->getApplicationWindowClosesAt();
         if (null !== $closesAt && $closesAt < $now) {
