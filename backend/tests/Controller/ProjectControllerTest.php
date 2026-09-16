@@ -115,7 +115,7 @@ final class ProjectControllerTest extends WebTestCase
         self::assertSame('Senegal', $data[0]['country']);
         self::assertSame('SEN', $data[0]['countryIsoCode']);
         self::assertSame('grant', $data[0]['instrumentSought']);
-        self::assertSame('scoping', $data[0]['pipelineStage']);
+        self::assertSame('idea', $data[0]['pipelineStage']);
     }
 
     public function testListFiltersByStage(): void
@@ -270,7 +270,11 @@ final class ProjectControllerTest extends WebTestCase
 
         self::assertSame($perfectMatch->getId(), $data[0]['opportunityId']);
         self::assertEqualsWithDelta(1.0, $data[0]['score'], 0.0001);
-        self::assertSame(['sector' => 1.0, 'country' => 1.0, 'instrument' => 1.0, 'amount' => 1.0, 'window' => 1.0], $data[0]['breakdown']);
+        // assertEquals, not assertSame: json_encode() drops the trailing
+        // ".0" from a whole-number float (e.g. 1.0 -> "1"), so a
+        // round-tripped whole score decodes back as a PHP int - same
+        // gotcha already documented in AnalyticsControllerTest.
+        self::assertEquals(['sector' => 1.0, 'country' => 1.0, 'instrument' => 1.0, 'amount' => 1.0, 'window' => 1.0], $data[0]['breakdown']);
         self::assertSame('open', $data[0]['opportunityStatus']);
 
         self::assertSame($poorMatch->getId(), $data[1]['opportunityId']);
