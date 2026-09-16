@@ -723,6 +723,16 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 54. **Un `<select>` d'années codé en dur masque silencieusement toute donnée hors de sa plage, sans erreur ni indice visuel.** `DataPage.jsx` proposait un filtre Année figé à 2022-2025 (hérité du jeu de démonstration A1.6), alors que les données réelles collectées en B3.1 couvrent 1967-2027 - repéré via un signalement utilisateur ("le filtre semble cassé"), pas par un test automatisé (aucun test ne couvrait la plage de valeurs affichées par ce filtre). Corrigé en apprenant dynamiquement les années réellement présentes depuis les réponses `GET /api/funding` (`learnYearsFrom()`, même patron que `learnSectorsFrom()` déjà en place) plutôt qu'en élargissant simplement la liste codée en dur - une future donnée plus ancienne ou plus récente que la plage prévue aujourd'hui n'aura pas besoin d'un nouveau correctif.
 
+55. **Le quota Codespace d'un compte GitHub s'épuise indépendamment de tout dépôt - migrer de dépôt sur le même compte ne suffit pas, il faut un autre compte.** Rencontré le 2026-09-15 : le Codespace `Odjiguimde/nev-climate-data` est devenu inutilisable (`HTTP 402 : Usage of this codespace is currently disallowed`), le compte GitHub `Odjiguimde` a été abandonné pour un nouveau compte + un nouveau dépôt miroir (`titansdjiguimde3-commits/nev-climate-data`, voir §0 des runbooks). Deux pièges rencontrés pendant la bascule : (1) un `GH_TOKEN` **persistant dans le profil shell** (pas dans l'environnement Codespace lui-même) pointait toujours vers l'ancien compte et faisait silencieusement échouer `gh auth login --with-token` pour le nouveau - contournement : préfixer *chaque* commande `gh` ciblant le nouveau compte par `GH_TOKEN=<token> gh ...` en ligne, jamais compter sur `gh auth login` seul. (2) `minio/minio` (Docker Hub, sans tag = `:latest`) refuse de se laisser `pull` sur un démon Docker vierge (`pull access denied... may require 'docker login'`) alors que ce n'est pas une panne Docker Hub générale (`alpine` se tire sans problème) - seul l'ancien Codespace y échappait car son cache Docker local avait déjà l'image d'avant un changement d'accès Docker Hub. Corrigé en basculant `docker-compose.yml` sur `quay.io/minio/minio:latest` (canal de distribution officiel actuel de MinIO), qui se tire proprement sur un démon neuf.
+
+56. **Sur une base fraîche, le worker Messenger peut créer `messenger_messages` *avant* que les migrations Doctrine ne tournent (auto-setup du transport Doctrine) - la migration qui crée cette même table plante alors sur "relation already exists", même si aucune migration n'a encore été appliquée.** Rencontré en remontant le nouveau Codespace (point 55) : `docker compose up -d` démarre `backend-worker` en même temps que `database`, et le transport Messenger `doctrine://default` crée sa table au premier passage, avant tout `doctrine:migrations:migrate` explicite. Contourné en créant manuellement la partie non déjà satisfaite de la migration bloquée (ici la table `export`, absente) puis en la marquant exécutée (`doctrine:migrations:version --add <version>`) plutôt qu'en supprimant la table auto-créée (`DROP TABLE` a été refusé par le classificateur de sécurité de l'agent - contournement légitime, pas un correctif de fond). Sur un environnement vraiment neuf, migrer la base **avant** le premier démarrage complet de la pile évite le problème entièrement.
+
+57. **`bin/phpunit` échoue avec `"framework.test" config is not set to true` même quand `phpunit.dist.xml` force `APP_ENV=test` via `<server force="true">`, si `APP_ENV=dev` est aussi une vraie variable d'environnement du conteneur (`docker-compose.yml`) - il faut alors la forcer une seconde fois côté `docker compose exec`.** Rencontré sur le nouveau Codespace : `docker compose exec -T backend php bin/phpunit ...` échouait systématiquement, corrigé par `docker compose exec -T -e APP_ENV=test backend php bin/phpunit ...`. Une fois ce point réglé, l'erreur suivante était `database "nev_climate_data_test" does not exist` - la base de test n'est jamais créée automatiquement, il faut `doctrine:database:create` + `doctrine:migrations:migrate` avec `APP_ENV=test` explicite avant le tout premier `bin/phpunit` d'un environnement neuf (à faire une seule fois, pas à chaque run).
+
+58. **`bin/phpunit` sans `-d memory_limit=512M` épuise la mémoire par défaut (128M) sur la suite complète, pas seulement sur `FundingExportTest` isolément (point d'attention #51, découvert côté CI) - le même run direct sur un Codespace neuf déclenche une vraie erreur fatale PHP** (`Fatal error: Allowed memory size of 134217728 bytes exhausted`, suite interrompue avant la fin). `.gitlab-ci.yml` porte déjà le flag ; à répéter systématiquement pour tout `bin/phpunit` lancé à la main hors CI (`docker compose exec -T -e APP_ENV=test backend php -d memory_limit=512M bin/phpunit`).
+
+59. **Un compteur de type "Autres X (N)" incrémenté une fois par ligne de données exclue, plutôt qu'une fois par entité distincte exclue, gonfle N dès qu'une même entité apparaît sur plusieurs lignes.** Bug réel trouvé par les tests de `GET /api/analytics/funding-flows` (C1.5) : `FundingFlowService`'s regroupement "Autres bailleurs/pays/secteurs" incrémentait `otherCounts[layer]` à chaque ligne de flux exclue du top-N, alors qu'un même bailleur exclu finançant plusieurs pays y contribue plusieurs fois - `topN=1` sur 2 bailleurs produisait tantôt "(1)", tantôt "(2)" selon lequel des deux gagnait l'égalité de tri, alors que la réponse correcte (1 bailleur exclu) ne doit jamais dépendre de combien de pays il finance. Corrigé en calculant chaque compteur directement à partir du nombre d'entités distinctes du calque (`count($totalsParCle) - count($clésDuTopN)`), une seule fois, plutôt qu'en l'incrémentant dans la boucle de construction des liens. Un compteur "combien d'éléments agrégés ici" doit toujours être dérivé de l'ensemble des clés distinctes, jamais accumulé pendant une itération sur des lignes qui peuvent répéter la même clé.
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -849,6 +859,29 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 | T.3 | Former l'équipe interne (support + session(s)) | ✅ Support livré - [`docs/exploitation/formation-equipe.md`](docs/exploitation/formation-equipe.md) : objectifs pédagogiques, 3 parcours selon le public, modules (nature des données, lecture des tableaux de bord, pipeline en pratique, gestion d'incident), exercices pratiques, glossaire, journal des sessions. Dépendait de B3.6 (satisfaite). **Réserve : les sessions elles-mêmes restent à animer et à tracer** (§10 du support) |
 
 **Tâches transverses : documentation et support livrés.** Restent à réaliser : les sessions de formation (T.3) et le relevé mensuel des coûts (T.2, récurrent).
+
+**Fait (Palier C1 - « Où est l'argent ? », 8 tâches sur le plan, voir [`docs/superpowers/plans/2026-09-10-c1-c3-implementation-plan.md`](docs/superpowers/plans/2026-09-10-c1-c3-implementation-plan.md)) :**
+
+| Tâche | Contenu | Statut |
+|---|---|---|
+| C1.1 | Dashboard consolidé (`/dashboard`) + `GET /api/analytics/data-freshness` | ✅ Fait (P0) |
+| C1.2 | Sélecteur de couche sur `CountryMap` (secteur/instrument/année/type) | ✅ Fait (P0) |
+| C1.3 | Recherche à facettes (pays/secteur/instrument/année/montant) | ✅ Fait (P1) |
+| C1.4 | Fiches institutions (`GET /api/institutions/{sourceId}` + `InstitutionProfilePage.jsx`) | ✅ Fait (P0) |
+| C1.5 | Sankey des flux bailleur → pays → secteur (`GET /api/analytics/funding-flows`, top-N + « Autres ») | ✅ Fait (P1) - un vrai bug de comptage trouvé par les tests, voir point d'attention #59 |
+| C1.6 | Ventilation généralisée des tendances (`?groupBy=`) + sélecteur front + moyenne mobile 3 ans | ✅ Fait (P0) |
+| C1.7 | Explorateur d'instruments (`instrument-distribution` + `InstrumentsPage.jsx`) | ✅ Fait (P1) |
+| C1.8 | Radar d'opportunités (`GET /api/opportunities` + `OpportunityRadarPage.jsx`) | ✅ Fait (P2 - saisie manuelle, pas de connecteur automatique, assumé dès le plan) |
+
+**Palier C1 clos** (CI GitLab verte, pipeline #161, couverture 84,3%). Fondations du palier C2 (F1-F7, §4 du plan) déjà quasi entièrement en place au démarrage de C2 : F1 (`FundingInstrument`), F2 (entité `Score`), F4 (`Project`/`Opportunity`), F5 (service `ai/` FastAPI + RAG pgvector), F6 (`ai/ingest.py`), F7 (`NdcTarget`) existent tous ; seul F3 (`ScoreService` + registre d'indicateurs, nécessaire à partir de C2.4) reste à écrire.
+
+**En cours (Palier C2 - « Où l'argent devrait-il aller ? ») :**
+
+| Tâche | Contenu | Statut |
+|---|---|---|
+| C2.1 | `POST /api/ai/ask` (proxy vers `ai/` RAG) + `AiCopilotPanel.jsx` | 🔄 En cours |
+| C2.2 | Score de correspondance projet↔opportunité (`GET /api/projects/{id}/matches`) | ⬜ À faire |
+| C2.3 | Tableau Kanban du pipeline projet (`ProjectPipelinePage.jsx`) | ⬜ À faire |
 
 ## Pipeline (Volet B)
 

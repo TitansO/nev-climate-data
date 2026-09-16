@@ -53,11 +53,14 @@ npm run dev         # recompilation automatique pendant le développement
 
 ## Ouvrir le site
 
-Fichiers statiques - servir le dossier (ne pas ouvrir `index.html` directement en `file://` : les appels `fetch()` vers le backend ont besoin d'une vraie origine HTTP pour que CORS s'applique) :
+Fichiers statiques - servir le dossier (ne pas ouvrir `index.html` directement en `file://` : les appels `fetch()` vers le backend ont besoin d'une vraie origine HTTP pour que CORS s'applique). **Sur le Codespace, `python3` du système est cassé** (`No module named 'http'` - voir `docs/exploitation/runbooks.md` §9) : utiliser `npx http-server` à la place, qui fonctionne partout :
 
 ```bash
-python3 -m http.server 8123 --directory frontend
+npm run build   # rebuild d'abord si le dossier vient d'un `git reset`/`git pull` (point d'attention #41 du README racine)
+npx http-server frontend -p 8123 -c-1 &
 ```
+
+`-c-1` désactive le cache HTTP (sinon un rebuild ultérieur peut continuer à servir un bundle périmé au navigateur).
 
 ## Où le backend est-il ? (résolution automatique)
 
