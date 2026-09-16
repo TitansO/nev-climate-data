@@ -25,6 +25,13 @@ services:
       MERCURE_URL: ${MERCURE_URL:-http://mercure/.well-known/mercure}
       MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL:-http://localhost:3000/.well-known/mercure}
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET}
+      # C2.1 / F5: reached only server-side by AiController's proxy - the
+      # "ai" service itself depends_on "backend" (see below), so this
+      # deliberately does NOT add a depends_on the other way (would be
+      # circular); AiController handles the ai service being briefly
+      # unreachable at cold start the same way it handles any other
+      # transient outage.
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai:8000}
     depends_on:
       database:
         condition: service_healthy

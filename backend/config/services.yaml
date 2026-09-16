@@ -27,6 +27,10 @@ parameters:
     # served directly by Apache, only ever streamed through the tracked
     # download endpoint.
     app.report_storage_dir: '%kernel.project_dir%/resources'
+    # C2.1 / F5: base URL of the ai/ FastAPI service, read by App\Controller\
+    # AiController to proxy POST /api/ai/ask - see docker-compose.yml's
+    # "backend" service env for the real value.
+    app.ai_service_url: '%env(AI_SERVICE_URL)%'
 
 services:
     # default configuration for services in *this* file
@@ -36,6 +40,7 @@ services:
         bind:
             string $exportStorageDir: '%app.export_storage_dir%'
             string $reportStorageDir: '%app.report_storage_dir%'
+            string $aiServiceUrl: '%app.ai_service_url%'
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name

@@ -50,3 +50,21 @@ framework:
             policy: 'sliding_window'
             limit: 60
             interval: '1 minute'
+        # C2.1: POST /api/ai/ask calls out to Gemini (real cost per call,
+        # unlike every other api_* endpoint above) - one daily quota per
+        # role, same policy shape as export_* rather than api_* (a per-
+        # minute ceiling would let a user burn their whole day's budget in
+        # seconds). PROVISIONAL numbers, same reasoning as export_*/api_*
+        # above: no concrete figure exists yet for AI Copilot usage.
+        ai_ask_admin:
+            policy: 'sliding_window'
+            limit: 200
+            interval: '1 day'
+        ai_ask_internal_analyst:
+            policy: 'sliding_window'
+            limit: 100
+            interval: '1 day'
+        ai_ask_external_partner:
+            policy: 'sliding_window'
+            limit: 30
+            interval: '1 day'

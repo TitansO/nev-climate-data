@@ -1,0 +1,7 @@
+# C2.1: registers Symfony\Contracts\HttpClient\HttpClientInterface as an
+# autowireable service - App\Controller\AiController uses it to proxy
+# POST /api/ai/ask to the ai/ FastAPI service (F5). No scoped client
+# needed (only ever calls one internal URL, read from %app.ai_service_url%
+# at call time), so the default client is enough.
+framework:
+    http_client: ~
