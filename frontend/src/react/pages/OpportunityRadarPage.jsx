@@ -127,6 +127,15 @@ export default function OpportunityRadarPage() {
               <option value="closed">{t("opportunityPage.statusClosed", "Fermée")}</option>
             </NevSelect>
           </div>
+          {/* C2.2/C2.3: cette page liste les appels à projets des bailleurs
+              (le "quoi chercher") ; le pipeline de projets, lui, suit les
+              projets qui candidatent à ces mêmes appels, avec leur score de
+              correspondance (le "où en est ma candidature") - lien
+              contextuel plutôt qu'une entrée de navbar, même raisonnement
+              que instruments.html/opportunities.html en C1.7/C1.8. */}
+          <a href="project-pipeline.html" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-dark hover:underline">
+            {t("opportunityPage.seeProjectPipeline", "Suivre mes projets et leurs correspondances →")}
+          </a>
         </NevCard>
 
         <section className="pb-16">

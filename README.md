@@ -733,6 +733,8 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 59. **Un compteur de type "Autres X (N)" incrémenté une fois par ligne de données exclue, plutôt qu'une fois par entité distincte exclue, gonfle N dès qu'une même entité apparaît sur plusieurs lignes.** Bug réel trouvé par les tests de `GET /api/analytics/funding-flows` (C1.5) : `FundingFlowService`'s regroupement "Autres bailleurs/pays/secteurs" incrémentait `otherCounts[layer]` à chaque ligne de flux exclue du top-N, alors qu'un même bailleur exclu finançant plusieurs pays y contribue plusieurs fois - `topN=1` sur 2 bailleurs produisait tantôt "(1)", tantôt "(2)" selon lequel des deux gagnait l'égalité de tri, alors que la réponse correcte (1 bailleur exclu) ne doit jamais dépendre de combien de pays il finance. Corrigé en calculant chaque compteur directement à partir du nombre d'entités distinctes du calque (`count($totalsParCle) - count($clésDuTopN)`), une seule fois, plutôt qu'en l'incrémentant dans la boucle de construction des liens. Un compteur "combien d'éléments agrégés ici" doit toujours être dérivé de l'ensemble des clés distinctes, jamais accumulé pendant une itération sur des lignes qui peuvent répéter la même clé.
 
+60. **Un arrêt complet du Codespace (tous les conteneurs `Exited`, pas juste "endormi") vide entièrement le tunnel de ports - l'URL publique d'un port répond `404` même s'il écoute bien en local sur le Codespace, et `gh codespace ports visibility <port>:public` échoue lui-même avec `error getting tunnel port... 404 Not Found` tant que le port n'a pas été réenregistré.** Rencontré le 2026-09-16 en vérifiant C2.3 (Kanban) : après un `docker compose up -d` de reprise suite à un arrêt complet, ni le port 8080 (backend) ni le 8123 (frontend statique) n'étaient joignables publiquement, alors que `curl http://localhost:<port>` depuis le Codespace lui-même fonctionnait parfaitement pour les deux - `gh codespace ports -c <nom>` renvoyait `[]` (rien d'enregistré du tout), contrairement à un simple oubli de visibilité (qui, lui, renvoie un 403/redirection, pas un 404 - voir le point d'attention n°10 plus haut, un problème différent). `.devcontainer/devcontainer.json` ne protège que contre un `docker compose down`/`up` avec le Codespace resté "Available" entre les deux - un arrêt complet du Codespace lui-même remet le tunnel à zéro, `portsAttributes` ou pas. Corrigé en forçant l'enregistrement avec un forward explicite avant de (re)fixer la visibilité : `gh codespace ports forward 8123:8123 -c <nom>` (quelques secondes, puis l'arrêter) suivi de `gh codespace ports visibility 8123:public -c <nom>` - répété pour chaque port concerné. Voir `docs/exploitation/runbooks.md` §9 pour la procédure complète.
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -879,9 +881,9 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 
 | Tâche | Contenu | Statut |
 |---|---|---|
-| C2.1 | `POST /api/ai/ask` (proxy vers `ai/` RAG) + `AiCopilotPanel.jsx` | 🔄 En cours |
-| C2.2 | Score de correspondance projet↔opportunité (`GET /api/projects/{id}/matches`) | ⬜ À faire |
-| C2.3 | Tableau Kanban du pipeline projet (`ProjectPipelinePage.jsx`) | ⬜ À faire |
+| C2.1 | `POST /api/ai/ask` (proxy vers `ai/` RAG) + `AiCopilotPanel.jsx` (tiroir de chat sur toutes les pages, via `Footer.jsx`) | ✅ Fait |
+| C2.2 | Score de correspondance projet↔opportunité (`GET /api/projects/{id}/matches`, pondération secteur/pays/instrument/montant/fenêtre) | ✅ Fait - encart "Financements pertinents" intégré au détail de carte du Kanban (C2.3), pas de fiche projet dédiée séparée |
+| C2.3 | Tableau Kanban du pipeline projet (`GET/PATCH /api/projects`, `ProjectPipelinePage.jsx`, glisser-déposer HTML5 natif) | ✅ Fait |
 
 ## Pipeline (Volet B)
 

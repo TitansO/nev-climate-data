@@ -39,6 +39,8 @@ import { resolve } from "path";
  * (kept short on purpose), reached instead via a contextual link from the
  * page closest to their role: VisualizationsPage's "type de financement"
  * card links to instruments.html, SourcesPage links to opportunities.html.
+ * C2.3: project-pipeline.html - same "not in the main nav" reasoning,
+ * reached via a contextual link from opportunities.html.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -66,6 +68,7 @@ export default defineConfig({
         "institution-profile": resolve(__dirname, "institution-profile.html"),
         instruments: resolve(__dirname, "instruments.html"),
         opportunities: resolve(__dirname, "opportunities.html"),
+        "project-pipeline": resolve(__dirname, "project-pipeline.html"),
       },
     },
   },
