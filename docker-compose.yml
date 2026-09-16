@@ -288,7 +288,16 @@ services:
       - nev-network
 
   minio:
-    image: minio/minio
+    # quay.io, not Docker Hub's "minio/minio": found live (2026-09-15)
+    # spinning up a brand-new Codespace from scratch - "docker pull
+    # minio/minio" now fails outright ("pull access denied... may
+    # require 'docker login'") on a fresh Docker daemon that has never
+    # cached it before, while quay.io/minio/minio (MinIO's own current
+    # official distribution channel) pulls cleanly. The prior Codespace
+    # never hit this because its local Docker cache already had
+    # minio/minio from before Docker Hub access to it changed - this
+    # only surfaces on a genuinely fresh pull.
+    image: quay.io/minio/minio
     container_name: nev-climate-data-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"

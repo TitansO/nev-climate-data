@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Dto\CountryDistributionCriteria;
+use App\Dto\FundingFlowCriteria;
 use App\Dto\FundingSearchCriteria;
 use App\Entity\Enum\FinancingTrendsGroupBy;
 use App\Entity\Enum\ValidationStatus;
@@ -236,6 +237,73 @@ class FundingRepository extends ServiceEntityRepository
             ->groupBy('funding.instrument')
             ->addGroupBy('country.isoCode')
             ->addGroupBy('country.name')
+            ->orderBy('total', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.5 (funding-flows Sankey) : première "couche" du flux - bailleur ->
+     * pays, un montant agrégé par (source, pays) réellement présent. Le
+     * top-N + regroupement "Autres" (par bailleur ET par pays) est fait en
+     * PHP par App\Service\FundingFlowService, pas ici : c'est une
+     * opération de mise en forme de graphe (fusionner plusieurs lignes vers
+     * un même nœud "Autres"), pas un agrégat SQL supplémentaire.
+     *
+     * @return list<array{sourceId: int, sourceName: string, isoCode: string, countryName: string, total: string}>
+     */
+    public function findSourceCountryFlowAggregate(FundingFlowCriteria $criteria): array
+    {
+        $qb = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('source.id AS sourceId', 'source.name AS sourceName', 'country.isoCode AS isoCode', 'country.name AS countryName', 'SUM(funding.amount) AS total')
+            ->join('funding.source', 'source')
+            ->join('funding.country', 'country')
+            ->where('funding.isCurrent = true'));
+
+        if (null !== $criteria->instrument) {
+            $qb->andWhere('funding.instrument = :instrument')->setParameter('instrument', $criteria->instrument);
+        }
+        if (null !== $criteria->year) {
+            $qb->andWhere('funding.year = :year')->setParameter('year', $criteria->year);
+        }
+
+        return $qb
+            ->groupBy('source.id')
+            ->addGroupBy('source.name')
+            ->addGroupBy('country.isoCode')
+            ->addGroupBy('country.name')
+            ->orderBy('total', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C1.5 (funding-flows Sankey) : deuxième "couche" du flux - pays ->
+     * secteur. Mêmes filtres/raisonnement que findSourceCountryFlowAggregate()
+     * juste au-dessus.
+     *
+     * @return list<array{isoCode: string, countryName: string, sectorId: int, sectorName: string, total: string}>
+     */
+    public function findCountryToSectorFlowAggregate(FundingFlowCriteria $criteria): array
+    {
+        $qb = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('country.isoCode AS isoCode', 'country.name AS countryName', 'sector.id AS sectorId', 'sector.name AS sectorName', 'SUM(funding.amount) AS total')
+            ->join('funding.country', 'country')
+            ->join('funding.sector', 'sector')
+            ->where('funding.isCurrent = true'));
+
+        if (null !== $criteria->instrument) {
+            $qb->andWhere('funding.instrument = :instrument')->setParameter('instrument', $criteria->instrument);
+        }
+        if (null !== $criteria->year) {
+            $qb->andWhere('funding.year = :year')->setParameter('year', $criteria->year);
+        }
+
+        return $qb
+            ->groupBy('country.isoCode')
+            ->addGroupBy('country.name')
+            ->addGroupBy('sector.id')
+            ->addGroupBy('sector.name')
             ->orderBy('total', 'DESC')
             ->getQuery()
             ->getResult();

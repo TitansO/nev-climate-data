@@ -8,11 +8,27 @@ import TypeDonutChart from "../components/charts/TypeDonutChart";
 import SectorDonutChart from "../components/charts/SectorDonutChart";
 import FinancingBarChart from "../components/charts/FinancingBarChart";
 import FinancingTable from "../components/charts/FinancingTable";
+import GenericTrendChart from "../components/charts/GenericTrendChart";
+import SankeyFlow from "../components/charts/SankeyFlow";
 import FilterableCountryMap from "../components/charts/FilterableCountryMap";
-import { formatCompactUsd, formatCount } from "../data/analyticsConstants";
+import { formatCompactUsd, formatUsd, formatCount } from "../data/analyticsConstants";
 import NevKpi from "../components/ui/NevKpi";
 import NevChartCard from "../components/ui/NevChartCard";
+import NevSelect from "../components/ui/NevSelect";
 import { ChartBarIcon } from "../components/ui/icons";
+
+// C1.6: the 4 breakdown dimensions GET /api/analytics/financing-trends?groupBy=
+// accepts - "" (omitted) keeps the historical public/private/multilateral shape.
+const TREND_GROUP_OPTIONS = [
+  { value: "", label: "Type de financement" },
+  { value: "sector", label: "Secteur" },
+  { value: "instrument", label: "Instrument financier" },
+  { value: "country", label: "Pays" },
+];
+
+function trendPath(groupBy) {
+  return "/api/analytics/financing-trends" + (groupBy ? "?groupBy=" + groupBy : "");
+}
 
 const DATA_SOURCE_LABEL = "Source : API NEV Climate Data (GET /api/analytics/*)";
 const DATA_PERIOD_LABEL = "Mise à jour toutes les 15 minutes";
@@ -113,6 +129,17 @@ export default function VisualizationsPage() {
   const financing = useAnalyticsFetch("/api/analytics/financing-trends", { emptyWhen: (body) => 0 === body.data.length });
   const sectors = useAnalyticsFetch("/api/analytics/sector-distribution", { emptyWhen: (body) => 0 === body.data.length });
 
+  // C1.6: the "Financement par année" card's own ventilation selector -
+  // deliberately a separate fetch from `financing` above (which stays
+  // fixed to the default, ungrouped shape: the KPI band and the type
+  // donut both depend on it keeping that exact shape).
+  const [trendGroupBy, setTrendGroupBy] = useState("");
+  const trends = useAnalyticsFetch(trendPath(trendGroupBy), { emptyWhen: (body) => 0 === body.data.length });
+
+  // C1.5: bailleur -> pays -> secteur Sankey - its own fetch, {nodes, links}
+  // rather than {data: [...]}, so it can't reuse `financing`/`trends` above.
+  const flows = useAnalyticsFetch("/api/analytics/funding-flows", { emptyWhen: (body) => 0 === body.links.length });
+
   const financingTotals = useMemo(() => (financing.data ? sumTotals(financing.data.data) : null), [financing.data]);
   // C1.2: years for the CountryMap layer selector's "Année" filter - reuses
   // financing-trends' own periods (already fetched above) instead of a
@@ -193,14 +220,55 @@ export default function VisualizationsPage() {
 
         {/* Financing by year and type */}
         <section className="mb-8">
-          <NevChartCard title={t("vizPage.financingByYear", "Financement par année et type (USD)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
-            <ChartStateBox state={financing.state} message={financing.message} onRetry={financing.reload}>
-              {financing.data && financingTotals && (
-                <>
-                  <FinancingBarChart rows={financing.data.data} />
-                  <FinancingTable rows={financing.data.data} totals={financingTotals} />
-                </>
+          <NevChartCard title={t("vizPage.financingByYear", "Financement par année (USD)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
+            <div className="mb-4 max-w-xs">
+              <NevSelect
+                id="trend-groupby"
+                label={t("vizPage.trendGroupBy", "Ventiler par")}
+                value={trendGroupBy}
+                onChange={(event) => setTrendGroupBy(event.target.value)}
+              >
+                {TREND_GROUP_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t("vizPage.trendGroupBy." + (option.value || "fundingType"), option.label)}
+                  </option>
+                ))}
+              </NevSelect>
+            </div>
+            <ChartStateBox state={trends.state} message={trends.message} onRetry={trends.reload}>
+              {trends.data && (
+                "" === trendGroupBy ? (
+                  <>
+                    <FinancingBarChart rows={trends.data.data} />
+                    {financingTotals && <FinancingTable rows={trends.data.data} totals={financingTotals} />}
+                  </>
+                ) : (
+                  <GenericTrendChart rows={trends.data.data} groupBy={trendGroupBy} />
+                )
               )}
+            </ChartStateBox>
+            {trends.data && trends.data.movingAverageTotal.length > 0 && (
+              <div className="mt-4 border-t border-stroke pt-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-body-color">
+                  {t("vizPage.movingAverage", "Moyenne mobile (3 ans, total tous groupes confondus)")}
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-dark-4">
+                  {trends.data.movingAverageTotal.map((point) => (
+                    <span key={point.period}>
+                      {point.period} : <strong className="text-dark">{formatUsd(point.value)}</strong>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </NevChartCard>
+        </section>
+
+        {/* Funding flows Sankey */}
+        <section className="mb-8">
+          <NevChartCard title={t("vizPage.fundingFlows", "Flux de financement (bailleurs → pays → secteurs)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
+            <ChartStateBox state={flows.state} message={flows.message} onRetry={flows.reload}>
+              {flows.data && <SankeyFlow nodes={flows.data.nodes} links={flows.data.links} />}
             </ChartStateBox>
           </NevChartCard>
         </section>

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Dto\CountryDistributionCriteria;
+use App\Dto\FundingFlowCriteria;
 use App\Entity\Enum\FinancingTrendsGroupBy;
 use App\Service\AnalyticsService;
+use App\Service\FundingFlowService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -31,6 +33,7 @@ final class AnalyticsController extends AbstractController
 {
     public function __construct(
         private readonly AnalyticsService $analyticsService,
+        private readonly FundingFlowService $fundingFlowService,
     ) {
     }
 
@@ -182,6 +185,50 @@ final class AnalyticsController extends AbstractController
     public function instrumentDistribution(): JsonResponse
     {
         return $this->json($this->analyticsService->getInstrumentDistribution());
+    }
+
+    #[Route('/api/analytics/funding-flows', name: 'api_analytics_funding_flows', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Flux de financement bailleur -> pays -> secteur, pour un diagramme de Sankey (mis en cache 15 min)',
+        description: 'C1.5 : nœuds + liens agrégés en SQL, filtrables par instrument et année. Chaque "couche" (bailleur, pays, secteur) est plafonnée aux `topN` premiers par montant total ; le reste est regroupé dans un unique nœud "Autres" par couche (jamais un nœud "Autres" vide fabriqué s\'il n\'y a rien à y mettre). Un pays garde la même identité (lui-même, ou "Autres pays") des deux côtés du diagramme, pour ne jamais scinder un même pays réel en deux nœuds déconnectés.',
+        tags: ['Analytics'],
+        security: [],
+        parameters: [
+            new OA\Parameter(name: 'instrument', in: 'query', required: false, description: 'Instrument financier (F1)', schema: new OA\Schema(type: 'string', enum: ['grant', 'loan_concessional', 'loan_non_concessional', 'guarantee', 'equity', 'results_based', 'unknown'])),
+            new OA\Parameter(name: 'year', in: 'query', required: false, description: 'Année du financement', schema: new OA\Schema(type: 'integer', example: 2025)),
+            new OA\Parameter(name: 'topN', in: 'query', required: false, description: 'Nombre de nœuds conservés par couche avant regroupement dans "Autres" (défaut 8, de 1 à 25)', schema: new OA\Schema(type: 'integer', example: 8)),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Nœuds et liens du diagramme',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'nodes', type: 'array', items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'id', type: 'string', example: 'source:12'),
+                                new OA\Property(property: 'label', type: 'string', example: 'World Bank Data API'),
+                                new OA\Property(property: 'layer', type: 'string', enum: ['source', 'country', 'sector'], example: 'source'),
+                            ]
+                        )),
+                        new OA\Property(property: 'links', type: 'array', items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'source', type: 'string', example: 'source:12'),
+                                new OA\Property(property: 'target', type: 'string', example: 'country:SEN'),
+                                new OA\Property(property: 'value', type: 'number', format: 'float', example: 4500000),
+                            ]
+                        )),
+                    ]
+                )
+            ),
+            new OA\Response(response: 400, description: '"instrument" hors énumération, "year" non entier, ou "topN" hors de [1, 25]'),
+        ]
+    )]
+    public function fundingFlows(Request $request): JsonResponse
+    {
+        $criteria = FundingFlowCriteria::fromQuery($request->query);
+
+        return $this->json($this->fundingFlowService->getFlows($criteria));
     }
 
     #[Route('/api/analytics/country-distribution', name: 'api_analytics_country_distribution', methods: ['GET'])]

@@ -396,6 +396,171 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_INSTRUMENT_DISTRIBUTION), 'first request must populate Redis');
     }
 
+    public function testFundingFlowsIsPubliclyAccessible(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/funding-flows');
+
+        self::assertResponseIsSuccessful();
+    }
+
+    /**
+     * C1.5: 2 sources x 2 countries x 2 sectors, all real amounts distinct
+     * enough to verify link values precisely. topN defaults to 8, so
+     * nothing here is bucketed into "Autres" - that's covered by its own
+     * dedicated test below.
+     */
+    private function seedFlowDataset(KernelBrowser $client): array
+    {
+        $client->disableReboot();
+        $container = static::getContainer();
+        $this->entityManager = $container->get(EntityManagerInterface::class);
+        $this->entityManager->getConnection()->beginTransaction();
+
+        $sourceA = new Source('Flow Source A', SourceType::OfficialApi, SourceReliability::High);
+        $sourceB = new Source('Flow Source B', SourceType::OfficialApi, SourceReliability::High);
+        $senegal = new Country('Flow Senegal', 'SEN', "Afrique de l'Ouest");
+        $kenya = new Country('Flow Kenya', 'KEN', "Afrique de l'Est");
+        $renewableEnergy = new Sector('Renewable Energy');
+        $agriculture = new Sector('Agriculture');
+
+        foreach ([$sourceA, $sourceB, $senegal, $kenya, $renewableEnergy, $agriculture] as $entity) {
+            $this->entityManager->persist($entity);
+        }
+
+        // A -> Senegal -> Renewable Energy : 100
+        $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2024, '100.00', FundingType::Public, $sourceA, new \DateTimeImmutable('2024-01-01'), ValidationStatus::Validated));
+        // A -> Kenya -> Agriculture : 200
+        $this->entityManager->persist(new Funding($kenya, $agriculture, 2024, '200.00', FundingType::Public, $sourceA, new \DateTimeImmutable('2024-01-01'), ValidationStatus::Validated));
+        // B -> Senegal -> Agriculture : 300
+        $this->entityManager->persist(new Funding($senegal, $agriculture, 2025, '300.00', FundingType::Multilateral, $sourceB, new \DateTimeImmutable('2025-01-01'), ValidationStatus::Validated));
+
+        $this->entityManager->flush();
+        $container->get('cache.analytics')->clear();
+
+        return ['sourceA' => $sourceA, 'sourceB' => $sourceB, 'senegal' => $senegal, 'kenya' => $kenya, 'renewableEnergy' => $renewableEnergy, 'agriculture' => $agriculture];
+    }
+
+    public function testFundingFlowsBuildsNodesAndLinksFromRealData(): void
+    {
+        $client = static::createClient();
+        $entities = $this->seedFlowDataset($client);
+
+        $client->request('GET', '/api/analytics/funding-flows');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $nodeIds = array_column($data['nodes'], 'id');
+        self::assertContains('source:'.$entities['sourceA']->getId(), $nodeIds);
+        self::assertContains('source:'.$entities['sourceB']->getId(), $nodeIds);
+        self::assertContains('country:SEN', $nodeIds);
+        self::assertContains('country:KEN', $nodeIds);
+        self::assertContains('sector:'.$entities['renewableEnergy']->getId(), $nodeIds);
+        self::assertContains('sector:'.$entities['agriculture']->getId(), $nodeIds);
+        self::assertArrayNotHasKey('source:other', array_column($data['nodes'], null, 'id'));
+
+        $linksByPair = [];
+        foreach ($data['links'] as $link) {
+            $linksByPair[$link['source'].'->'.$link['target']] = $link['value'];
+        }
+        self::assertEquals(100.0, $linksByPair['source:'.$entities['sourceA']->getId().'->country:SEN']);
+        self::assertEquals(200.0, $linksByPair['source:'.$entities['sourceA']->getId().'->country:KEN']);
+        self::assertEquals(300.0, $linksByPair['source:'.$entities['sourceB']->getId().'->country:SEN']);
+        self::assertEquals(100.0, $linksByPair['country:SEN->sector:'.$entities['renewableEnergy']->getId()]);
+        self::assertEquals(200.0, $linksByPair['country:KEN->sector:'.$entities['agriculture']->getId()]);
+        self::assertEquals(300.0, $linksByPair['country:SEN->sector:'.$entities['agriculture']->getId()]);
+    }
+
+    public function testFundingFlowsBucketsBeyondTopNIntoAnOthersNodeWithARealCount(): void
+    {
+        $client = static::createClient();
+        $this->seedFlowDataset($client); // 2 distinct sources
+
+        $client->request('GET', '/api/analytics/funding-flows?topN=1');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $sourceNodes = array_column($data['nodes'], null, 'id');
+        self::assertArrayHasKey('source:other', $sourceNodes, 'the smaller of the 2 sources must be bucketed');
+        self::assertSame('Autres bailleurs (1)', $sourceNodes['source:other']['label']);
+
+        $linksByPair = array_column($data['links'], 'value', null);
+        $found = false;
+        foreach ($data['links'] as $link) {
+            if ('source:other' === $link['source'] && str_starts_with($link['target'], 'country:')) {
+                $found = true;
+            }
+        }
+        self::assertTrue($found, 'the bucketed source must still link into a country node');
+    }
+
+    public function testFundingFlowsFiltersByYear(): void
+    {
+        $client = static::createClient();
+        $this->seedFlowDataset($client);
+
+        $client->request('GET', '/api/analytics/funding-flows?year=2025');
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $total = array_sum(array_column($data['links'], 'value'));
+        // Only the 2025 row (Flow Source B -> Senegal -> Agriculture, 300)
+        // contributes on each side -> 300 (source->country) + 300 (country->sector) = 600.
+        self::assertEquals(600.0, $total);
+    }
+
+    public function testFundingFlowsRejectsAnInvalidTopNValue(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/funding-flows?topN=0');
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testFundingFlowsRejectsAnInvalidInstrumentValue(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/funding-flows?instrument=not-a-real-instrument');
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testFundingFlowsWithNoDataReturnsEmptyNodesAndLinksNotAnError(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $container = static::getContainer();
+        $this->entityManager = $container->get(EntityManagerInterface::class);
+        $this->entityManager->getConnection()->beginTransaction();
+        $container->get('cache.analytics')->clear();
+
+        $client->request('GET', '/api/analytics/funding-flows');
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $data['nodes']);
+        self::assertSame([], $data['links']);
+    }
+
+    public function testFundingFlowsIsServedFromRedisCacheOnSecondCall(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $redis = $this->redisClient();
+
+        $client->request('GET', '/api/analytics/funding-flows');
+        self::assertResponseIsSuccessful();
+
+        // The cache key is "analytics_funding_flows|instrument=,year=,topN=8"
+        // (FundingFlowCriteria::toCacheKeyFragment() appended after "|") -
+        // findCacheKey() matches by suffix, so match on that trailing
+        // fragment rather than the bare prefix constant.
+        self::assertNotNull($this->findCacheKey($redis, 'topN=8'), 'first request must populate Redis');
+    }
+
     public function testCountryDistributionAggregatesAndComputesPercentage(): void
     {
         $client = static::createClient();
