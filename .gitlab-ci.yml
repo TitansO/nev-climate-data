@@ -102,6 +102,17 @@ build_and_push_image:
   needs: ["phpunit"]
   rules:
     - if: '$CI_COMMIT_BRANCH == "developp"'
+  # 2026-09-16 : quota de minutes CI GitLab du groupe épuisé
+  # (failure_reason: "ci_quota_exceeded", voir point d'attention #61 du
+  # README) - ce job n'est pas un déploiement (voir le commentaire
+  # au-dessus de "build_and_push_image" : rien ne récupère ni ne fait
+  # tourner cette image automatiquement, Render/Netlify se déploient
+  # depuis le code source, indépendamment de ce registre), donc son échec
+  # ne doit plus faire échouer le pipeline dans son ensemble et masquer le
+  # vrai signal de qualité (phpunit). À retirer si le quota était la seule
+  # raison de cette ligne et qu'un autre échec de ce job doit à nouveau
+  # bloquer le pipeline.
+  allow_failure: true
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - docker build -t "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE/backend:developp" -f docker/backend/Dockerfile .
