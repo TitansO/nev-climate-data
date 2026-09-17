@@ -8,6 +8,7 @@ use App\Dto\CountryDistributionCriteria;
 use App\Dto\FundingFlowCriteria;
 use App\Dto\FundingSearchCriteria;
 use App\Entity\Enum\FinancingTrendsGroupBy;
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\ValidationStatus;
 use App\Entity\Funding;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -586,5 +587,137 @@ class FundingRepository extends ServiceEntityRepository
             ->where('funding.isCurrent = true'))
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    /**
+     * C2.4/C2.8 (risque pays - volatilité des flux) : total réel par année
+     * pour un pays donné - le score de risque calcule le coefficient de
+     * variation sur ce résultat (App\Service\Scoring\CountryRiskCalculator),
+     * pas ici : c'est une opération statistique, pas un agrégat SQL
+     * supplémentaire.
+     *
+     * @return list<array{year: int, total: string}>
+     */
+    public function findYearlyTotalsForCountry(int $countryId): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('funding.year AS year', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.country = :countryId')
+            ->setParameter('countryId', $countryId))
+            ->groupBy('funding.year')
+            ->orderBy('funding.year', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C2.4/C2.8 (risque pays - concentration des bailleurs) : total réel
+     * par bailleur pour un pays donné - le calcul de l'indice de
+     * concentration (HHI) se fait dans CountryRiskCalculator, pas ici.
+     *
+     * @return list<array{sourceId: int, total: string}>
+     */
+    public function findSourceTotalsForCountry(int $countryId): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('IDENTITY(funding.source) AS sourceId', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.country = :countryId')
+            ->setParameter('countryId', $countryId))
+            ->groupBy('funding.source')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C2.6 (couverture des secteurs prioritaires CDN) : identifiants des
+     * secteurs ayant réellement reçu du financement validé pour un pays
+     * donné - jamais un simple COUNT, le détail sert à distinguer "aucun
+     * secteur couvert" d'un vrai calcul de couverture.
+     *
+     * @return list<int>
+     */
+    public function findFundedSectorIdsForCountry(int $countryId): array
+    {
+        $rows = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('DISTINCT IDENTITY(funding.sector) AS sectorId')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.country = :countryId')
+            ->setParameter('countryId', $countryId))
+            ->getQuery()
+            ->getResult();
+
+        return array_map(static fn (array $row): int => (int) $row['sectorId'], $rows);
+    }
+
+    /**
+     * C2.6 (ratio reçu/besoin CDN) + C2.4 (risque pays) : total réel reçu
+     * (tous secteurs) par un pays donné, `null` si aucune ligne validée
+     * n'existe encore pour lui (jamais un zéro fabriqué, même distinction
+     * que App\Repository\FundingRepository::findInstitutionPortfolioSummary()).
+     */
+    public function findTotalReceivedForCountry(int $countryId): ?string
+    {
+        $result = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.country = :countryId')
+            ->setParameter('countryId', $countryId))
+            ->getQuery()
+            ->getSingleResult();
+
+        return $result['total'] ?? null;
+    }
+
+    /**
+     * C2.4 (instrument réaliste pour le pays) : ce pays a-t-il déjà reçu un
+     * financement réel avec cet instrument précis ? Distinct de
+     * findInstrumentCountryCrossTab() (C1.7, tout le crosstab
+     * plateforme) - ici une seule paire (pays, instrument), la question
+     * posée par le score de bancabilité d'un projet donné.
+     */
+    public function hasValidatedFundingForCountryAndInstrument(int $countryId, FundingInstrument $instrument): bool
+    {
+        $count = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('COUNT(funding.id)')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.country = :countryId')
+            ->andWhere('funding.instrument = :instrument')
+            ->setParameter('countryId', $countryId)
+            ->setParameter('instrument', $instrument))
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return (int) $count > 0;
+    }
+
+    /**
+     * C2.4 (cohérence montant/secteur vs comparables réels) : moyenne et
+     * nombre de financements réels validés pour un secteur donné (tous
+     * pays confondus) - le "comparable réel" auquel le montant demandé
+     * d'un projet est confronté (App\Service\Scoring\Bankability\
+     * AmountSectorCoherenceIndicator). `null` si moins de 3 financements
+     * réels existent pour ce secteur : une moyenne sur 1-2 lignes n'est
+     * pas un comparable fiable, mieux vaut le dire explicitement que de
+     * fabriquer un score à partir de presque rien.
+     *
+     * @return array{average: string, count: int}|null
+     */
+    public function findSectorAmountBenchmark(int $sectorId): ?array
+    {
+        $result = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('AVG(funding.amount) AS average', 'COUNT(funding.id) AS count')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.sector = :sectorId')
+            ->setParameter('sectorId', $sectorId))
+            ->getQuery()
+            ->getSingleResult();
+
+        if ((int) $result['count'] < 3) {
+            return null;
+        }
+
+        return ['average' => $result['average'], 'count' => (int) $result['count']];
     }
 }

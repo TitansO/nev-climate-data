@@ -80,6 +80,13 @@ security:
         # C1.8: opportunities are manually-seeded public information (F4),
         # same reasoning as /api/search.
         - { path: ^/api/opportunities, roles: PUBLIC_ACCESS }
+        # C2.6: Country is already public data everywhere else on this
+        # platform (GET /api/analytics/*, GET /api/search) - same
+        # reasoning for its scores.
+        - { path: ^/api/countries, roles: PUBLIC_ACCESS }
+        # C2.5: a pure calculation with no write and no sensitive data -
+        # same openness as the rest of this platform's exploration tools.
+        - { path: ^/api/impact, roles: PUBLIC_ACCESS }
         # User management (create accounts, change roles, delete accounts)
         # is reserved to SuperAdmin - must come before the catch-all below,
         # same reasoning as /api/funding/export above it in this file.

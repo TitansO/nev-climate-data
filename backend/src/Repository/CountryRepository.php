@@ -20,6 +20,17 @@ class CountryRepository extends ServiceEntityRepository
     }
 
     /**
+     * C2.6 : GET /api/countries/{iso}/scores/ndc-alignment - une casse
+     * insensible (`isoCode` toujours stocké en majuscules par
+     * CountryFixtures, mais l'URL ne doit pas forcer l'appelant à le
+     * savoir).
+     */
+    public function findOneByIsoCode(string $isoCode): ?Country
+    {
+        return $this->findOneBy(['isoCode' => mb_strtoupper($isoCode)]);
+    }
+
+    /**
      * A2.8: matches on name only, not isoCode - "senegal" is what a user
      * types, not "sen". Case- and accent-insensitive (UNACCENT() on both
      * sides - see App\Doctrine\DQL\UnaccentFunction), so "senegal" also
