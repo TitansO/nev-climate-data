@@ -6,7 +6,11 @@ namespace App\Controller;
 
 use App\Entity\Enum\ProjectPipelineStage;
 use App\Entity\Project;
+use App\Entity\User;
+use App\Security\ClassifyQuotaPolicy;
 use App\Service\BankabilityScoreService;
+use App\Service\ClassifyService;
+use App\Service\InvestmentRiskScoreService;
 use App\Service\ProjectMatchingService;
 use App\Service\ProjectService;
 use App\Service\Scoring\ScoreService;
@@ -31,6 +35,9 @@ final class ProjectController extends AbstractController
         private readonly ProjectService $projectService,
         private readonly ProjectMatchingService $matchingService,
         private readonly BankabilityScoreService $bankabilityScoreService,
+        private readonly InvestmentRiskScoreService $investmentRiskScoreService,
+        private readonly ClassifyService $classifyService,
+        private readonly ClassifyQuotaPolicy $classifyQuotaPolicy,
     ) {
     }
 
@@ -172,6 +179,55 @@ final class ProjectController extends AbstractController
         $project = $this->requireProject($id);
 
         return $this->json(ScoreService::toArray($this->bankabilityScoreService->scoreFor($project)));
+    }
+
+    #[Route('/api/projects/{id}/scores/investment-risk', name: 'api_projects_investment_risk_score', methods: ['GET'], requirements: ['id' => '\d+'])]
+    #[OA\Get(
+        summary: 'Score de risque d\'investissement du projet (0-100, grade A-E - A = le plus sûr)',
+        description: 'Risque pays x risque secteur x risque projet (plan), poids égaux : risque pays (App\\Service\\Scoring\\CountryRiskCalculator, réutilisé depuis C2.4), risque secteur (App\\Service\\Scoring\\SectorRiskCalculator - maturité, dépendance à un instrument), risque projet (proxy par stade du pipeline). Grade orienté "plus haut = plus sûr".',
+        tags: ['Projects'],
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Score de risque d\'investissement'),
+            new OA\Response(response: 401, description: 'Authentification JWT requise'),
+            new OA\Response(response: 404, description: 'Projet introuvable'),
+        ]
+    )]
+    public function investmentRiskScore(int $id): JsonResponse
+    {
+        $project = $this->requireProject($id);
+
+        return $this->json(ScoreService::toArray($this->investmentRiskScoreService->scoreForProject($project)));
+    }
+
+    #[Route('/api/projects/{id}/classify', name: 'api_projects_classify', methods: ['PATCH'], requirements: ['id' => '\d+'])]
+    #[OA\Patch(
+        summary: 'Classe ce projet selon la taxonomie verte simplifiée et enregistre le résultat (C2.7)',
+        description: 'Appelle POST /api/classify avec le titre/la description/le secteur du projet, puis enregistre la classe obtenue sur Project::$taxonomyClass. Répété sur un projet déjà classé, ce n\'appelle Gemini que si le titre/la description/le secteur ont changé depuis (cache par hash côté service `ai/`).',
+        tags: ['Projects'],
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Projet mis à jour, avec sa nouvelle classe de taxonomie'),
+            new OA\Response(response: 401, description: 'Authentification JWT requise'),
+            new OA\Response(response: 404, description: 'Projet introuvable'),
+            new OA\Response(response: 429, description: 'Quota quotidien de classification dépassé pour ce rôle'),
+            new OA\Response(response: 503, description: 'Service IA temporairement injoignable'),
+        ]
+    )]
+    public function classifyProject(int $id): JsonResponse
+    {
+        $project = $this->requireProject($id);
+
+        /** @var User $user */
+        $user = $this->getUser();
+        $this->classifyQuotaPolicy->consume($user);
+
+        $result = $this->classifyService->classify($project->getTitle(), $project->getDescription(), $project->getSector()->getName());
+        $this->projectService->setTaxonomyClass($project, $result['taxonomyClass']);
+
+        return $this->json(ProjectService::toArray($project));
     }
 
     private function requireProject(int $id): Project

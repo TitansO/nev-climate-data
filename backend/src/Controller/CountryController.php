@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Repository\CountryRepository;
+use App\Service\InvestmentRiskScoreService;
 use App\Service\NdcAlignmentScoreService;
 use App\Service\Scoring\ScoreService;
 use OpenApi\Attributes as OA;
@@ -22,6 +23,7 @@ final class CountryController extends AbstractController
     public function __construct(
         private readonly CountryRepository $countryRepository,
         private readonly NdcAlignmentScoreService $ndcAlignmentScoreService,
+        private readonly InvestmentRiskScoreService $investmentRiskScoreService,
     ) {
     }
 
@@ -70,5 +72,27 @@ final class CountryController extends AbstractController
         }
 
         return $this->json(array_merge(['available' => true], ScoreService::toArray($score)));
+    }
+
+    #[Route('/api/countries/{iso}/scores/investment-risk', name: 'api_countries_investment_risk_score', methods: ['GET'], requirements: ['iso' => '[A-Za-z]{3}'])]
+    #[OA\Get(
+        summary: 'Score de risque d\'investissement du pays (0-100, grade A-E - A = le plus sûr)',
+        description: 'Risque pays à partir d\'indicateurs ouverts (volatilité des flux réels, concentration des bailleurs, écart CDN) - App\\Service\\Scoring\\CountryRiskCalculator, réutilisé tel quel depuis C2.4. Aucun indice souverain tiers. Grade orienté "plus haut = plus sûr", comme tous les autres scores de cette plateforme.',
+        tags: ['Countries'],
+        security: [],
+        parameters: [new OA\Parameter(name: 'iso', in: 'path', required: true, description: 'Code ISO-3 du pays', schema: new OA\Schema(type: 'string', example: 'SEN'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Score de risque d\'investissement'),
+            new OA\Response(response: 404, description: 'Code ISO inconnu'),
+        ]
+    )]
+    public function investmentRiskScore(string $iso): JsonResponse
+    {
+        $country = $this->countryRepository->findOneByIsoCode($iso);
+        if (null === $country) {
+            throw $this->createNotFoundException('Country not found.');
+        }
+
+        return $this->json(ScoreService::toArray($this->investmentRiskScoreService->scoreForCountry($country)));
     }
 }

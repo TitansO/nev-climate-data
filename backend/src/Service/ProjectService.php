@@ -45,8 +45,14 @@ final class ProjectService
         $this->entityManager->flush();
     }
 
+    public function setTaxonomyClass(Project $project, string $taxonomyClass): void
+    {
+        $project->setTaxonomyClass($taxonomyClass);
+        $this->entityManager->flush();
+    }
+
     /**
-     * @return array{id: int, title: string, country: string, countryIsoCode: string, sector: string, instrumentSought: ?string, amountSought: float, pipelineStage: string, promoter: string, updatedAt: string}
+     * @return array{id: int, title: string, country: string, countryIsoCode: string, sector: string, instrumentSought: ?string, amountSought: float, pipelineStage: string, taxonomyClass: ?string, promoter: string, updatedAt: string}
      */
     public static function toArray(Project $project): array
     {
@@ -59,6 +65,7 @@ final class ProjectService
             'instrumentSought' => $project->getInstrumentSought()?->value,
             'amountSought' => (float) $project->getAmountSought(),
             'pipelineStage' => $project->getPipelineStage()->value,
+            'taxonomyClass' => $project->getTaxonomyClass(),
             'promoter' => $project->getPromoter(),
             'updatedAt' => $project->getUpdatedAt()->format(\DATE_ATOM),
         ];

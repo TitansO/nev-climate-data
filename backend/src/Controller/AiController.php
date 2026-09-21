@@ -6,6 +6,8 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Security\AiAskQuotaPolicy;
+use App\Security\ClassifyQuotaPolicy;
+use App\Service\ClassifyService;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Authenticator\Token\JWTPostAuthenticationToken;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -43,6 +45,8 @@ final class AiController extends AbstractController
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly AiAskQuotaPolicy $quotaPolicy,
+        private readonly ClassifyQuotaPolicy $classifyQuotaPolicy,
+        private readonly ClassifyService $classifyService,
         private readonly Security $security,
         private readonly string $aiServiceUrl,
     ) {
@@ -98,6 +102,81 @@ final class AiController extends AbstractController
         }
 
         return $this->json($body);
+    }
+
+    #[Route('/api/classify', name: 'api_classify', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Classe un financement/projet selon une taxonomie verte simplifiée (C2.7)',
+        description: 'mitigation (atténuation), adaptation, both, ou not_relevant + une catégorie d\'activité en texte libre - jamais un modèle entraîné, few-shot Gemini (voir ai/gemini_client.py::classify()). Résultat mis en cache par hash du triplet (titre, description, secteur) côté service `ai/` : classer deux fois le même contenu ne consomme le quota Gemini qu\'une fois (`cached=true` sur les appels suivants).',
+        tags: ['AI Copilot'],
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['title', 'description', 'sector'],
+                properties: [
+                    new OA\Property(property: 'title', type: 'string', example: 'Geothermal Expansion - Menengai Phase III'),
+                    new OA\Property(property: 'description', type: 'string', example: 'Extension d\'une centrale géothermique pour réduire la dépendance aux combustibles fossiles.'),
+                    new OA\Property(property: 'sector', type: 'string', example: 'Renewable Energy'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Classification',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'available', type: 'boolean', example: true),
+                    new OA\Property(property: 'cached', type: 'boolean'),
+                    new OA\Property(property: 'taxonomyClass', type: 'string', enum: ['mitigation', 'adaptation', 'both', 'not_relevant']),
+                    new OA\Property(property: 'activityCategory', type: 'string'),
+                    new OA\Property(property: 'reasoning', type: 'string'),
+                ])
+            ),
+            new OA\Response(response: 400, description: 'Champ manquant ou invalide'),
+            new OA\Response(response: 401, description: 'Authentification JWT requise'),
+            new OA\Response(response: 429, description: 'Quota quotidien de classification dépassé pour ce rôle'),
+            new OA\Response(response: 503, description: 'Service IA temporairement injoignable'),
+        ]
+    )]
+    public function classify(Request $request): JsonResponse
+    {
+        $this->assertJwtAuthenticated();
+
+        /** @var User $user */
+        $user = $this->getUser();
+        $this->classifyQuotaPolicy->consume($user);
+
+        [$title, $description, $sector] = self::parseClassifyPayload($request);
+
+        return $this->json($this->classifyService->classify($title, $description, $sector));
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private static function parseClassifyPayload(Request $request): array
+    {
+        $decoded = json_decode($request->getContent(), true);
+        if (!\is_array($decoded)) {
+            throw new BadRequestHttpException('Corps de requête JSON invalide.');
+        }
+
+        $title = trim((string) ($decoded['title'] ?? ''));
+        $description = trim((string) ($decoded['description'] ?? ''));
+        $sector = trim((string) ($decoded['sector'] ?? ''));
+
+        if ('' === $title) {
+            throw new BadRequestHttpException('Le champ "title" est requis.');
+        }
+        if ('' === $description) {
+            throw new BadRequestHttpException('Le champ "description" est requis.');
+        }
+        if ('' === $sector) {
+            throw new BadRequestHttpException('Le champ "sector" est requis.');
+        }
+
+        return [$title, $description, $sector];
     }
 
     private static function parseQuestion(Request $request): string

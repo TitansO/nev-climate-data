@@ -720,4 +720,44 @@ class FundingRepository extends ServiceEntityRepository
 
         return ['average' => $result['average'], 'count' => (int) $result['count']];
     }
+
+    /**
+     * C2.8 (risque secteur - maturité) : total réel par année pour un
+     * secteur donné, tous pays confondus - même raisonnement que
+     * findYearlyTotalsForCountry(), à l'échelle du secteur.
+     *
+     * @return list<array{year: int, total: string}>
+     */
+    public function findYearlyTotalsForSector(int $sectorId): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('funding.year AS year', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.sector = :sectorId')
+            ->setParameter('sectorId', $sectorId))
+            ->groupBy('funding.year')
+            ->orderBy('funding.year', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C2.8 (risque secteur - dépendance à un instrument) : total réel par
+     * instrument pour un secteur donné - même raisonnement que
+     * findSourceTotalsForCountry(), l'indice de concentration (HHI) se
+     * calcule dans App\Service\Scoring\SectorRiskCalculator, pas ici.
+     *
+     * @return list<array{instrument: string, total: string}>
+     */
+    public function findInstrumentTotalsForSector(int $sectorId): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('funding.instrument AS instrument', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.sector = :sectorId')
+            ->setParameter('sectorId', $sectorId))
+            ->groupBy('funding.instrument')
+            ->getQuery()
+            ->getResult();
+    }
 }

@@ -52,6 +52,15 @@ class Project
     #[ORM\Column(type: Types::STRING, enumType: ProjectPipelineStage::class, length: 20, options: ['default' => 'idea'])]
     private ProjectPipelineStage $pipelineStage = ProjectPipelineStage::Idea;
 
+    // C2.7 : classe de taxonomie verte simplifiée ('mitigation'/
+    // 'adaptation'/'both'/'not_relevant', voir ai/gemini_client.py::
+    // TAXONOMY_CLASSES - jamais un enum PHP dupliqué ici, le service `ai/`
+    // reste la seule source de vérité de cette énumération). `null` tant
+    // que POST /api/projects/{id}/classify n'a jamais été appelé pour ce
+    // projet - jamais une classe fabriquée par défaut.
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $taxonomyClass = null;
+
     #[ORM\Column(type: Types::TEXT)]
     private string $description;
 
@@ -159,6 +168,18 @@ class Project
     {
         $this->pipelineStage = $pipelineStage;
         $this->touch();
+
+        return $this;
+    }
+
+    public function getTaxonomyClass(): ?string
+    {
+        return $this->taxonomyClass;
+    }
+
+    public function setTaxonomyClass(?string $taxonomyClass): static
+    {
+        $this->taxonomyClass = $taxonomyClass;
 
         return $this;
     }

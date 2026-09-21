@@ -32,9 +32,10 @@ EMBEDDING_DIMENSIONS = 768
 
 
 def ensure_schema() -> None:
-    """Idempotently creates the `vector` extension and `rag_chunk` table.
-    Called once at service startup (main.py) and by ingest.py - safe to
-    call repeatedly (IF NOT EXISTS throughout).
+    """Idempotently creates the `vector` extension, `rag_chunk` (F5/F6) and
+    `classification_cache` (C2.7) tables. Called once at service startup
+    (main.py) and by ingest.py - safe to call repeatedly (IF NOT EXISTS
+    throughout).
     """
     connection = get_connection()
     try:
@@ -48,6 +49,24 @@ def ensure_schema() -> None:
                     embedding VECTOR({EMBEDDING_DIMENSIONS}) NOT NULL,
                     source_ref TEXT NOT NULL,
                     content_hash TEXT NOT NULL UNIQUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+            # C2.7 : "cache par hash" (plan) - clasifier deux fois le meme
+            # (title, description, sector) ne doit jamais couter un
+            # deuxieme appel Gemini. Cle sur le hash du triplet, jamais
+            # l'id d'un funding/project : la meme description peut se
+            # retrouver sur plusieurs lignes reelles (texte copie d'une
+            # source commune), autant partager le resultat.
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS classification_cache (
+                    id SERIAL PRIMARY KEY,
+                    content_hash TEXT NOT NULL UNIQUE,
+                    taxonomy_class TEXT NOT NULL,
+                    activity_category TEXT NOT NULL,
+                    reasoning TEXT NOT NULL,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
                 )
                 """

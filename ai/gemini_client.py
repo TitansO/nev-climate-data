@@ -8,6 +8,7 @@ minutes the way a multi-page PDF extraction can.
 """
 from __future__ import annotations
 
+import json
 import os
 import time
 
@@ -113,5 +114,91 @@ def ask(question: str, context_chunks: list[str]) -> str:
         client = _client()
         response = client.models.generate_content(model=CHAT_MODEL, contents=[prompt])
         return response.text
+
+    return _with_retry(call)
+
+
+# C2.7 : taxonomie verte simplifiee (plan) - 4 classes seulement, jamais
+# une hierarchie complete de type EU Taxonomy/Common Principles MDB (hors
+# scope de ce sprint, voir le plan). "not_relevant" existe explicitement
+# pour un texte qui ne decrit rien de climat-pertinent (un porteur de
+# projet peut se tromper de plateforme, un financement peut etre mal
+# etiquete a la source) - jamais force dans l'une des 3 autres classes.
+TAXONOMY_CLASSES = ("mitigation", "adaptation", "both", "not_relevant")
+
+_CLASSIFY_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "taxonomy_class": {"type": "STRING", "enum": list(TAXONOMY_CLASSES)},
+        "activity_category": {"type": "STRING"},
+        "reasoning": {"type": "STRING"},
+    },
+    "required": ["taxonomy_class", "activity_category", "reasoning"],
+}
+
+# Few-shot : un exemple par classe, tire de donnees deja reelles/plausibles
+# sur cette plateforme (secteurs de App\Entity\Sector) - pas invente au
+# hasard, pour que le modele ancre ses reponses sur le meme vocabulaire
+# que le corpus reel qu'il verra en production.
+_CLASSIFY_FEW_SHOT_EXAMPLES = """Exemple 1 :
+Titre : Geothermal Expansion - Menengai Phase III
+Description : Extension d'une centrale geothermique pour reduire la dependance aux combustibles fossiles.
+Secteur : Renewable Energy
+Reponse : {"taxonomy_class": "mitigation", "activity_category": "production d'energie renouvelable", "reasoning": "Reduit des emissions futures en substituant une source fossile, aucun volet d'adaptation."}
+
+Exemple 2 :
+Titre : Coastal Community Flood Early-Warning Network
+Description : Systeme d'alerte precoce aux inondations pour des communautes cotieres vulnerables.
+Secteur : Adaptation
+Reponse : {"taxonomy_class": "adaptation", "activity_category": "reduction des risques climatiques", "reasoning": "Reduit la vulnerabilite a un risque climatique deja present, n'evite aucune emission."}
+
+Exemple 3 :
+Titre : Climate-Smart Coffee Value Chain Resilience
+Description : Pratiques agricoles resilientes qui reduisent aussi les emissions de la chaine de valeur du cafe.
+Secteur : Agriculture
+Reponse : {"taxonomy_class": "both", "activity_category": "agriculture climato-intelligente", "reasoning": "Combine reduction d'emissions (pratiques bas-carbone) et adaptation (resilience de la chaine de valeur)."}
+
+Exemple 4 :
+Titre : Annual Staff Training Workshop
+Description : Formation administrative annuelle du personnel, sans lien avec le climat.
+Secteur : Renewable Energy
+Reponse : {"taxonomy_class": "not_relevant", "activity_category": "aucune", "reasoning": "Aucun lien avec l'attenuation ou l'adaptation climatique malgre le secteur declare."}"""
+
+
+def classify(title: str, description: str, sector: str) -> dict:
+    """Classe (title, description, sector) selon la taxonomie verte
+    simplifiee ci-dessus, few-shot (pas de modele entraine/fine-tune - le
+    plan exclut explicitement le ML entraine pour ce sprint). Sortie
+    structuree (response_schema) plutot qu'un texte a parser : une classe
+    hors enum est rejetee par l'API elle-meme, jamais une chaine
+    approximative a interpreter cote appelant.
+    """
+    prompt = (
+        "Tu classes un projet ou financement climatique selon une taxonomie "
+        "verte simplifiee a 4 classes : mitigation (attenuation - reduit des "
+        "emissions futures), adaptation (reduit la vulnerabilite a un risque "
+        "climatique deja present), both (les deux a la fois), ou not_relevant "
+        "(aucun lien reel avec le climat). Reponds uniquement a partir du "
+        "titre, de la description et du secteur fournis - ne suppose rien "
+        "de plus.\n\n"
+        f"{_CLASSIFY_FEW_SHOT_EXAMPLES}\n\n"
+        "A classer :\n"
+        f"Titre : {title}\n"
+        f"Description : {description}\n"
+        f"Secteur : {sector}\n"
+        "Reponse :"
+    )
+
+    def call() -> dict:
+        client = _client()
+        response = client.models.generate_content(
+            model=CHAT_MODEL,
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=_CLASSIFY_RESPONSE_SCHEMA,
+            ),
+        )
+        return json.loads(response.text)
 
     return _with_retry(call)

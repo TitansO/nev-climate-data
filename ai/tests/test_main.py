@@ -33,17 +33,17 @@ def test_ask_returns_the_rag_answer():
     mock_answer.assert_called_once_with("Une question ?")
 
 
-def test_classify_is_not_implemented_yet():
-    with _client() as client:
+def test_classify_returns_the_classification_result():
+    fake_result = {"available": True, "cached": False, "taxonomy_class": "mitigation", "activity_category": "energie renouvelable", "reasoning": "Reduit des emissions futures."}
+    with _client() as client, patch("ai.main.classify_module.classify_activity", return_value=fake_result) as mock_classify:
         response = client.post(
             "/ai/classify",
             json={"title": "Projet X", "description": "Desc", "sector": "Agriculture"},
         )
 
-    assert response.status_code == 501
-    body = response.json()
-    assert body["available"] is False
-    assert body["planned_in"] == "C2.7"
+    assert response.status_code == 200
+    assert response.json() == fake_result
+    mock_classify.assert_called_once_with("Projet X", "Desc", "Agriculture")
 
 
 def test_greenwashing_is_not_implemented_yet():

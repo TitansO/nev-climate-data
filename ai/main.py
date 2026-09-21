@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from ai import classify as classify_module
 from ai import db, ingest, rag
 
 
@@ -52,14 +53,13 @@ class ClassifyRequest(BaseModel):
     sector: str
 
 
-@app.post("/ai/classify", status_code=501)
+@app.post("/ai/classify")
 def classify(request: ClassifyRequest) -> dict:
-    """Squelette F5 - la classification taxonomique reelle (attenuation/
-    adaptation/double/non pertinent) est le travail de C2.7, pas de F5.
-    Route deja en place pour que le backend ait un contrat stable a
-    integrer des maintenant.
+    """C2.7 : classification taxonomique reelle (mitigation/adaptation/
+    both/not_relevant + categorie d'activite), few-shot Gemini avec cache
+    par hash - voir ai/classify.py.
     """
-    return {"available": False, "reason": "not_implemented_yet", "planned_in": "C2.7"}
+    return classify_module.classify_activity(request.title, request.description, request.sector)
 
 
 class GreenwashingRequest(BaseModel):

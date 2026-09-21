@@ -68,3 +68,23 @@ framework:
             policy: 'sliding_window'
             limit: 30
             interval: '1 day'
+        # C2.7: POST /api/classify - même coût Gemini par appel que
+        # ai_ask_* ci-dessus, mais un budget séparé : classer des
+        # financements/projets en masse ne doit pas épuiser le quota de
+        # chat de l'assistant IA (C2.1) d'un même utilisateur, et
+        # inversement. Servi par le cache par hash (ai/classify.py) une
+        # fois qu'un même (titre, description, secteur) a déjà été classé
+        # une fois - seul un premier appel par contenu distinct consomme
+        # réellement ce quota.
+        classify_admin:
+            policy: 'sliding_window'
+            limit: 200
+            interval: '1 day'
+        classify_internal_analyst:
+            policy: 'sliding_window'
+            limit: 100
+            interval: '1 day'
+        classify_external_partner:
+            policy: 'sliding_window'
+            limit: 30
+            interval: '1 day'

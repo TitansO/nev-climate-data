@@ -737,6 +737,8 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 61. **Le job `build_and_push_image` a commencé à échouer sur `failure_reason: "ci_quota_exceeded"` (2026-09-16) - le quota de minutes CI GitLab.com du groupe `nev-consulting-group` est épuisé.** Repéré en vérifiant le pipeline du commit C2.3 : `phpunit` (le vrai signal de qualité) passait toujours, seul `build_and_push_image` échouait, d'abord avec `stuck_pending_no_matching_runners` (un retry a révélé la vraie cause : `ci_quota_exceeded`, pas un simple aléa de runner partagé). Vérifié avant toute action que cet échec n'a aucun impact réel : ce job publie une image sur le Container Registry du projet, que rien ne récupère ni ne déploie automatiquement (voir son propre commentaire dans `.gitlab-ci.yml` et « A3.8 - Mise en production » plus bas) - la production réelle (Render + Netlify) se déploie directement depuis le code source, indépendamment de ce registre. `build_and_push_image` porte donc désormais `allow_failure: true` : le pipeline redevient vert dès que `phpunit` passe, plutôt que de rester rouge pour un échec sans conséquence et de rendre le badge à nouveau inutile (voir le point d'attention #51 sur ce même risque, dans l'autre sens). Ce PAT n'a pas les droits Owner nécessaires pour lire le quota exact/sa date de renouvellement via l'API - à vérifier dans GitLab, Settings → Usage Quotas du groupe, si le job doit un jour être remis en bloquant.
 
+62. **`python -m pytest ai/tests/` plante silencieusement (code de sortie 0, aucune sortie au-delà de l'avertissement pytest-asyncio, moins d'1 seconde d'exécution - pas un blocage) dès que `ai/tests/test_main.py` est inclus, sur ce Codespace précis - même famille que le point d'attention #6 des runbooks (`KernelTestCase` cassé côté PHPUnit).** Découvert en vérifiant C2.7 : `ai/tests/test_classify.py` seul passe (3/3), toute la suite SANS `test_main.py` passe (24/24, `--ignore=ai/tests/test_main.py`), mais `test_main.py` inclus - même isolé, même réduit à son test le plus simple (`test_health_returns_ok`) - fait disparaître toute sortie pytest sans lever d'exception visible, `time` confirmant qu'il ne s'agit pas d'un blocage (<1s réel). Cause exacte non isolée : `from ai.main import app` (le seul import propre à ce fichier) importe transitivement tout ce que `ai/main.py` importe, sans qu'aucun de ces modules ne plante isolément (`from ai import classify`/`gemini_client`/`db` importent tous proprement en Python interactif). **Ce n'est pas un bug applicatif** : le vrai serveur uvicorn (`ai.main:app`) tourne et répond correctement en direct pendant toute cette session (vérifié via `curl` sur `/health` et `/ai/classify` à travers le proxy Symfony) - seule la collecte pytest de ce fichier précis, sur ce Codespace précis, est affectée. Comme pour le point #6 des runbooks : se fier à la CI GitLab (environnement propre) pour vérifier `ai/tests/test_main.py`, pas ce Codespace.
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -879,13 +881,20 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 
 **Palier C1 clos** (CI GitLab verte, pipeline #161, couverture 84,3%). Fondations du palier C2 (F1-F7, §4 du plan) déjà quasi entièrement en place au démarrage de C2 : F1 (`FundingInstrument`), F2 (entité `Score`), F4 (`Project`/`Opportunity`), F5 (service `ai/` FastAPI + RAG pgvector), F6 (`ai/ingest.py`), F7 (`NdcTarget`) existent tous ; seul F3 (`ScoreService` + registre d'indicateurs, nécessaire à partir de C2.4) reste à écrire.
 
-**En cours (Palier C2 - « Où l'argent devrait-il aller ? ») :**
+**Fait (Palier C2 - « Où l'argent devrait-il aller ? ») :**
 
 | Tâche | Contenu | Statut |
 |---|---|---|
 | C2.1 | `POST /api/ai/ask` (proxy vers `ai/` RAG) + `AiCopilotPanel.jsx` (tiroir de chat sur toutes les pages, via `Footer.jsx`) | ✅ Fait |
 | C2.2 | Score de correspondance projet↔opportunité (`GET /api/projects/{id}/matches`, pondération secteur/pays/instrument/montant/fenêtre) | ✅ Fait - encart "Financements pertinents" intégré au détail de carte du Kanban (C2.3), pas de fiche projet dédiée séparée |
 | C2.3 | Tableau Kanban du pipeline projet (`GET/PATCH /api/projects`, `ProjectPipelinePage.jsx`, glisser-déposer HTML5 natif) | ✅ Fait |
+| C2.4 | Score de bancabilité (`GET /api/projects/{id}/scores/bankability`, 5 indicateurs dont le risque pays de C2.8) | ✅ Fait |
+| C2.5 | Calculateur d'impact (`POST /api/impact/estimate`, table `impact_factor`) | ✅ Fait |
+| C2.6 | Score d'alignement CDN (`GET /api/countries/{iso}/scores/ndc-alignment`) | ✅ Fait |
+| C2.7 | Classification taxonomique (`POST /api/classify`, few-shot Gemini + cache par hash côté `ai/`, `PATCH /api/projects/{id}/classify` pour persister sur un projet) | ✅ Fait (backend) - badge/filtre front pas encore fait |
+| C2.8 | Score de risque d'investissement (`GET /api/countries/{iso}/scores/investment-risk`, `GET /api/projects/{id}/scores/investment-risk` - risque pays x secteur x projet) | ✅ Fait |
+
+**Palier C2 fonctionnellement complet côté backend** (8/8 tâches). Reste en dette assumée : le front C2.7 (badge de classe + filtre sur le Kanban), et le traitement par lot des lignes `funding` réelles via un DAG (explicitement hors périmètre de ce sprint, voir le plan §7).
 
 ## Pipeline (Volet B)
 
