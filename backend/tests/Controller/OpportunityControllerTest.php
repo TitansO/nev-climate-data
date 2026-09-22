@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Entity\Country;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
+use App\Entity\Enum\UserRole;
 use App\Entity\Opportunity;
+use App\Entity\Project;
 use App\Entity\Sector;
 use App\Entity\Source;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -253,5 +257,69 @@ final class OpportunityControllerTest extends WebTestCase
         $spec = json_decode($client->getResponse()->getContent(), true);
         self::assertArrayHasKey('/api/opportunities', $spec['paths']);
         self::assertArrayHasKey('get', $spec['paths']['/api/opportunities']);
+    }
+
+    /**
+     * C2.2 (sens inverse) : GET /api/opportunities/{id}/candidates - donnée
+     * de pipeline interne (App\Entity\Project), contrairement à GET
+     * /api/opportunities lui-même : requiert une authentification.
+     */
+    public function testCandidatesWithoutAuthenticationFails(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $opportunityId = $this->entityManager->getRepository(Opportunity::class)->findOneBy(['title' => 'Open Grant'])->getId();
+
+        $client->request('GET', '/api/opportunities/'.$opportunityId.'/candidates');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testCandidatesReturns404ForAnUnknownOpportunity(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+        $user = new User('Amina Diallo', 'candidates-404@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
+        $client->request('POST', '/api/auth/login', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['email' => 'candidates-404@example.com', 'password' => 'correct-horse-battery-staple']));
+        $tokens = json_decode($client->getResponse()->getContent(), true);
+
+        $client->request('GET', '/api/opportunities/999999/candidates', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+
+        self::assertSame(404, $client->getResponse()->getStatusCode());
+    }
+
+    public function testCandidatesRanksProjectsBySectorAndCountryMatch(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $senegal = new Country('Senegal', 'SEN', "Afrique de l'Ouest");
+        $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
+        $this->entityManager->persist($senegal);
+        $this->entityManager->persist($kenya);
+
+        // "Open Grant" (Agriculture, eligible to Kenya only, seeded above).
+        $goodMatch = new Project('Kenyan Agroforestry', $kenya, $agriculture, '500000.00', 'Test project.', 'Test Promoter');
+        $poorMatch = new Project('Senegalese Solar Farm', $senegal, $agriculture, '500000.00', 'Test project.', 'Test Promoter');
+        $this->entityManager->persist($goodMatch);
+        $this->entityManager->persist($poorMatch);
+
+        $user = new User('Amina Diallo', 'candidates-rank@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
+
+        $client->request('POST', '/api/auth/login', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['email' => 'candidates-rank@example.com', 'password' => 'correct-horse-battery-staple']));
+        $tokens = json_decode($client->getResponse()->getContent(), true);
+
+        $openGrantId = $this->entityManager->getRepository(Opportunity::class)->findOneBy(['title' => 'Open Grant'])->getId();
+        $client->request('GET', '/api/opportunities/'.$openGrantId.'/candidates', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertSame('Kenyan Agroforestry', $data[0]['projectTitle']);
+        self::assertGreaterThan($data[1]['score'], $data[0]['score']);
     }
 }

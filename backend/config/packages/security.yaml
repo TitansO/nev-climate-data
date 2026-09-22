@@ -77,6 +77,12 @@ security:
         # C1.4: every Source is already public data (exposed via
         # GET /api/funding's own responses) - same reasoning as /api/analytics.
         - { path: ^/api/institutions, roles: PUBLIC_ACCESS }
+        # C2.2: the reverse-direction matching endpoint exposes internal
+        # pipeline Project data (title, amount sought, stage) - same
+        # sensitivity as GET /api/projects/{id}/matches, so it must come
+        # before the /api/opportunities PUBLIC_ACCESS rule below, same
+        # reasoning as /api/funding/export above it in this file.
+        - { path: ^/api/opportunities/\d+/candidates, roles: IS_AUTHENTICATED_FULLY }
         # C1.8: opportunities are manually-seeded public information (F4),
         # same reasoning as /api/search.
         - { path: ^/api/opportunities, roles: PUBLIC_ACCESS }

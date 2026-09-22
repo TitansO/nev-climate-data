@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Dto\OpportunityCriteria;
+use App\Repository\OpportunityRepository;
 use App\Service\OpportunityService;
+use App\Service\ProjectMatchingService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -24,6 +27,8 @@ final class OpportunityController extends AbstractController
 {
     public function __construct(
         private readonly OpportunityService $opportunityService,
+        private readonly OpportunityRepository $opportunityRepository,
+        private readonly ProjectMatchingService $matchingService,
     ) {
     }
 
@@ -68,5 +73,70 @@ final class OpportunityController extends AbstractController
         $criteria = OpportunityCriteria::fromQuery($request->query);
 
         return $this->json(['data' => $this->opportunityService->list($criteria)]);
+    }
+
+    #[Route('/api/opportunities/{id}/candidates', name: 'api_opportunities_candidates', methods: ['GET'], requirements: ['id' => '\d+'])]
+    #[OA\Get(
+        summary: 'Classe les projets du pipeline les plus pertinents pour cette opportunité',
+        description: 'Sens inverse de GET /api/projects/{id}/matches - même score pondéré transparent (App\\Service\\ProjectMatchingService), même poids. Donnée de pipeline interne (comme /matches), pas la liste d\'opportunités elle-même : requiert une authentification, contrairement à GET /api/opportunities.',
+        tags: ['Opportunities'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'limit', in: 'query', required: false, description: 'Nombre maximum de résultats (défaut 10, plafond 25)', schema: new OA\Schema(type: 'integer', default: 10, maximum: 25)),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Projets classés par score décroissant',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'data', type: 'array', items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: 'projectId', type: 'integer'),
+                            new OA\Property(property: 'projectTitle', type: 'string'),
+                            new OA\Property(property: 'country', type: 'string'),
+                            new OA\Property(property: 'sector', type: 'string'),
+                            new OA\Property(property: 'amountSought', type: 'number'),
+                            new OA\Property(property: 'pipelineStage', type: 'string'),
+                            new OA\Property(property: 'score', type: 'number', format: 'float', example: 0.775),
+                            new OA\Property(property: 'breakdown', properties: [
+                                new OA\Property(property: 'sector', type: 'number'),
+                                new OA\Property(property: 'country', type: 'number'),
+                                new OA\Property(property: 'instrument', type: 'number'),
+                                new OA\Property(property: 'amount', type: 'number'),
+                                new OA\Property(property: 'window', type: 'number'),
+                            ], type: 'object'),
+                        ]
+                    )),
+                ])
+            ),
+            new OA\Response(response: 400, description: '"limit" invalide'),
+            new OA\Response(response: 401, description: 'Authentification JWT requise'),
+            new OA\Response(response: 404, description: 'Opportunité introuvable'),
+        ]
+    )]
+    public function candidates(int $id, Request $request): JsonResponse
+    {
+        $opportunity = $this->opportunityRepository->find($id);
+        if (null === $opportunity) {
+            throw $this->createNotFoundException('Opportunity not found.');
+        }
+
+        $limit = self::parseLimit($request->query->get('limit'));
+
+        return $this->json(['data' => $this->matchingService->candidatesForOpportunity($opportunity, $limit)]);
+    }
+
+    private static function parseLimit(?string $raw): int
+    {
+        if (null === $raw || '' === $raw) {
+            return ProjectMatchingService::DEFAULT_LIMIT;
+        }
+
+        if (!is_numeric($raw) || (string) (int) $raw !== (string) $raw || (int) $raw < 1) {
+            throw new BadRequestHttpException('Invalid value for parameter "limit": must be a positive integer.');
+        }
+
+        return min((int) $raw, ProjectMatchingService::MAX_LIMIT);
     }
 }

@@ -9,9 +9,11 @@ use App\Entity\Enum\OpportunityStatus;
 use App\Entity\Opportunity;
 use App\Entity\Project;
 use App\Repository\OpportunityRepository;
+use App\Repository\ProjectRepository;
 
 /**
- * C2.2 : "Matching Engine" - GET /api/projects/{id}/matches. Score de
+ * C2.2 : "Matching Engine" - GET /api/projects/{id}/matches (et son sens
+ * inverse, GET /api/opportunities/{id}/candidates). Score de
  * correspondance projet<->opportunité par règles pondérées transparentes
  * (pas de ML, voir le plan §1 : "l'explicabilité d'un score prime sur sa
  * sophistication" pour C2/C3 en v1) : secteur (0,35), pays (0,25),
@@ -65,6 +67,7 @@ final class ProjectMatchingService
 
     public function __construct(
         private readonly OpportunityRepository $opportunityRepository,
+        private readonly ProjectRepository $projectRepository,
     ) {
     }
 
@@ -78,6 +81,28 @@ final class ProjectMatchingService
         $scored = array_map(
             fn (Opportunity $opportunity) => $this->score($project, $opportunity, $now),
             $this->opportunityRepository->findAll()
+        );
+
+        usort($scored, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+
+        return \array_slice($scored, 0, $limit);
+    }
+
+    /**
+     * Sens inverse de matchesForProject() : pour une opportunité donnée,
+     * quels projets du pipeline seraient de bons candidats - même score,
+     * mêmes poids, juste itéré sur App\Entity\Project plutôt que sur
+     * Opportunity (le plan liste explicitement les deux endpoints).
+     *
+     * @return list<array{projectId: int, projectTitle: string, country: string, sector: string, amountSought: float, pipelineStage: string, score: float, breakdown: array{sector: float, country: float, instrument: float, amount: float, window: float}}>
+     */
+    public function candidatesForOpportunity(Opportunity $opportunity, int $limit): array
+    {
+        $now = new \DateTimeImmutable();
+
+        $scored = array_map(
+            fn (Project $project) => $this->candidateScore($project, $opportunity, $now),
+            $this->projectRepository->findAll()
         );
 
         usort($scored, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
@@ -109,6 +134,37 @@ final class ProjectMatchingService
             'opportunityTitle' => $opportunity->getTitle(),
             'sourceName' => $opportunity->getSource()->getName(),
             'opportunityStatus' => OpportunityService::statusOf($opportunity, $now)->value,
+            'score' => round($score, 4),
+            'breakdown' => $breakdown,
+        ];
+    }
+
+    /**
+     * @return array{projectId: int, projectTitle: string, country: string, sector: string, amountSought: float, pipelineStage: string, score: float, breakdown: array{sector: float, country: float, instrument: float, amount: float, window: float}}
+     */
+    private function candidateScore(Project $project, Opportunity $opportunity, \DateTimeImmutable $now): array
+    {
+        $breakdown = [
+            'sector' => self::sectorScore($project, $opportunity),
+            'country' => self::countryScore($project, $opportunity),
+            'instrument' => self::instrumentScore($project, $opportunity),
+            'amount' => self::amountScore($project, $opportunity),
+            'window' => self::windowScore($opportunity, $now),
+        ];
+
+        $score = self::WEIGHT_SECTOR * $breakdown['sector']
+            + self::WEIGHT_COUNTRY * $breakdown['country']
+            + self::WEIGHT_INSTRUMENT * $breakdown['instrument']
+            + self::WEIGHT_AMOUNT * $breakdown['amount']
+            + self::WEIGHT_WINDOW * $breakdown['window'];
+
+        return [
+            'projectId' => $project->getId(),
+            'projectTitle' => $project->getTitle(),
+            'country' => $project->getCountry()->getName(),
+            'sector' => $project->getSector()->getName(),
+            'amountSought' => (float) $project->getAmountSought(),
+            'pipelineStage' => $project->getPipelineStage()->value,
             'score' => round($score, 4),
             'breakdown' => $breakdown,
         ];
