@@ -14,12 +14,12 @@ function isoFromUrl() {
 }
 
 /**
- * C2.6 + C2.8 (volet pays) : fiche pays prévue par le plan initial
- * ("encart sur la fiche pays / carte") mais jamais construite lors du
- * premier passage sur C2 - alignement CDN (C2.6) et risque investissement
- * (C2.8), tous deux PUBLIC_ACCESS côté backend (CountryController).
- * Route MPA autonome (country-profile.html?iso=...), même famille que
- * institution-profile.html/project-pipeline.html.
+ * C2.6 + C2.8 + C3.2 (volet pays) : fiche pays prévue par le plan initial
+ * ("encart sur la fiche pays / carte") mais jamais construite lors des
+ * premiers passages sur C2/C3 - alignement CDN (C2.6), risque
+ * investissement (C2.8) et part locale estimée (C3.2), tous PUBLIC_ACCESS
+ * côté backend. Route MPA autonome (country-profile.html?iso=...), même
+ * famille que institution-profile.html/project-pipeline.html.
  */
 export default function CountryProfilePage() {
   const { t } = useI18n();
@@ -37,6 +37,10 @@ export default function CountryProfilePage() {
 
   const ndcAlignment = useAnalyticsFetch(iso ? "/api/countries/" + iso + "/scores/ndc-alignment" : "", { emptyWhen: (body) => false === body.available });
   const investmentRisk = useAnalyticsFetch(iso ? "/api/countries/" + iso + "/scores/investment-risk" : "");
+  // C3.2 : "indicateur de part locale estimée, avec avertissement méthodo"
+  // (plan original) - jamais construit lors du premier passage sur C3 ; le
+  // backend (App\Service\LocalFinanceService) existait déjà sans aucune UI.
+  const localFinance = useAnalyticsFetch(iso ? "/api/analytics/local-finance?country=" + iso : "", { emptyWhen: (body) => 0 === body.data.length });
 
   function selectIso(nextIso) {
     setIso(nextIso);
@@ -57,7 +61,7 @@ export default function CountryProfilePage() {
             <GlobeIcon className="h-3 w-3" /> {t("countryPage.pill", "Fiche pays")}
           </span>
           <h1 className="text-2xl font-bold text-dark">{countryName || t("countryPage.pickCountry", "Choisissez un pays")}</h1>
-          {iso && <p className="mt-1 text-sm text-body-color">{t("countryPage.subtitle", "Alignement CDN et risque d'investissement - scores calculés à partir de données ouvertes, jamais un modèle entraîné.")}</p>}
+          {iso && <p className="mt-1 text-sm text-body-color">{t("countryPage.subtitle", "Alignement CDN, risque d'investissement et part locale estimée - calculés à partir de données ouvertes, jamais un modèle entraîné.")}</p>}
         </div>
         <NevSelect id="country-picker" label={t("countryPage.selectLabel", "Pays")} value={iso} onChange={(event) => selectIso(event.target.value)} wrapperClassName="min-w-[220px]">
           <option value="">{t("countryPage.select", "Sélectionner…")}</option>
@@ -94,6 +98,30 @@ export default function CountryProfilePage() {
             state={investmentRisk.state}
             errorText={t("countryPage.scoreError", "Impossible de calculer ce score.")}
           />
+
+          <NevCard padding="md" className="sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-body-color">{t("countryPage.localFinance", "Part locale estimée")}</p>
+            {("loading" === localFinance.state || "empty" === localFinance.state) && (
+              <p className="mt-3 text-sm text-body-color">
+                {"loading" === localFinance.state
+                  ? t("hero.loading", "Chargement…")
+                  : t("countryPage.localFinanceEmpty", "Aucun financement validé pour ce pays dans le jeu de données actuel.")}
+              </p>
+            )}
+            {"error" === localFinance.state && <p className="mt-3 text-sm text-danger">{t("countryPage.scoreError", "Impossible de calculer ce score.")}</p>}
+            {"success" === localFinance.state && localFinance.data && localFinance.data.data[0] && (
+              <>
+                <p className="mt-2 text-2xl font-extrabold tabular-nums text-dark">
+                  {localFinance.data.data[0].localSharePercent}
+                  <span className="text-sm font-semibold text-body-color"> %</span>
+                </p>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-2">
+                  <div className="h-full rounded-full bg-primary" style={{ width: Math.min(100, localFinance.data.data[0].localSharePercent) + "%" }} />
+                </div>
+                <p className="mt-3 text-xs text-body-color">{localFinance.data.methodology}</p>
+              </>
+            )}
+          </NevCard>
         </div>
       )}
     </div>
