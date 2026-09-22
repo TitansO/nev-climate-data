@@ -751,6 +751,14 @@ Ces problèmes ont été rencontrés et corrigés pendant A1.3 à A1.7. Ils ne s
 
 68. **Pour un service RAG sous trafic réel, c'est le quota d'*embedding* de Gemini (gratuit) qui sature en premier, pas celui de génération de réponse - un appel `embed()` a lieu pour CHAQUE morceau indexé ET pour CHAQUE question posée, contre un seul appel de génération par question.** Rencontré le 2026-09-22 : un `POST /ai/reindex` complet a heurté `429 RESOURCE_EXHAUSTED` après seulement 713 morceaux sur ~900, puis chaque `POST /ai/ask` suivant a échoué pour la même raison (la recherche vectorielle embedde aussi la question) - chaque tentative en échec prenait jusqu'à ~60 secondes (3 essais x 20s de backoff, voir `RATE_LIMIT_RETRY_DELAY_SECONDS`) avant de remonter un 503, ce qui se lisait côté frontend comme "lent ET cassé" plutôt que "limité en débit". **Corrigé en déplaçant uniquement l'étape d'embedding vers un modèle local et sans quota** (`sentence-transformers`, `all-MiniLM-L6-v2`, 384 dimensions, dont les poids sont intégrés à l'image Docker `ai` à la construction - voir `ai/local_embeddings.py`) ; la génération de réponse (`gemini_client.ask()`/`classify()`) reste sur Gemini, un seul appel par question/classification réelle, un volume que le palier gratuit absorbe. A nécessité de supprimer puis recréer `rag_chunk` (la colonne `VECTOR(768)` ne peut pas porter un vecteur à 384 dimensions) et un réindexage complet.
 
+69. **Sur ce Codespace précis, un `php bin/phpunit` qui exécute plus d'un `WebTestCase` dans le même processus meurt silencieusement après le premier (code de sortie 0, aucun résumé affiché), même sur des fichiers de test préexistants et déjà livrés (`NotificationControllerTest.php`, non modifié).** Découvert en écrivant les tests C3.7/C3.8 (2026-09-22) : `--debug` sur un seul test montre un cycle complet normal ("PHPUnit Finished, Shell Exit Code: 0") ; dès qu'un 2ᵉ test `WebTestCase` s'enchaîne dans le même processus, plus aucune sortie n'apparaît après le point du 1er test, quel que soit le fichier ou le filtre utilisé. Les tests `KernelTestCase` (sans couche HTTP) ne sont pas affectés - une suite de 31 tests de service s'est exécutée sans problème. **Cause non isolée** ; contournement retenu : vérification fonctionnelle en direct (`curl`) sur l'API réelle plutôt que de se fier à cette suite sur ce Codespace précis - même raisonnement que le point #62 pour `pytest`. À re-tester sur un Codespace neuf ou en CI avant de conclure à un bug plus profond.
+
+70. **La base `<nom>_test` (utilisée par `APP_ENV=test`, donc par toute la suite PHPUnit) n'existe pas automatiquement sur un Codespace fraîchement provisionné - seule la base de développement (point #11) est créée par la checklist de reprise.** Rencontré le 2026-09-22 en essayant de lancer les nouveaux tests C3 : `SQLSTATE[08006] ... database "nev_climate_data_test" does not exist`. Fix : `docker compose exec -T -e APP_ENV=test backend php bin/console doctrine:database:create --if-not-exists` puis `doctrine:migrations:migrate --no-interaction` avec le même `-e APP_ENV=test`. À ajouter à la checklist de reprise d'un Codespace si la suite PHPUnit doit être exécutée dessus (voir aussi point #71 : `APP_ENV` doit être forcé explicitement sur la commande `docker compose exec`, pas seulement via `phpunit.dist.xml`).
+
+71. **`.env` déclare `APP_ENV=dev` comme variable d'environnement réelle du conteneur `backend` - `<server name="APP_ENV" value="test" force="true">` de `phpunit.dist.xml` ne suffit pas à le faire basculer sur `test` quand `bin/phpunit` est appelé via `docker compose exec` sans override.** Symptôme trompeur : `LogicException: Could not find service "test.service_container"` (comme si `framework.test: true` manquait, alors qu'il est bien présent dans `config/packages/framework.yaml`, `when@test`). Un `cache:clear`/rewarm en environnement `test` ne change rien tant que le kernel démarre effectivement en `dev`. **Fix** : passer explicitement `-e APP_ENV=test` sur la commande `docker compose exec` elle-même (`docker compose exec -T -e APP_ENV=test backend php bin/phpunit ...`), qui prend le pas sur la valeur héritée du conteneur.
+
+72. **`ai/gemini_client.py` (donc tout ce qui l'importe, directement ou non) termine le processus Python en cours silencieusement à l'import - `from google import genai` seul suffit à reproduire le symptôme, exit code 0, aucune sortie, même avec `python -u`.** Diagnostic poussé jusqu'à sa racine réelle le 2026-09-22 en essayant de faire tourner `ai/tests/test_greenwashing.py` : bissection par imports isolés (`ai.db` seul passe, `ai.gemini_client`/`ai.classify` échouent tous les deux de façon identique) a permis de remonter jusqu'au SDK `google-genai` lui-même, dont l'import seul (`from google import genai`) reproduit le symptôme dans un `python -c` nu, hors de tout code applicatif de ce projet. **C'est la cause racine, jusqu'ici non identifiée, du point d'attention #62** (`pytest` qui plante sur `ai/tests/test_main.py` : ce fichier importe `ai.main`, qui importe `ai.gemini_client`). Le vrai serveur uvicorn n'est pas affecté (confirmé de nouveau en direct ce jour, `POST /api/greenwashing/check` répond correctement) - seul un lancement `python -c`/`pytest` nu semble déclencher le comportement, cause exacte non isolée (SDK/environnement, pas du code de ce projet). Contournement : valider la logique par exécution manuelle des assertions (mock + `assert`) plutôt que via `pytest`, sur ce Codespace.
+
 ## État d'avancement
 
 **Fait (Phase A1 - Fondations, ~13 tâches sur le plan) :**
@@ -891,7 +899,11 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 | C1.7 | Explorateur d'instruments (`instrument-distribution` + `InstrumentsPage.jsx`) | ✅ Fait (P1) |
 | C1.8 | Radar d'opportunités (`GET /api/opportunities` + `OpportunityRadarPage.jsx`) | ✅ Fait (P2 - saisie manuelle, pas de connecteur automatique, assumé dès le plan) |
 
-**Palier C1 clos** (CI GitLab verte, pipeline #161, couverture 84,3%). Fondations du palier C2 (F1-F7, §4 du plan) déjà quasi entièrement en place au démarrage de C2 : F1 (`FundingInstrument`), F2 (entité `Score`), F4 (`Project`/`Opportunity`), F5 (service `ai/` FastAPI + RAG pgvector), F6 (`ai/ingest.py`), F7 (`NdcTarget`) existent tous ; seul F3 (`ScoreService` + registre d'indicateurs, nécessaire à partir de C2.4) reste à écrire.
+**Palier C1 clos** (CI GitLab verte, pipeline #161, couverture 84,3%). Audit de conformité au
+plan réalisé le 2026-09-22 (méthode : existence de code, pas un nouveau test fonctionnel complet
+- voir la limite méthodologique du document) :
+[`docs/superpowers/specs/2026-09-22-c1-recette.md`](docs/superpowers/specs/2026-09-22-c1-recette.md).
+Fondations du palier C2 (F1-F7, §4 du plan) déjà quasi entièrement en place au démarrage de C2 : F1 (`FundingInstrument`), F2 (entité `Score`), F4 (`Project`/`Opportunity`), F5 (service `ai/` FastAPI + RAG pgvector), F6 (`ai/ingest.py`), F7 (`NdcTarget`) existent tous ; seul F3 (`ScoreService` + registre d'indicateurs, nécessaire à partir de C2.4) reste à écrire.
 
 **Fait (Palier C2 - « Où l'argent devrait-il aller ? ») :**
 
@@ -907,6 +919,33 @@ GreenAccess). Détail complet : `Plan_Implementation_NEV_Climate_Data.xlsx`.
 | C2.8 | Score de risque d'investissement (`GET /api/countries/{iso}/scores/investment-risk`, `GET /api/projects/{id}/scores/investment-risk` - risque pays x secteur x projet) | ✅ Fait - jauges sur la fiche projet et `country-profile.html` |
 
 **Palier C2 fonctionnellement complet, backend ET frontend** (8/8 tâches) - le volet frontend de C2.4/C2.5/C2.6/C2.7/C2.8, prévu par le plan initial mais laissé de côté lors du premier passage sur C2, a été rattrapé le 2026-09-22. Reste en dette assumée : le traitement par lot des lignes `funding` réelles via un DAG dédié à la classification (explicitement hors périmètre de ce sprint, voir le plan §7) - la classification C2.7 reste déclenchée projet par projet, jamais en masse.
+
+**Écart trouvé et corrigé le 2026-09-22 en auditant C2 contre le plan original** : C2.2 ne
+couvrait que le sens « pour un projet, les opportunités les plus pertinentes »
+(`GET /api/projects/{id}/matches`) - le plan demande aussi le sens inverse (« pour une
+opportunité, les projets les plus pertinents »), qui n'existait pas. Ajouté :
+`GET /api/opportunities/{id}/candidates` (`ProjectMatchingService::candidatesForOpportunity()`,
+même score pondéré que le sens direct), vérifié en direct et couvert par 3 nouveaux tests. Voir
+[`docs/superpowers/specs/2026-09-22-c2-recette.md`](docs/superpowers/specs/2026-09-22-c2-recette.md).
+
+**Fait (Palier C3 - « L'argent atteint-il la bonne cible ? ») :**
+
+| Tâche | Contenu | Statut |
+|---|---|---|
+| C3.1 | Détecteur d'écarts (`GET /api/analytics/gaps?by=`, besoin CDN déclaré - reçu, seuils de sévérité) | ✅ Fait - `gaps.html` (tableau trié ; pas de carte choroplèthe, voir écart ci-dessous) |
+| C3.2 | Suivi du financement local (`GET /api/analytics/local-finance`, proxy instrument+montant) | ⚠️ Backend fait, **frontend manquant** (voir « Écarts restants ») |
+| C3.3 | Score d'équité (`GET /api/analytics/equity`, classement + indice de Gini) | ✅ Fait - `equity.html` |
+| C3.4 | Simulateur de finance mixte (`POST /api/blended/simulate`) | ✅ Fait - `blended-finance.html` |
+| C3.5 | Détection d'écoblanchiment (`POST /api/greenwashing/check`, Gemini + cache) | ✅ Fait - pastille + panneau explicatif sur la fiche projet |
+| C3.6 | Score de transparence (`GET /api/institutions/{id}/scores/transparency`, `GET /api/analytics/transparency`) | ✅ Fait - jauge sur `institution-profile.html` + `transparency.html` (classement) |
+| C3.7 | Moteur de recommandations (`GET /api/recommendations`, agrégation transparente C3.1+C3.3+C2.6+C2.8) | ✅ Fait - `recommendations.html` |
+| C3.8 | Alertes intelligentes (`GET/POST/PATCH /api/alert-rules`, commande `app:alerts:evaluate`) | ✅ Fait - réglages dans `account-profile.html`, badge « Alerte » dans `notifications.html` |
+
+**Palier C3 : 8/8 tâches backend livrées et vérifiées en direct ; 38 tests automatisés
+(services + commande) écrits et verts ; frontend construit pour 7/8 tâches** (C3.2 restant sans
+UI - le backend existe, rien ne l'affiche). Recette complète, écarts au plan documentés en
+détail (dont C3.2) et réserves proposées :
+[`docs/superpowers/specs/2026-09-22-c3-recette.md`](docs/superpowers/specs/2026-09-22-c3-recette.md).
 
 ## Pipeline (Volet B)
 
