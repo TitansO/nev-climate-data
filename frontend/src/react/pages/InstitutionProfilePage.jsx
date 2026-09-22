@@ -7,6 +7,7 @@ import NevKpi from "../components/ui/NevKpi";
 import NevChartCard from "../components/ui/NevChartCard";
 import NevTable from "../components/ui/NevTable";
 import NevDataState from "../components/ui/NevDataState";
+import NevScoreGauge from "../components/ui/NevScoreGauge";
 import SectorDonutChart from "../components/charts/SectorDonutChart";
 import { formatCompactUsd, formatUsd, formatCount } from "../data/analyticsConstants";
 import { BuildingIcon } from "../components/ui/icons";
@@ -33,6 +34,47 @@ function sourceIdFromUrl() {
  * titre que dashboard.html/search.html - lue depuis GET /api/search's
  * propre destination pour un résultat de type "source" (SearchService).
  */
+/**
+ * C3.6 : jauge de transparence - GET /api/institutions/{sourceId}/scores/
+ * transparency, jamais construite lors du premier passage sur C3 (le
+ * service existait déjà, voir aussi App\Service\TransparencyScoreService
+ * et la page de classement, transparency.html).
+ */
+function useTransparencyScore(sourceId, API_BASE_URL) {
+  const [state, setState] = useState("loading");
+  const [score, setScore] = useState(null);
+
+  useEffect(() => {
+    if (null === sourceId) {
+      return undefined;
+    }
+    let cancelled = false;
+    setState("loading");
+    (async () => {
+      try {
+        const response = await fetch(API_BASE_URL + "/api/institutions/" + sourceId + "/scores/transparency", { headers: { Accept: "application/json" } });
+        if (!response.ok) {
+          throw new Error("http " + response.status);
+        }
+        const body = await response.json();
+        if (!cancelled) {
+          setScore(body);
+          setState("success");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setState("error");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceId, API_BASE_URL]);
+
+  return { state, score };
+}
+
 export default function InstitutionProfilePage() {
   const { API_BASE_URL } = useAuth();
   const { t } = useI18n();
@@ -41,6 +83,7 @@ export default function InstitutionProfilePage() {
   const [state, setState] = useState(null === sourceId ? "error" : "loading");
   const [profile, setProfile] = useState(null);
   const [message, setMessage] = useState(null === sourceId ? t("institutionPage.missingId", "Aucune institution demandée (paramètre \"sourceId\" manquant dans l'URL).") : "");
+  const transparency = useTransparencyScore(sourceId, API_BASE_URL);
 
   useEffect(() => {
     if (null === sourceId) {
@@ -102,6 +145,14 @@ export default function InstitutionProfilePage() {
                   </NevBadge>
                 </div>
               </div>
+              <NevScoreGauge
+                label={t("institutionPage.transparencyScore", "Score de transparence")}
+                score={transparency.score}
+                state={transparency.state}
+                loadingText={t("hero.loading", "Chargement…")}
+                errorText={t("institutionPage.transparencyError", "Impossible de calculer ce score.")}
+                className="w-full sm:w-72"
+              />
             </div>
 
             {!profile.portfolio ? (

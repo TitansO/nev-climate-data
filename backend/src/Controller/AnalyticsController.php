@@ -12,6 +12,7 @@ use App\Service\EquityScoreService;
 use App\Service\FundingFlowService;
 use App\Service\GapDetectionService;
 use App\Service\LocalFinanceService;
+use App\Service\TransparencyScoreService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -40,6 +41,7 @@ final class AnalyticsController extends AbstractController
         private readonly GapDetectionService $gapDetectionService,
         private readonly LocalFinanceService $localFinanceService,
         private readonly EquityScoreService $equityScoreService,
+        private readonly TransparencyScoreService $transparencyScoreService,
     ) {
     }
 
@@ -443,5 +445,31 @@ final class AnalyticsController extends AbstractController
     public function equity(): JsonResponse
     {
         return $this->json($this->equityScoreService->getRanking());
+    }
+
+    #[Route('/api/analytics/transparency', name: 'api_analytics_transparency', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'C3.6 : classement de transparence de tous les bailleurs',
+        description: 'Classement (App\\Service\\TransparencyScoreService::getRanking()) - contrairement à GET /api/analytics/equity, TOUS les bailleurs réels sont classés (jamais `null` : une Source existe indépendamment d\'avoir des financements réels, voir le docblock de TransparencyScoreService).',
+        tags: ['Analytics'],
+        security: [],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Classement',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(
+                    properties: [
+                        new OA\Property(property: 'sourceId', type: 'integer'),
+                        new OA\Property(property: 'sourceName', type: 'string'),
+                        new OA\Property(property: 'value', type: 'number', format: 'float'),
+                        new OA\Property(property: 'grade', type: 'string'),
+                    ]
+                ))
+            ),
+        ]
+    )]
+    public function transparency(): JsonResponse
+    {
+        return $this->json($this->transparencyScoreService->getRanking());
     }
 }

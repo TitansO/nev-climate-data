@@ -45,6 +45,14 @@ import { resolve } from "path";
  * "not in the main nav" reasoning, reached via contextual links (the
  * project detail modal's "Estimer l'impact" link, visualizations.html's
  * country map section).
+ * C3.1/C3.3/C3.6/C3.7: gaps.html, equity.html, transparency.html,
+ * recommendations.html - frontend built after the fact (the backend
+ * endpoints existed from the original C3 batch, but had no UI, a gap
+ * found during a later audit against the original implementation plan;
+ * transparency.html's own endpoint, GET /api/analytics/transparency,
+ * didn't exist yet either - only the per-source score did) - same
+ * "not in the main nav" reasoning, reached via contextual links from
+ * dashboard.html.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -76,6 +84,10 @@ export default defineConfig({
         "impact-calculator": resolve(__dirname, "impact-calculator.html"),
         "country-profile": resolve(__dirname, "country-profile.html"),
         "blended-finance": resolve(__dirname, "blended-finance.html"),
+        gaps: resolve(__dirname, "gaps.html"),
+        equity: resolve(__dirname, "equity.html"),
+        recommendations: resolve(__dirname, "recommendations.html"),
+        transparency: resolve(__dirname, "transparency.html"),
       },
     },
   },

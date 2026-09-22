@@ -7,6 +7,7 @@ namespace App\Service;
 use App\Entity\Enum\ScoreSubjectType;
 use App\Entity\Score;
 use App\Entity\Source;
+use App\Repository\SourceRepository;
 use App\Service\Scoring\ScoreService;
 use App\Service\Scoring\Transparency\CompletenessIndicator;
 use App\Service\Scoring\Transparency\DescriptivePresenceIndicator;
@@ -32,6 +33,7 @@ final class TransparencyScoreService
 
     public function __construct(
         private readonly ScoreService $scoreService,
+        private readonly SourceRepository $sourceRepository,
         private readonly CompletenessIndicator $completenessIndicator,
         private readonly IatiPublicationIndicator $iatiPublicationIndicator,
         private readonly FreshnessIndicator $freshnessIndicator,
@@ -55,5 +57,29 @@ final class TransparencyScoreService
                 $this->descriptivePresenceIndicator,
             ]
         );
+    }
+
+    /**
+     * "Classement des bailleurs" (front C3.6, jamais construit lors du
+     * premier passage) - jamais `null` par bailleur (voir scoreFor()), donc
+     * TOUS les bailleurs réels sont classés ici, contrairement à
+     * EquityScoreService::getRanking() qui exclut les pays sans donnée.
+     *
+     * @return list<array{sourceId: int, sourceName: string, value: float, grade: string}>
+     */
+    public function getRanking(): array
+    {
+        $ranking = array_map(
+            function (Source $source): array {
+                $score = $this->scoreFor($source);
+
+                return ['sourceId' => $source->getId(), 'sourceName' => $source->getName(), 'value' => $score->getValue(), 'grade' => $score->getGrade()];
+            },
+            $this->sourceRepository->findAll()
+        );
+
+        usort($ranking, static fn (array $a, array $b): int => $b['value'] <=> $a['value']);
+
+        return $ranking;
     }
 }

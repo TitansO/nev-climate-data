@@ -12,7 +12,14 @@ const PAGE_SIZE = 10;
 const EVENT_TYPE_LABELS = {
   new_report: "Nouveau rapport",
   new_data: "Nouvelles données",
+  export_ready: "Export prêt",
+  // C3.8 : distingue une alerte (App\Service\AlertEvaluationService, un
+  // signal actionnable sur une condition surveillée) d'une notification
+  // informative ordinaire - "affichage enrichi dans la cloche" du plan
+  // original, jamais construit lors du premier passage sur C3.
+  alert_triggered: "Alerte",
 };
+const EVENT_TYPE_TONE = { alert_triggered: "warning" };
 
 function formatDate(isoDateTime) {
   return new Date(isoDateTime).toLocaleString("fr-FR", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -138,7 +145,7 @@ export default function NotificationsPage() {
                       href={item.destination}
                       className="block flex-1 rounded-sm transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                      <NevBadge tone="info" className="mb-1.5">
+                      <NevBadge tone={EVENT_TYPE_TONE[item.eventType] || "info"} className="mb-1.5">
                         {EVENT_TYPE_LABELS[item.eventType] || item.eventType}
                       </NevBadge>
                       <p className="text-sm text-dark">{item.content}</p>

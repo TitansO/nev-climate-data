@@ -150,6 +150,54 @@ final class AlertRuleControllerTest extends WebTestCase
         self::assertSame([], json_decode($client->getResponse()->getContent(), true));
     }
 
+    public function testUpdateTogglesActiveOffThenOn(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $user = $this->createUser();
+        $tokens = $this->loginAndGetTokens($client, $user);
+
+        $client->request('POST', '/api/alert-rules', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['ruleType' => 'gap_critical']));
+        $created = json_decode($client->getResponse()->getContent(), true);
+
+        $client->request('PATCH', '/api/alert-rules/'.$created['id'], server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['active' => false]));
+        self::assertResponseIsSuccessful();
+        self::assertFalse(json_decode($client->getResponse()->getContent(), true)['active']);
+
+        $client->request('PATCH', '/api/alert-rules/'.$created['id'], server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['active' => true]));
+        self::assertTrue(json_decode($client->getResponse()->getContent(), true)['active']);
+    }
+
+    public function testUpdateRejectsANonBooleanActive(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $user = $this->createUser();
+        $tokens = $this->loginAndGetTokens($client, $user);
+        $client->request('POST', '/api/alert-rules', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['ruleType' => 'gap_critical']));
+        $created = json_decode($client->getResponse()->getContent(), true);
+
+        $client->request('PATCH', '/api/alert-rules/'.$created['id'], server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['active' => 'yes']));
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
+    }
+
+    public function testUpdateReturns404ForAnotherUsersRule(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $owner = $this->createUser();
+        $attacker = $this->createUser();
+        $ownerTokens = $this->loginAndGetTokens($client, $owner);
+        $client->request('POST', '/api/alert-rules', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$ownerTokens['token']], content: json_encode(['ruleType' => 'gap_critical']));
+        $created = json_decode($client->getResponse()->getContent(), true);
+        $attackerTokens = $this->loginAndGetTokens($client, $attacker);
+
+        $client->request('PATCH', '/api/alert-rules/'.$created['id'], server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$attackerTokens['token']], content: json_encode(['active' => false]));
+
+        self::assertSame(404, $client->getResponse()->getStatusCode());
+    }
+
     public function testAlertRuleEndpointsAreDocumentedInSwagger(): void
     {
         $client = static::createClient();

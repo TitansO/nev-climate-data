@@ -29,6 +29,17 @@ class AlertRuleRepository extends ServiceEntityRepository
     }
 
     /**
+     * Même raisonnement que NotificationRepository::findOneForUser() : la
+     * propriété est vérifiée directement dans la requête, jamais après
+     * coup en PHP - un id existant appartenant à un autre utilisateur se
+     * comporte exactement comme un id inexistant (null), sans fuite.
+     */
+    public function findOneForUser(int $id, User $user): ?AlertRule
+    {
+        return $this->findOneBy(['id' => $id, 'user' => $user]);
+    }
+
+    /**
      * Groupées par type pour App\Service\AlertEvaluationService : chaque
      * condition n'a besoin d'être calculée qu'une fois par exécution, puis
      * distribuée à tous les propriétaires actifs pour ce type, plutôt que

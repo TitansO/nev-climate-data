@@ -111,6 +111,48 @@ final class AlertRuleController extends AbstractController
         return $this->json(self::toListItem($alertRule), Response::HTTP_CREATED);
     }
 
+    #[Route('/api/alert-rules/{id}', name: 'api_alert_rules_update', methods: ['PATCH'], requirements: ['id' => '\d+'])]
+    #[OA\Patch(
+        summary: 'Active ou désactive une règle d\'alerte appartenant à l\'utilisateur connecté',
+        description: 'Une règle désactivée reste en base (historique préservé) mais n\'est plus jamais évaluée par "app:alerts:evaluate".',
+        tags: ['Alert Rules'],
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(required: ['active'], properties: [new OA\Property(property: 'active', type: 'boolean')])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Règle mise à jour'),
+            new OA\Response(response: 400, description: '"active" manquant ou invalide'),
+            new OA\Response(response: 401, description: 'Authentification JWT requise'),
+            new OA\Response(response: 404, description: 'Règle introuvable (inexistante ou appartenant à un autre utilisateur)'),
+        ]
+    )]
+    public function update(int $id, Request $request): JsonResponse
+    {
+        $this->assertJwtAuthenticated();
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $alertRule = $this->alertRuleRepository->findOneForUser($id, $user);
+        if (null === $alertRule) {
+            throw $this->createNotFoundException('Alert rule not found.');
+        }
+
+        $decoded = json_decode($request->getContent(), true);
+        $active = \is_array($decoded) ? ($decoded['active'] ?? null) : null;
+        if (!\is_bool($active)) {
+            throw new BadRequestHttpException('Le champ "active" doit être un booléen.');
+        }
+
+        $alertRule->setActive($active);
+        $this->entityManager->flush();
+
+        return $this->json(self::toListItem($alertRule));
+    }
+
     private static function parseRuleType(mixed $raw): AlertRuleType
     {
         if (!\is_string($raw)) {
