@@ -933,7 +933,7 @@ même score pondéré que le sens direct), vérifié en direct et couvert par 3 
 | Tâche | Contenu | Statut |
 |---|---|---|
 | C3.1 | Détecteur d'écarts (`GET /api/analytics/gaps?by=`, besoin CDN déclaré - reçu, seuils de sévérité) | ✅ Fait - `gaps.html` (tableau trié ; pas de carte choroplèthe, voir écart ci-dessous) |
-| C3.2 | Suivi du financement local (`GET /api/analytics/local-finance`, proxy instrument+montant) | ⚠️ Backend fait, **frontend manquant** (voir « Écarts restants ») |
+| C3.2 | Suivi du financement local (`GET /api/analytics/local-finance`, proxy instrument+montant) | ✅ Fait - indicateur « part locale estimée » sur `country-profile.html`, ajouté le 2026-09-22 (initialement manquant, corrigé le jour même) |
 | C3.3 | Score d'équité (`GET /api/analytics/equity`, classement + indice de Gini) | ✅ Fait - `equity.html` |
 | C3.4 | Simulateur de finance mixte (`POST /api/blended/simulate`) | ✅ Fait - `blended-finance.html` |
 | C3.5 | Détection d'écoblanchiment (`POST /api/greenwashing/check`, Gemini + cache) | ✅ Fait - pastille + panneau explicatif sur la fiche projet |
@@ -942,9 +942,9 @@ même score pondéré que le sens direct), vérifié en direct et couvert par 3 
 | C3.8 | Alertes intelligentes (`GET/POST/PATCH /api/alert-rules`, commande `app:alerts:evaluate`) | ✅ Fait - réglages dans `account-profile.html`, badge « Alerte » dans `notifications.html` |
 
 **Palier C3 : 8/8 tâches backend livrées et vérifiées en direct ; 38 tests automatisés
-(services + commande) écrits et verts ; frontend construit pour 7/8 tâches** (C3.2 restant sans
-UI - le backend existe, rien ne l'affiche). Recette complète, écarts au plan documentés en
-détail (dont C3.2) et réserves proposées :
+(services + commande) écrits et verts ; frontend construit pour 8/8 tâches** (C3.2 initialement
+oublié, corrigé le même jour). Recette complète, écarts au plan documentés en détail et réserves
+proposées :
 [`docs/superpowers/specs/2026-09-22-c3-recette.md`](docs/superpowers/specs/2026-09-22-c3-recette.md).
 
 ## Pipeline (Volet B)
