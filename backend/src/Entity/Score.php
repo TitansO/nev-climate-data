@@ -63,6 +63,15 @@ class Score
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $computedAt;
 
+    // C3.8 : valeur juste avant le dernier refresh(), pour détecter une
+    // dégradation (App\Service\AlertEvaluationService) sans réintroduire
+    // une historisation complète (voir le docblock de la classe) - une
+    // seule valeur précédente suffit à l'alerte "score dégradé". Reste
+    // NULL tant qu'un score n'a pas été recalculé au moins une fois après
+    // l'ajout de ce champ.
+    #[ORM\Column(type: Types::FLOAT, nullable: true)]
+    private ?float $previousValue = null;
+
     /**
      * @param array<int, array{code: string, value: float, weight: float, explanation: string}> $breakdown
      */
@@ -124,6 +133,11 @@ class Score
         return $this->computedAt;
     }
 
+    public function getPreviousValue(): ?float
+    {
+        return $this->previousValue;
+    }
+
     /**
      * Recalcule cette même ligne en place - un score n'est jamais
      * historisé, seulement rafraîchi (voir le docblock de la classe).
@@ -132,6 +146,7 @@ class Score
      */
     public function refresh(float $value, string $grade, array $breakdown): static
     {
+        $this->previousValue = $this->value;
         $this->value = $value;
         $this->grade = $grade;
         $this->breakdown = $breakdown;

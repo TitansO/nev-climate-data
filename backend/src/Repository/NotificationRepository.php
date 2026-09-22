@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Entity\Enum\NotificationType;
 use App\Entity\Notification;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -72,6 +73,33 @@ class NotificationRepository extends ServiceEntityRepository
             ->setParameter('user', $user)
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    /**
+     * C3.8 : évite qu'App\Service\AlertEvaluationService ne renotifie le
+     * même utilisateur à chaque exécution quotidienne pour une condition
+     * qui reste vraie plusieurs jours de suite (un gap critique ne se
+     * résout pas du jour au lendemain) - une alerte déjà notifiée et
+     * toujours non lue n'est pas dupliquée. Comparée sur le contenu exact
+     * plutôt qu'un identifiant de condition dédié : le contenu encode déjà
+     * précisément quoi/qui (pays, ratio, score...), donc deux occurrences
+     * de la même condition produisent le même texte.
+     */
+    public function existsUnreadForUser(User $user, NotificationType $eventType, string $content): bool
+    {
+        $result = $this->createQueryBuilder('notification')
+            ->select('COUNT(notification.id)')
+            ->andWhere('notification.user = :user')
+            ->andWhere('notification.eventType = :eventType')
+            ->andWhere('notification.content = :content')
+            ->andWhere('notification.isRead = false')
+            ->setParameter('user', $user)
+            ->setParameter('eventType', $eventType)
+            ->setParameter('content', $content)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return ((int) $result) > 0;
     }
 
     /**

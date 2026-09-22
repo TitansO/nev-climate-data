@@ -60,4 +60,24 @@ class ScoreRepository extends ServiceEntityRepository
 
         return $score;
     }
+
+    /**
+     * C3.8 (alerte "score dégradé") : scores dont la valeur a chuté d'au
+     * moins `$thresholdPoints` points (sur 100) depuis leur `previousValue`
+     * (App\Entity\Score::refresh()). `previousValue IS NOT NULL` exclut de
+     * fait tout score qui n'a encore jamais été recalculé depuis l'ajout de
+     * ce champ - il n'y a alors rien à comparer, jamais une dégradation
+     * fabriquée depuis une valeur absente.
+     *
+     * @return list<Score>
+     */
+    public function findDegraded(float $thresholdPoints): array
+    {
+        return $this->createQueryBuilder('score')
+            ->andWhere('score.previousValue IS NOT NULL')
+            ->andWhere('score.previousValue - score.value >= :threshold')
+            ->setParameter('threshold', $thresholdPoints)
+            ->getQuery()
+            ->getResult();
+    }
 }

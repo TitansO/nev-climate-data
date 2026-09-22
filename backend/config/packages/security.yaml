@@ -93,6 +93,9 @@ security:
         # C3.4: a pure calculation with no write and no sensitive data -
         # same openness as /api/impact above.
         - { path: ^/api/blended, roles: PUBLIC_ACCESS }
+        # C3.7: a read-only aggregation of already-public scores (C2.6/
+        # C2.8/C3.1/C3.3) - same openness as /api/analytics above.
+        - { path: ^/api/recommendations, roles: PUBLIC_ACCESS }
         # User management (create accounts, change roles, delete accounts)
         # is reserved to SuperAdmin - must come before the catch-all below,
         # same reasoning as /api/funding/export above it in this file.
