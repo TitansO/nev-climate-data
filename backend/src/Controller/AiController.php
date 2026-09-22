@@ -7,7 +7,9 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Security\AiAskQuotaPolicy;
 use App\Security\ClassifyQuotaPolicy;
+use App\Security\GreenwashingQuotaPolicy;
 use App\Service\ClassifyService;
+use App\Service\GreenwashingService;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Authenticator\Token\JWTPostAuthenticationToken;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -47,6 +49,8 @@ final class AiController extends AbstractController
         private readonly AiAskQuotaPolicy $quotaPolicy,
         private readonly ClassifyQuotaPolicy $classifyQuotaPolicy,
         private readonly ClassifyService $classifyService,
+        private readonly GreenwashingQuotaPolicy $greenwashingQuotaPolicy,
+        private readonly GreenwashingService $greenwashingService,
         private readonly Security $security,
         private readonly string $aiServiceUrl,
     ) {
@@ -150,6 +154,88 @@ final class AiController extends AbstractController
         [$title, $description, $sector] = self::parseClassifyPayload($request);
 
         return $this->json($this->classifyService->classify($title, $description, $sector));
+    }
+
+    #[Route('/api/greenwashing/check', name: 'api_greenwashing_check', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Signale un risque d\'écoblanchiment dans une déclaration de financement (C3.5)',
+        description: 'Recherche 3 signaux (voir ai/gemini_client.py::check_greenwashing()) : classe de taxonomie faible associée à un libellé "vert" marqué, instrument non concessionnel présenté comme de l\'aide, montant disproportionné par rapport à l\'activité décrite. Jamais un modèle entraîné - heuristiques passées dans le prompt. Résultat mis en cache par hash côté service `ai/` (même titre/description/montant : aucun nouvel appel Gemini).',
+        tags: ['AI Copilot'],
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['title', 'description', 'amountUsd', 'sector'],
+                properties: [
+                    new OA\Property(property: 'title', type: 'string', example: 'Green Infrastructure Fund'),
+                    new OA\Property(property: 'description', type: 'string', example: 'Ligne de crédit commerciale standard pour des projets d\'infrastructure.'),
+                    new OA\Property(property: 'amountUsd', type: 'number', format: 'float', example: 50000000),
+                    new OA\Property(property: 'sector', type: 'string', example: 'Renewable Energy'),
+                    new OA\Property(property: 'taxonomyClass', type: 'string', nullable: true, description: 'Si déjà connue (C2.7) - évite un second appel de classification', enum: ['mitigation', 'adaptation', 'both', 'not_relevant']),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Vérification',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'available', type: 'boolean', example: true),
+                    new OA\Property(property: 'cached', type: 'boolean'),
+                    new OA\Property(property: 'riskLevel', type: 'string', enum: ['low', 'moderate', 'high']),
+                    new OA\Property(property: 'redFlags', type: 'array', items: new OA\Items(type: 'string')),
+                    new OA\Property(property: 'reasoning', type: 'string'),
+                ])
+            ),
+            new OA\Response(response: 400, description: 'Champ manquant ou invalide'),
+            new OA\Response(response: 401, description: 'Authentification JWT requise'),
+            new OA\Response(response: 429, description: 'Quota quotidien de vérification dépassé pour ce rôle'),
+            new OA\Response(response: 503, description: 'Service IA temporairement injoignable'),
+        ]
+    )]
+    public function checkGreenwashing(Request $request): JsonResponse
+    {
+        $this->assertJwtAuthenticated();
+
+        /** @var User $user */
+        $user = $this->getUser();
+        $this->greenwashingQuotaPolicy->consume($user);
+
+        [$title, $description, $amountUsd, $sector, $taxonomyClass] = self::parseGreenwashingPayload($request);
+
+        return $this->json($this->greenwashingService->check($title, $description, $amountUsd, $sector, $taxonomyClass));
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: float, 3: string, 4: ?string}
+     */
+    private static function parseGreenwashingPayload(Request $request): array
+    {
+        $decoded = json_decode($request->getContent(), true);
+        if (!\is_array($decoded)) {
+            throw new BadRequestHttpException('Corps de requête JSON invalide.');
+        }
+
+        $title = trim((string) ($decoded['title'] ?? ''));
+        $description = trim((string) ($decoded['description'] ?? ''));
+        $sector = trim((string) ($decoded['sector'] ?? ''));
+        $amountUsd = $decoded['amountUsd'] ?? null;
+        $taxonomyClass = $decoded['taxonomyClass'] ?? null;
+
+        if ('' === $title) {
+            throw new BadRequestHttpException('Le champ "title" est requis.');
+        }
+        if ('' === $description) {
+            throw new BadRequestHttpException('Le champ "description" est requis.');
+        }
+        if ('' === $sector) {
+            throw new BadRequestHttpException('Le champ "sector" est requis.');
+        }
+        if (!is_numeric($amountUsd) || (float) $amountUsd <= 0.0) {
+            throw new BadRequestHttpException('Le champ "amountUsd" doit être un nombre positif.');
+        }
+
+        return [$title, $description, (float) $amountUsd, $sector, null === $taxonomyClass ? null : (string) $taxonomyClass];
     }
 
     /**

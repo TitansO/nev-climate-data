@@ -136,6 +136,73 @@ Secteur : Renewable Energy
 Reponse : {"taxonomy_class": "not_relevant", "activity_category": "aucune", "reasoning": "Aucun lien avec l'attenuation ou l'adaptation climatique malgre le secteur declare."}"""
 
 
+GREENWASHING_RISK_LEVELS = ("low", "moderate", "high")
+
+_GREENWASHING_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "risk_level": {"type": "STRING", "enum": list(GREENWASHING_RISK_LEVELS)},
+        "red_flags": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "reasoning": {"type": "STRING"},
+    },
+    "required": ["risk_level", "red_flags", "reasoning"],
+}
+
+
+def check_greenwashing(title: str, description: str, amount_usd: float, taxonomy_class: str) -> dict:
+    """C3.5 : signale un risque d'ecoblanchiment dans une declaration de
+    financement - jamais un modele entraine, un jeu de regles heuristiques
+    (plan) passees dans le prompt plutot que codees en dur cote appelant :
+    (1) une classe de taxonomie faible/"not_relevant" associee a un
+    libelle utilisant un vocabulaire "vert" marque, (2) un instrument non
+    concessionnel presente comme de l'aide/du soutien, (3) un montant qui
+    semble disproportionne (trop gros ou trop petit) par rapport a
+    l'ampleur de l'activite decrite. `taxonomy_class` vient de
+    ai/classify.py::classify_activity() - jamais recalcule ici, meme
+    principe de reutilisation que le proxy de C3.2 vis-a-vis de C2.7.
+    """
+    prompt = (
+        "Tu evalues le risque qu'une declaration de financement climatique "
+        "pratique l'ecoblanchiment (greenwashing) - un langage \"vert\" qui ne "
+        "correspond pas a la realite de l'activite financee. Cherche "
+        "specifiquement ces 3 signaux, sans en supposer d'autres :\n"
+        "1. Une classe de taxonomie faible (\"not_relevant\", ou \"adaptation\"/"
+        "\"mitigation\" peu convaincante au vu de la description) associee a un "
+        "libelle utilisant un vocabulaire climatique fort (\"vert\", \"durable\", "
+        "\"climat-intelligent\"...) sans que la description le justifie.\n"
+        "2. Un instrument financier non concessionnel (pret non concessionnel, "
+        "capital-investissement) presente comme de l'aide ou un soutien "
+        "climatique, alors qu'il s'agit d'un investissement a but lucratif "
+        "normal.\n"
+        "3. Un montant qui semble disproportionne (beaucoup trop eleve ou "
+        "beaucoup trop faible) par rapport a l'ampleur de l'activite decrite "
+        "dans le titre/la description.\n\n"
+        f"Titre : {title}\n"
+        f"Description : {description}\n"
+        f"Montant : {amount_usd:.0f} USD\n"
+        f"Classe de taxonomie deja attribuee : {taxonomy_class}\n\n"
+        "Reponds avec un niveau de risque (low/moderate/high), la liste des "
+        "signaux precis reellement detectes (liste vide si aucun), et un "
+        "raisonnement bref. Ne signale un risque que si un signal reel est "
+        "present - \"low\" et une liste vide sont des reponses valides et "
+        "attendues pour une declaration qui semble sincere."
+    )
+
+    def call() -> dict:
+        client = _client()
+        response = client.models.generate_content(
+            model=CHAT_MODEL,
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=_GREENWASHING_RESPONSE_SCHEMA,
+            ),
+        )
+        return json.loads(response.text)
+
+    return _with_retry(call)
+
+
 def classify(title: str, description: str, sector: str) -> dict:
     """Classe (title, description, sector) selon la taxonomie verte
     simplifiee ci-dessus, few-shot (pas de modele entraine/fine-tune - le

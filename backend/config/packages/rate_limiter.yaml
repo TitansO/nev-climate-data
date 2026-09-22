@@ -88,3 +88,22 @@ framework:
             policy: 'sliding_window'
             limit: 30
             interval: '1 day'
+
+        # C3.5 : quotas de vérification anti-écoblanchiment par rôle, même
+        # raisonnement/mêmes plafonds que classify_* ci-dessus - un budget
+        # séparé pour ne pas mordre sur le quota du Copilot IA ni celui de
+        # la classification. Servi par le cache par hash (ai/greenwashing.py)
+        # une fois qu'un même (titre, description, montant) a déjà été
+        # vérifié une fois.
+        greenwashing_admin:
+            policy: 'sliding_window'
+            limit: 200
+            interval: '1 day'
+        greenwashing_internal_analyst:
+            policy: 'sliding_window'
+            limit: 100
+            interval: '1 day'
+        greenwashing_external_partner:
+            policy: 'sliding_window'
+            limit: 30
+            interval: '1 day'

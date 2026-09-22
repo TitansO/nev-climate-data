@@ -46,17 +46,17 @@ def test_classify_returns_the_classification_result():
     mock_classify.assert_called_once_with("Projet X", "Desc", "Agriculture")
 
 
-def test_greenwashing_is_not_implemented_yet():
-    with _client() as client:
+def test_greenwashing_returns_the_check_result():
+    fake_result = {"available": True, "cached": False, "risk_level": "low", "red_flags": [], "reasoning": "Rien de suspect."}
+    with _client() as client, patch("ai.main.greenwashing_module.check", return_value=fake_result) as mock_check:
         response = client.post(
             "/ai/greenwashing",
-            json={"title": "Projet X", "description": "Desc", "amount_usd": 1000000.0},
+            json={"title": "Projet X", "description": "Desc", "amount_usd": 1000000.0, "sector": "Agriculture"},
         )
 
-    assert response.status_code == 501
-    body = response.json()
-    assert body["available"] is False
-    assert body["planned_in"] == "C3.5"
+    assert response.status_code == 200
+    assert response.json() == fake_result
+    mock_check.assert_called_once_with("Projet X", "Desc", 1000000.0, "Agriculture", None)
 
 
 def test_reindex_returns_the_ingest_summary():

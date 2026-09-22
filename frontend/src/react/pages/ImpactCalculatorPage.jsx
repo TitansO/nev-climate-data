@@ -110,6 +110,12 @@ export default function ImpactCalculatorPage() {
             "Estime l'impact d'un montant investi dans un secteur, à partir de facteurs statiques et documentés (IRENA, GCF) - jamais un modèle entraîné, toujours une fourchette basse/haute plutôt qu'un chiffre présenté comme certain."
           )}
         </p>
+        {/* C3.4 : l'autre outil de simulation financière de la plateforme -
+            même famille que ce calculateur, juste avant l'investissement
+            plutôt qu'après. */}
+        <a href="blended-finance.html" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-dark hover:underline">
+          {t("impactCalculator.seeBlendedFinance", "Simuler un montage de finance mixte →")}
+        </a>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">

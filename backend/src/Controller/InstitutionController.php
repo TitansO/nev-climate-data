@@ -6,6 +6,8 @@ namespace App\Controller;
 
 use App\Repository\SourceRepository;
 use App\Service\InstitutionService;
+use App\Service\Scoring\ScoreService;
+use App\Service\TransparencyScoreService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,6 +26,7 @@ final class InstitutionController extends AbstractController
     public function __construct(
         private readonly SourceRepository $sourceRepository,
         private readonly InstitutionService $institutionService,
+        private readonly TransparencyScoreService $transparencyScoreService,
     ) {
     }
 
@@ -97,5 +100,27 @@ final class InstitutionController extends AbstractController
         }
 
         return $this->json($this->institutionService->getProfile($source));
+    }
+
+    #[Route('/api/institutions/{sourceId}/scores/transparency', name: 'api_institution_transparency_score', requirements: ['sourceId' => '\d+'], methods: ['GET'])]
+    #[OA\Get(
+        summary: 'C3.6 : score de transparence de l\'institution (0-100, grade A-E)',
+        description: '5 indicateurs pondérés transparents (complétude 0,3 ; publication IATI 0,2 ; fraîcheur 0,2 ; granularité 0,2 ; présence de descriptif 0,1, voir App\\Service\\Scoring\\Transparency\\) - jamais un modèle entraîné. Les 2 derniers indicateurs sont toujours neutres (0,5) : aucun signal de granularité par activité ni de texte descriptif n\'existe dans ce schéma, quelle que soit la source - `breakdown` le documente explicitement plutôt que de fabriquer une valeur.',
+        tags: ['Institutions'],
+        security: [],
+        parameters: [new OA\Parameter(name: 'sourceId', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Score de transparence'),
+            new OA\Response(response: 404, description: 'Institution (source) introuvable'),
+        ]
+    )]
+    public function transparencyScore(int $sourceId): JsonResponse
+    {
+        $source = $this->sourceRepository->find($sourceId);
+        if (null === $source) {
+            throw $this->createNotFoundException('Institution not found.');
+        }
+
+        return $this->json(ScoreService::toArray($this->transparencyScoreService->scoreFor($source)));
     }
 }

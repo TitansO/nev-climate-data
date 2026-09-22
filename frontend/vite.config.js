@@ -75,6 +75,7 @@ export default defineConfig({
         "project-pipeline": resolve(__dirname, "project-pipeline.html"),
         "impact-calculator": resolve(__dirname, "impact-calculator.html"),
         "country-profile": resolve(__dirname, "country-profile.html"),
+        "blended-finance": resolve(__dirname, "blended-finance.html"),
       },
     },
   },

@@ -501,6 +501,33 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * C3.6 (complétude, 0,3) : sur les lignes courantes validées de cette
+     * source, combien renseignent réellement les 2 champs optionnels du
+     * schéma (`instrument` hors valeur par défaut "unknown" ET
+     * `originalAmount` non NULL) - les seuls champs de App\Entity\Funding
+     * qui peuvent légitimement être absents (tout le reste est NOT NULL en
+     * base, donc toujours "complet").
+     *
+     * @return array{total: int, complete: int}
+     */
+    public function findCompletenessStatsForSource(int $sourceId): array
+    {
+        $result = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select(
+                'COUNT(funding.id) AS total',
+                'SUM(CASE WHEN funding.instrument != :unknown AND funding.originalAmount IS NOT NULL THEN 1 ELSE 0 END) AS complete'
+            )
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.source = :sourceId')
+            ->setParameter('sourceId', $sourceId)
+            ->setParameter('unknown', FundingInstrument::Unknown))
+            ->getQuery()
+            ->getSingleResult();
+
+        return ['total' => (int) $result['total'], 'complete' => (int) ($result['complete'] ?? 0)];
+    }
+
+    /**
      * Shared WHERE-clause builder for findByCriteria()/countByCriteria(), so
      * the two queries can never apply a different set of filters. `country`
      * is always joined (needed to filter on Country.isoCode, and it's a

@@ -16,6 +16,9 @@ const TAXONOMY_LABELS = {
   not_relevant: "Non pertinent",
 };
 
+const RISK_TONE = { low: "success", moderate: "warning", high: "danger" };
+const RISK_LABELS = { low: "Risque faible", moderate: "À vérifier", high: "Risque élevé" };
+
 /**
  * Charge un score de fiche projet (C2.4/C2.8, tous deux JWT-only, forme
  * partagée ScoreService::toArray()) - factorisé une fois ici plutôt que
@@ -74,6 +77,9 @@ export default function ProjectDetailModal({ project, onClose, onProjectUpdated 
   const [matches, setMatches] = useState([]);
   const [classifying, setClassifying] = useState(false);
   const [classifyError, setClassifyError] = useState("");
+  const [greenwashingCheck, setGreenwashingCheck] = useState(null);
+  const [checkingGreenwashing, setCheckingGreenwashing] = useState(false);
+  const [greenwashingError, setGreenwashingError] = useState("");
 
   const bankability = useProjectScore(project, "/scores/bankability", authorizedFetch, API_BASE_URL);
   const investmentRisk = useProjectScore(project, "/scores/investment-risk", authorizedFetch, API_BASE_URL);
@@ -107,6 +113,40 @@ export default function ProjectDetailModal({ project, onClose, onProjectUpdated 
       cancelled = true;
     };
   }, [project, authorizedFetch, API_BASE_URL]);
+
+  useEffect(() => {
+    setGreenwashingCheck(null);
+    setGreenwashingError("");
+  }, [project]);
+
+  async function checkGreenwashing() {
+    if (!project) {
+      return;
+    }
+    setCheckingGreenwashing(true);
+    setGreenwashingError("");
+    try {
+      const response = await authorizedFetch(API_BASE_URL + "/api/greenwashing/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          title: project.title,
+          description: project.description,
+          amountUsd: project.amountSought,
+          sector: project.sector,
+          taxonomyClass: project.taxonomyClass,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("http " + response.status);
+      }
+      setGreenwashingCheck(await response.json());
+    } catch (error) {
+      setGreenwashingError(t("projectPipeline.greenwashingError", "Vérification indisponible (service IA injoignable, ou clé Gemini non configurée)."));
+    } finally {
+      setCheckingGreenwashing(false);
+    }
+  }
 
   async function classifyProject() {
     if (!project) {
@@ -161,8 +201,33 @@ export default function ProjectDetailModal({ project, onClose, onProjectUpdated 
             >
               {t("projectPipeline.estimateImpact", "Estimer l'impact →")}
             </a>
+            {greenwashingCheck ? (
+              <NevBadge tone={RISK_TONE[greenwashingCheck.riskLevel] || "neutral"}>{RISK_LABELS[greenwashingCheck.riskLevel] || greenwashingCheck.riskLevel}</NevBadge>
+            ) : (
+              <button
+                type="button"
+                onClick={checkGreenwashing}
+                disabled={checkingGreenwashing}
+                className="rounded-md border border-stroke px-2.5 py-1 text-xs font-semibold text-primary-dark hover:bg-surface-alt disabled:opacity-60"
+              >
+                {checkingGreenwashing ? t("projectPipeline.checkingGreenwashing", "Vérification…") : t("projectPipeline.checkGreenwashing", "Vérifier l'écoblanchiment (IA)")}
+              </button>
+            )}
           </div>
           {classifyError && <p className="mb-4 text-xs text-danger">{classifyError}</p>}
+          {greenwashingError && <p className="mb-4 text-xs text-danger">{greenwashingError}</p>}
+          {greenwashingCheck && (
+            <div className="mb-4 rounded-md border border-stroke bg-surface-alt p-3">
+              <p className="text-xs text-dark-4">{greenwashingCheck.reasoning}</p>
+              {greenwashingCheck.redFlags.length > 0 && (
+                <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-danger">
+                  {greenwashingCheck.redFlags.map((flag, index) => (
+                    <li key={index}>{flag}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <NevScoreGauge

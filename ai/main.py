@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from ai import classify as classify_module
-from ai import db, ingest, rag
+from ai import db, greenwashing as greenwashing_module, ingest, rag
 
 
 @asynccontextmanager
@@ -66,13 +66,16 @@ class GreenwashingRequest(BaseModel):
     title: str
     description: str
     amount_usd: float
+    sector: str
     taxonomy_class: str | None = None
 
 
-@app.post("/ai/greenwashing", status_code=501)
+@app.post("/ai/greenwashing")
 def greenwashing(request: GreenwashingRequest) -> dict:
-    """Squelette F5 - la detection de red-flags d'ecoblanchiment est le
-    travail de C3.5, pas de F5. Voir classify() ci-dessus pour le meme
-    raisonnement.
+    """C3.5 : detection heuristique reelle du risque d'ecoblanchiment (red-
+    flags + Gemini), cache par hash - voir ai/greenwashing.py. `sector` est
+    requis pour classer l'activite si `taxonomy_class` n'est pas deja
+    fourni par l'appelant (App\\Service\\GreenwashingService cote Symfony
+    le connait deja via `Funding.sector`).
     """
-    return {"available": False, "reason": "not_implemented_yet", "planned_in": "C3.5"}
+    return greenwashing_module.check(request.title, request.description, request.amount_usd, request.sector, request.taxonomy_class)

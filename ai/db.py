@@ -73,6 +73,22 @@ def ensure_schema() -> None:
                 )
                 """
             )
+            # C3.5 : meme raisonnement de cache par hash que
+            # classification_cache ci-dessus - un meme (titre, description,
+            # montant, classe de taxonomie) ne doit jamais couter un
+            # deuxieme appel Gemini.
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS greenwashing_cache (
+                    id SERIAL PRIMARY KEY,
+                    content_hash TEXT NOT NULL UNIQUE,
+                    risk_level TEXT NOT NULL,
+                    red_flags TEXT NOT NULL,
+                    reasoning TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
         connection.commit()
     finally:
         connection.close()

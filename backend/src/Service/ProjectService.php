@@ -52,13 +52,17 @@ final class ProjectService
     }
 
     /**
-     * @return array{id: int, title: string, country: string, countryIsoCode: string, sector: string, instrumentSought: ?string, amountSought: float, pipelineStage: string, taxonomyClass: ?string, promoter: string, updatedAt: string}
+     * @return array{id: int, title: string, description: string, country: string, countryIsoCode: string, sector: string, instrumentSought: ?string, amountSought: float, pipelineStage: string, taxonomyClass: ?string, promoter: string, updatedAt: string}
      */
     public static function toArray(Project $project): array
     {
         return [
             'id' => $project->getId(),
             'title' => $project->getTitle(),
+            // C3.5 : requis côté front pour appeler POST /api/greenwashing/check
+            // (le seul champ de texte libre disponible sur ce projet) -
+            // jamais exposé avant faute d'un consommateur qui en avait besoin.
+            'description' => $project->getDescription(),
             'country' => $project->getCountry()->getName(),
             'countryIsoCode' => $project->getCountry()->getIsoCode(),
             'sector' => $project->getSector()->getName(),
