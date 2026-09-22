@@ -4,9 +4,20 @@ import { useI18n } from "../providers/I18nProvider";
 import NevCard from "../components/ui/NevCard";
 import NevSelect from "../components/ui/NevSelect";
 import NevDataState from "../components/ui/NevDataState";
+import NevBadge from "../components/ui/NevBadge";
 import ProjectDetailModal from "../components/ProjectDetailModal";
 import { formatUsd } from "../data/analyticsConstants";
 import { BuildingIcon } from "../components/ui/icons";
+
+// C2.7 : mêmes 4 classes que ai/gemini_client.py::TAXONOMY_CLASSES -
+// tenues manuellement en synchronisation, comme STAGES ci-dessous l'est
+// déjà avec ProjectPipelineStage côté backend.
+const TAXONOMY_LABELS = {
+  mitigation: "Atténuation",
+  adaptation: "Adaptation",
+  both: "Atténuation + adaptation",
+  not_relevant: "Non pertinent",
+};
 
 // C2.3: ProjectPipelineStage's own 6 cases, in the cycle-of-life order the
 // entity's docblock describes - "Rejected" can be reached from any earlier
@@ -41,6 +52,7 @@ export default function ProjectPipelinePage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
   const [sectorFilter, setSectorFilter] = useState("");
+  const [taxonomyFilter, setTaxonomyFilter] = useState("");
   const [draggedId, setDraggedId] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
 
@@ -71,8 +83,13 @@ export default function ProjectPipelinePage() {
 
   const filtered = useMemo(
     () =>
-      projects.filter((project) => ("" === countryFilter || project.country === countryFilter) && ("" === sectorFilter || project.sector === sectorFilter)),
-    [projects, countryFilter, sectorFilter]
+      projects.filter(
+        (project) =>
+          ("" === countryFilter || project.country === countryFilter) &&
+          ("" === sectorFilter || project.sector === sectorFilter) &&
+          ("" === taxonomyFilter || project.taxonomyClass === taxonomyFilter)
+      ),
+    [projects, countryFilter, sectorFilter, taxonomyFilter]
   );
 
   async function moveProject(id, newStage) {
@@ -132,6 +149,14 @@ export default function ProjectPipelinePage() {
               </option>
             ))}
           </NevSelect>
+          <NevSelect id="filter-taxonomy" label={t("projectPipeline.filterTaxonomy", "Classe taxonomie")} value={taxonomyFilter} onChange={(event) => setTaxonomyFilter(event.target.value)} wrapperClassName="min-w-[200px]">
+            <option value="">{t("projectPipeline.allTaxonomies", "Toutes les classes")}</option>
+            {Object.entries(TAXONOMY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </NevSelect>
         </NevCard>
 
         <NevDataState state={status} loadingText={t("hero.loading", "Chargement…")} errorText={errorMessage} onRetry={loadProjects}>
@@ -171,6 +196,11 @@ export default function ProjectPipelinePage() {
                         {project.country} · {project.sector}
                       </p>
                       <p className="mt-1 text-xs font-semibold text-primary-dark">{formatUsd(project.amountSought)}</p>
+                      {project.taxonomyClass && (
+                        <NevBadge tone="info" className="mt-2">
+                          {TAXONOMY_LABELS[project.taxonomyClass] || project.taxonomyClass}
+                        </NevBadge>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -180,7 +210,14 @@ export default function ProjectPipelinePage() {
         </NevDataState>
       </div>
 
-      <ProjectDetailModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+      <ProjectDetailModal
+        project={selectedProject}
+        onClose={() => setSelectedProject(null)}
+        onProjectUpdated={(updated) => {
+          setProjects((prev) => prev.map((candidate) => (candidate.id === updated.id ? updated : candidate)));
+          setSelectedProject(updated);
+        }}
+      />
     </>
   );
 }

@@ -41,6 +41,10 @@ import { resolve } from "path";
  * card links to instruments.html, SourcesPage links to opportunities.html.
  * C2.3: project-pipeline.html - same "not in the main nav" reasoning,
  * reached via a contextual link from opportunities.html.
+ * C2.5/C2.6/C2.8: impact-calculator.html, country-profile.html - same
+ * "not in the main nav" reasoning, reached via contextual links (the
+ * project detail modal's "Estimer l'impact" link, visualizations.html's
+ * country map section).
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -69,6 +73,8 @@ export default defineConfig({
         instruments: resolve(__dirname, "instruments.html"),
         opportunities: resolve(__dirname, "opportunities.html"),
         "project-pipeline": resolve(__dirname, "project-pipeline.html"),
+        "impact-calculator": resolve(__dirname, "impact-calculator.html"),
+        "country-profile": resolve(__dirname, "country-profile.html"),
       },
     },
   },

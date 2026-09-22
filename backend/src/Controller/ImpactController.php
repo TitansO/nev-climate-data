@@ -29,6 +29,33 @@ final class ImpactController extends AbstractController
     ) {
     }
 
+    #[Route('/api/sectors', name: 'api_sectors_list', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Liste les secteurs (référentiel) - notamment pour peupler le sélecteur du calculateur d\'impact',
+        tags: ['Impact'],
+        security: [],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Secteurs triés par nom',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'data', type: 'array', items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: 'id', type: 'integer'),
+                            new OA\Property(property: 'name', type: 'string'),
+                        ]
+                    )),
+                ])
+            ),
+        ]
+    )]
+    public function sectors(): JsonResponse
+    {
+        $sectors = $this->sectorRepository->findBy([], ['name' => 'ASC']);
+
+        return $this->json(['data' => array_map(static fn (Sector $sector) => ['id' => $sector->getId(), 'name' => $sector->getName()], $sectors)]);
+    }
+
     #[Route('/api/impact/estimate', name: 'api_impact_estimate', methods: ['POST'])]
     #[OA\Post(
         summary: 'Estime l\'impact d\'un montant investi dans un secteur (tCO2/an, MW, bénéficiaires)',

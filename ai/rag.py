@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import hashlib
 
-from ai import db, gemini_client
+from ai import db, gemini_client, local_embeddings
 
 # ~1500 characters keeps a chunk well inside typical embedding input
 # limits while staying large enough to carry real context (a paragraph or
@@ -68,7 +68,7 @@ def upsert_chunk(content: str, source_ref: str) -> bool:
             if _already_indexed(cursor, content_hash):
                 return False
 
-        embedding = gemini_client.embed(content)
+        embedding = local_embeddings.embed(content)
         embedding_literal = "[" + ",".join(str(v) for v in embedding) + "]"
 
         with connection.cursor() as cursor:
@@ -95,7 +95,7 @@ def retrieve(question: str, top_k: int = 5) -> list[tuple[str, str]]:
     fast - an approximate index would trade correctness for a speedup
     this corpus size doesn't need yet.
     """
-    query_embedding = gemini_client.embed(question)
+    query_embedding = local_embeddings.embed(question)
     embedding_literal = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
     connection = db.get_connection()

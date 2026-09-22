@@ -9,6 +9,7 @@ import SectorDonutChart from "../components/charts/SectorDonutChart";
 import FinancingBarChart from "../components/charts/FinancingBarChart";
 import FinancingTable from "../components/charts/FinancingTable";
 import GenericTrendChart from "../components/charts/GenericTrendChart";
+import MovingAverageChart from "../components/charts/MovingAverageChart";
 import SankeyFlow from "../components/charts/SankeyFlow";
 import FilterableCountryMap from "../components/charts/FilterableCountryMap";
 import { formatCompactUsd, formatUsd, formatCount } from "../data/analyticsConstants";
@@ -121,10 +122,54 @@ function useCo2Reduction() {
   return { value, note };
 }
 
+/**
+ * "Projets actifs" - GET /api/projects exige un JWT (Project est une donnée
+ * de travail interne, jamais PUBLIC_ACCESS, voir ProjectController), donc
+ * cet indicateur reste "-" pour un visiteur non connecté plutôt que
+ * d'échouer silencieusement en 401. "Actif" = tout stade sauf "rejected"
+ * (un projet "financed" reste un succès du pipeline, pas un stade mort).
+ */
+function useActiveProjectsCount() {
+  const { API_BASE_URL, authorizedFetch, isAuthenticated } = useAuth();
+  const [state, setState] = useState("loading");
+  const [count, setCount] = useState(null);
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setState("unauthenticated");
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await authorizedFetch(API_BASE_URL + "/api/projects", { headers: { Accept: "application/json" } });
+        if (!response.ok) {
+          throw new Error("http " + response.status);
+        }
+        const body = await response.json();
+        if (!cancelled) {
+          setCount(body.data.filter((project) => "rejected" !== project.pipelineStage).length);
+          setState("success");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setState("error");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [API_BASE_URL, authorizedFetch, isAuthenticated]);
+
+  return { state, count };
+}
+
 export default function VisualizationsPage() {
   const { t } = useI18n();
   const heroKpis = useKpiHeroStats();
   const co2 = useCo2Reduction();
+  const activeProjects = useActiveProjectsCount();
 
   const financing = useAnalyticsFetch("/api/analytics/financing-trends", { emptyWhen: (body) => 0 === body.data.length });
   const sectors = useAnalyticsFetch("/api/analytics/sector-distribution", { emptyWhen: (body) => 0 === body.data.length });
@@ -214,6 +259,11 @@ export default function VisualizationsPage() {
               <ChartStateBox state={sectors.state} message={sectors.message} onRetry={sectors.reload}>
                 {sectors.data && <SectorDonutChart rows={sectors.data.data} />}
               </ChartStateBox>
+              {/* C2.5: this platform's other secteur-scoped tool - estimating
+                  what a given secteur/amount could translate to in impact. */}
+              <a href="impact-calculator.html" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-dark hover:underline">
+                {t("vizPage.seeImpactCalculator", "Estimer l'impact d'un investissement par secteur →")}
+              </a>
             </NevChartCard>
           </div>
         </section>
@@ -252,13 +302,19 @@ export default function VisualizationsPage() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-body-color">
                   {t("vizPage.movingAverage", "Moyenne mobile (3 ans, total tous groupes confondus)")}
                 </p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-dark-4">
+                <MovingAverageChart rows={trends.data.movingAverageTotal} />
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-xs font-semibold text-primary-dark hover:underline">
+                    {t("vizPage.movingAverageDetail", "Voir les valeurs exactes")}
+                  </summary>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-dark-4">
                   {trends.data.movingAverageTotal.map((point) => (
                     <span key={point.period}>
                       {point.period} : <strong className="text-dark">{formatUsd(point.value)}</strong>
                     </span>
                   ))}
                 </div>
+                </details>
               </div>
             )}
           </NevChartCard>
@@ -277,6 +333,11 @@ export default function VisualizationsPage() {
         <section className="mb-16">
           <NevChartCard title={t("vizPage.byCountry", "Financement par pays (Afrique)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
             <FilterableCountryMap availableYears={availableYears} />
+            {/* C2.6/C2.8: this map shows funding volume - the country profile
+                page complements it with alignment/risk scores per country. */}
+            <a href="country-profile.html" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-dark hover:underline">
+              {t("vizPage.seeCountryProfile", "Consulter l'alignement CDN et le risque d'investissement d'un pays →")}
+            </a>
           </NevChartCard>
         </section>
 
@@ -292,13 +353,29 @@ export default function VisualizationsPage() {
               liveBadge={mercureKpis.connected && null !== co2ReductionMt}
               liveLabel="Direct"
             />
-            <NevKpi label={t("vizPage.activeProjects", "Projets actifs")} state="empty" context={t("vizPage.comingIndicator", "Indicateur à venir (Volet B)")} />
-            <NevKpi label={t("vizPage.validatedCountries", "Pays avec données validées")} state="empty" context={t("vizPage.comingIndicator", "Indicateur à venir (Volet B)")} />
+            <NevKpi
+              label={t("vizPage.activeProjects", "Projets actifs")}
+              value={"success" === activeProjects.state ? formatCount(activeProjects.count) : undefined}
+              state={"success" === activeProjects.state ? "success" : "loading" === activeProjects.state ? "loading" : "empty"}
+              context={
+                "unauthenticated" === activeProjects.state
+                  ? t("vizPage.activeProjectsLoginRequired", "Connectez-vous pour voir cet indicateur")
+                  : "error" === activeProjects.state
+                    ? t("vizPage.activeProjectsError", "Indicateur indisponible")
+                    : t("vizPage.activeProjectsContext", "Stades hors « rejeté »")
+              }
+            />
+            <NevKpi
+              label={t("vizPage.validatedCountries", "Pays avec données validées")}
+              value={heroKpis.countries}
+              state="success"
+              context={t("vizPage.validatedCountriesContext", "Pays avec au moins un financement validé")}
+            />
           </div>
           <p className="mt-6 text-xs text-dark-5">
             {t(
               "vizPage.disclaimer",
-              'Bandeau d\'indicateurs, répartition par type/secteur/pays et financement par année : données réelles (GET /api/analytics/*, A2.5), mises en cache 15 minutes. "Projets actifs" et "Pays avec données validées" : hors périmètre A2.5/A2.6, restent en indicateur à venir.'
+              'Bandeau d\'indicateurs, répartition par type/secteur/pays et financement par année : données réelles (GET /api/analytics/*, A2.5), mises en cache 15 minutes. "Projets actifs" (GET /api/projects, C2.3) nécessite une session connectée.'
             )}
           </p>
         </section>

@@ -22,6 +22,12 @@ export default function useAnalyticsFetch(path, { emptyWhen } = {}) {
   const reload = useCallback(() => setReloadToken((t) => t + 1), []);
 
   useEffect(() => {
+    if (!path) {
+      setState("loading");
+      setData(null);
+      return undefined;
+    }
+
     let cancelled = false;
     setState("loading");
 

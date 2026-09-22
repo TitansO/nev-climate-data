@@ -50,7 +50,7 @@ def test_upsert_chunk_embeds_and_inserts_with_a_stable_hash():
     mock_connection = MagicMock()
     mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
 
-    with patch("ai.rag.gemini_client.embed", return_value=[0.1, 0.2, 0.3]) as mock_embed, \
+    with patch("ai.rag.local_embeddings.embed", return_value=[0.1, 0.2, 0.3]) as mock_embed, \
          patch("ai.rag.db.get_connection", return_value=mock_connection):
         inserted = rag.upsert_chunk("Un contenu.", "docs/example.md")
 
@@ -71,24 +71,25 @@ def test_upsert_chunk_reports_no_insert_when_conflict_is_hit():
     mock_connection = MagicMock()
     mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
 
-    with patch("ai.rag.gemini_client.embed", return_value=[0.1]), \
+    with patch("ai.rag.local_embeddings.embed", return_value=[0.1]), \
          patch("ai.rag.db.get_connection", return_value=mock_connection):
         inserted = rag.upsert_chunk("Contenu deja indexe.", "docs/example.md")
 
     assert inserted is False
 
 
-def test_upsert_chunk_skips_the_gemini_call_entirely_when_already_indexed():
+def test_upsert_chunk_skips_the_embedding_call_entirely_when_already_indexed():
     # Real gap found during F5/F6 live verification: re-embedding
-    # already-indexed content on every re-run wastes a real, rate-limited
-    # Gemini call for nothing - the existence check must happen BEFORE
+    # already-indexed content on every re-run wastes a real embedding call
+    # for nothing (was rate-limited under Gemini, is wasted local CPU time
+    # under local_embeddings) - the existence check must happen BEFORE
     # embed(), not be left to ON CONFLICT DO NOTHING alone.
     mock_cursor = MagicMock()
     mock_cursor.fetchone.return_value = (1,)  # already indexed
     mock_connection = MagicMock()
     mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
 
-    with patch("ai.rag.gemini_client.embed") as mock_embed, \
+    with patch("ai.rag.local_embeddings.embed") as mock_embed, \
          patch("ai.rag.db.get_connection", return_value=mock_connection):
         inserted = rag.upsert_chunk("Contenu deja indexe.", "docs/example.md")
 

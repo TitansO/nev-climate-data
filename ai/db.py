@@ -26,9 +26,11 @@ def get_connection():
     return psycopg2.connect(os.environ["AI_DATABASE_URL"])
 
 
-# text-embedding-004 (see gemini_client.EMBEDDING_MODEL) - 768 dimensions,
-# fixed by the model itself.
-EMBEDDING_DIMENSIONS = 768
+# local_embeddings.MODEL_NAME ("all-MiniLM-L6-v2") - 384 dimensions, fixed
+# by the model itself. Was 768 (Gemini's gemini-embedding-001) until the
+# free-tier embedding quota proved too tight for real RAG traffic - see
+# local_embeddings.py.
+EMBEDDING_DIMENSIONS = 384
 
 
 def ensure_schema() -> None:

@@ -32,7 +32,7 @@ export default function NevModal({ open, onClose, titleId, maxWidth = "max-w-sm"
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-dark/40 px-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={"w-full " + maxWidth + " rounded-lg border border-stroke bg-white p-6 shadow-card focus:outline-none"}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={"max-h-[90vh] w-full overflow-y-auto " + maxWidth + " rounded-lg border border-stroke bg-white p-6 shadow-card focus:outline-none"}>
         {children}
       </div>
     </div>

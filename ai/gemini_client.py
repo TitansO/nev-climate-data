@@ -16,16 +16,6 @@ import httpx
 from google import genai
 from google.genai import errors, types
 
-from ai.db import EMBEDDING_DIMENSIONS
-
-# Fixed embedding dimension (see ai/db.py's EMBEDDING_DIMENSIONS) - this
-# specific model is not swappable without a migration of rag_chunk's
-# `embedding` column. "text-embedding-004" (the model this constant
-# originally assumed) returns 404 NOT_FOUND against the live API as of
-# this service's F5/F6 build - confirmed live via client.models.list(),
-# which lists only "gemini-embedding-001"/"-2"/"-2-preview" as
-# embedContent-capable. The stable (non-preview) one is used here.
-EMBEDDING_MODEL = "models/gemini-embedding-001"
 # Same model already pinned for PDF extraction (B1.5) - see
 # pipeline/common/pdf_extraction.py for why "gemini-flash-latest"/
 # "gemini-2.5-flash" were rejected. Reused here for consistency; if this
@@ -73,25 +63,6 @@ def _with_retry(call):
             if attempt < MAX_RETRIES - 1:
                 time.sleep(RETRY_DELAY_SECONDS)
     raise RuntimeError(f"Gemini call failed after {MAX_RETRIES} attempts") from last_error
-
-
-def embed(text: str) -> list[float]:
-    """Returns the embedding vector for `text` - used both at ingestion
-    time (ai/ingest.py) and at query time (ai/rag.py). Requests exactly
-    ai.db.EMBEDDING_DIMENSIONS dimensions explicitly - gemini-embedding-001
-    defaults to a larger vector (3072) otherwise, which would not match
-    the fixed-width `VECTOR(768)` column in ai/db.py.
-    """
-    def call() -> list[float]:
-        client = _client()
-        response = client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=text,
-            config=types.EmbedContentConfig(output_dimensionality=EMBEDDING_DIMENSIONS),
-        )
-        return list(response.embeddings[0].values)
-
-    return _with_retry(call)
 
 
 def ask(question: str, context_chunks: list[str]) -> str:
