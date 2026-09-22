@@ -671,6 +671,43 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * C3.1 (Gap Detector, by=sector) : total réel reçu par un secteur,
+     * tous pays confondus - même raisonnement que
+     * findTotalReceivedForCountry(), à l'échelle du secteur.
+     */
+    public function findTotalReceivedForSector(int $sectorId): ?string
+    {
+        $result = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.sector = :sectorId')
+            ->setParameter('sectorId', $sectorId))
+            ->getQuery()
+            ->getSingleResult();
+
+        return $result['total'] ?? null;
+    }
+
+    /**
+     * C3.1 (Gap Detector, by=country-sector) : total réel reçu pour une
+     * paire (pays, secteur) précise.
+     */
+    public function findTotalReceivedForCountryAndSector(int $countryId, int $sectorId): ?string
+    {
+        $result = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true')
+            ->andWhere('funding.country = :countryId')
+            ->andWhere('funding.sector = :sectorId')
+            ->setParameter('countryId', $countryId)
+            ->setParameter('sectorId', $sectorId))
+            ->getQuery()
+            ->getSingleResult();
+
+        return $result['total'] ?? null;
+    }
+
+    /**
      * C2.4 (instrument réaliste pour le pays) : ce pays a-t-il déjà reçu un
      * financement réel avec cet instrument précis ? Distinct de
      * findInstrumentCountryCrossTab() (C1.7, tout le crosstab
@@ -757,6 +794,44 @@ class FundingRepository extends ServiceEntityRepository
             ->andWhere('funding.sector = :sectorId')
             ->setParameter('sectorId', $sectorId))
             ->groupBy('funding.instrument')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * C3.2 (Local Finance Tracker) : un pays par ligne, `totalUsd` (tout
+     * financement validé confondu) et `estimatedLocalUsd` (uniquement les
+     * lignes `instrument = grant` ET `amount <= $smallAmountThresholdUsd`
+     * - le seul proxy disponible dans ce schéma, voir
+     * App\Service\LocalFinanceService pour pourquoi le proxy par mots-clés
+     * prévu au plan n'est pas réalisable ici). `$countryId` optionnel
+     * restreint à un seul pays plutôt que les 54.
+     *
+     * @return list<array{isoCode: string, countryName: string, totalUsd: string, estimatedLocalUsd: string}>
+     */
+    public function findLocalFinanceAggregate(float $smallAmountThresholdUsd, ?int $countryId = null): array
+    {
+        $qb = $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select(
+                'country.isoCode AS isoCode',
+                'country.name AS countryName',
+                'SUM(funding.amount) AS totalUsd',
+                'SUM(CASE WHEN funding.instrument = :grant AND funding.amount <= :threshold THEN funding.amount ELSE 0 END) AS estimatedLocalUsd'
+            )
+            ->join('funding.country', 'country')
+            ->where('funding.isCurrent = true')
+            ->setParameter('grant', FundingInstrument::Grant)
+            ->setParameter('threshold', $smallAmountThresholdUsd));
+
+        if (null !== $countryId) {
+            $qb->andWhere('country.id = :countryId')->setParameter('countryId', $countryId);
+        }
+
+        return $qb
+            ->groupBy('country.id')
+            ->addGroupBy('country.isoCode')
+            ->addGroupBy('country.name')
+            ->orderBy('totalUsd', 'DESC')
             ->getQuery()
             ->getResult();
     }

@@ -63,4 +63,23 @@ class CountryRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * C3.3 (Equity Score) : le sous-ensemble de pays disposant à la fois
+     * d'une population et d'un indice de vulnérabilité (voir
+     * CountryEquityDataFixtures) - seuls pays pour lesquels
+     * EquityScoreService peut calculer un score complet, et seule
+     * population comparée pour la moyenne de la "pool" utilisée par
+     * PerCapitaVsVulnerabilityIndicator/FundingPerTonneInvertedIndicator.
+     *
+     * @return list<Country>
+     */
+    public function findAllWithPopulationAndVulnerability(): array
+    {
+        return $this->createQueryBuilder('country')
+            ->andWhere('country.population IS NOT NULL')
+            ->andWhere('country.vulnerabilityIndex IS NOT NULL')
+            ->getQuery()
+            ->getResult();
+    }
 }

@@ -8,7 +8,10 @@ use App\Dto\CountryDistributionCriteria;
 use App\Dto\FundingFlowCriteria;
 use App\Entity\Enum\FinancingTrendsGroupBy;
 use App\Service\AnalyticsService;
+use App\Service\EquityScoreService;
 use App\Service\FundingFlowService;
+use App\Service\GapDetectionService;
+use App\Service\LocalFinanceService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -34,6 +37,9 @@ final class AnalyticsController extends AbstractController
     public function __construct(
         private readonly AnalyticsService $analyticsService,
         private readonly FundingFlowService $fundingFlowService,
+        private readonly GapDetectionService $gapDetectionService,
+        private readonly LocalFinanceService $localFinanceService,
+        private readonly EquityScoreService $equityScoreService,
     ) {
     }
 
@@ -334,5 +340,108 @@ final class AnalyticsController extends AbstractController
     public function dataFreshness(): JsonResponse
     {
         return $this->json($this->analyticsService->getDataFreshness());
+    }
+
+    #[Route('/api/analytics/gaps', name: 'api_analytics_gaps', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'C3.1 : écarts entre besoin CDN déclaré et financement réel reçu, par pays/secteur (mis en cache 15 min)',
+        description: 'gap = besoin CDN déclaré - reçu réel (positif = sous-financé). Restreint strictement aux couples portant une cible CDN chiffrée (App\\Entity\\NdcTarget::$declaredNeedUsd non NULL) - jamais un besoin inventé. "by=sector"/"by=country-sector" ne renvoient un résultat que pour une cible CDN sectorielle (aucune connue à ce jour, voir App\\Service\\GapDetectionService). Seuils d\'alerte (severity) : "critical" sous 25% de couverture, "moderate" sous 75%, "low" au-delà (y compris un besoin déjà couvert).',
+        tags: ['Analytics'],
+        security: [],
+        parameters: [
+            new OA\Parameter(name: 'by', in: 'query', required: false, description: 'Angle de regroupement (défaut : country)', schema: new OA\Schema(type: 'string', enum: ['country', 'sector', 'country-sector'], default: 'country')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Écarts classés du plus grand au plus petit',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'data', type: 'array', items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: 'country', type: 'string', nullable: true, example: 'Nigeria'),
+                            new OA\Property(property: 'countryIsoCode', type: 'string', nullable: true, example: 'NGA'),
+                            new OA\Property(property: 'sector', type: 'string', nullable: true),
+                            new OA\Property(property: 'declaredNeedUsd', type: 'number'),
+                            new OA\Property(property: 'receivedUsd', type: 'number'),
+                            new OA\Property(property: 'gapUsd', type: 'number'),
+                            new OA\Property(property: 'coverageRatio', type: 'number', format: 'float', example: 0.42),
+                            new OA\Property(property: 'severity', type: 'string', enum: ['critical', 'moderate', 'low']),
+                        ]
+                    )),
+                ])
+            ),
+            new OA\Response(response: 400, description: '"by" hors de l\'énumération connue'),
+        ]
+    )]
+    public function gaps(Request $request): JsonResponse
+    {
+        $by = $request->query->get('by', 'country');
+
+        return $this->json(['data' => $this->gapDetectionService->getGaps($by)]);
+    }
+
+    #[Route('/api/analytics/local-finance', name: 'api_analytics_local_finance', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'C3.2 : part estimée des financements atteignant le niveau local, par pays (mis en cache 15 min)',
+        description: 'Estimation par proxy (App\\Service\\LocalFinanceService) : part des financements validés dont l\'instrument est un don (grant) ET le montant est inférieur à 1 000 000 USD - le seul signal disponible dans ce schéma (`Funding` est une ligne agrégée sans texte descriptif par activité, le proxy par mots-clés prévu au plan n\'est pas réalisable ici). `methodology` rappelle cette limite dans chaque réponse.',
+        tags: ['Analytics'],
+        security: [],
+        parameters: [
+            new OA\Parameter(name: 'country', in: 'query', required: false, description: 'Code ISO-3 du pays (défaut : tous les pays)', schema: new OA\Schema(type: 'string', example: 'SEN')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Part locale estimée par pays',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'data', type: 'array', items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: 'country', type: 'string', example: 'Senegal'),
+                            new OA\Property(property: 'countryIsoCode', type: 'string', example: 'SEN'),
+                            new OA\Property(property: 'totalUsd', type: 'number'),
+                            new OA\Property(property: 'estimatedLocalUsd', type: 'number'),
+                            new OA\Property(property: 'localSharePercent', type: 'number', format: 'float', example: 12.4),
+                        ]
+                    )),
+                    new OA\Property(property: 'methodology', type: 'string'),
+                ])
+            ),
+            new OA\Response(response: 400, description: '"country" ne correspond à aucun code ISO connu'),
+        ]
+    )]
+    public function localFinance(Request $request): JsonResponse
+    {
+        $country = $request->query->get('country');
+
+        return $this->json($this->localFinanceService->getLocalFinance(null === $country || '' === $country ? null : $country));
+    }
+
+    #[Route('/api/analytics/equity', name: 'api_analytics_equity', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'C3.3 : classement d\'équité de la répartition des financements + indice de concentration (Gini)',
+        description: 'Classement (App\\Service\\EquityScoreService) restreint aux pays disposant d\'une population et d\'un indice de vulnérabilité (App\\Entity\\Country, voir CountryEquityDataFixtures - ~12/54 pays NEV). `giniIndex` (0 = répartition parfaitement égale entre tous les pays financés, 1 = un seul pays concentre tout) est calculé séparément, sur TOUS les pays financés, pas seulement ceux classés.',
+        tags: ['Analytics'],
+        security: [],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Classement + indice de Gini',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ranking', type: 'array', items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: 'country', type: 'string', example: 'Rwanda'),
+                            new OA\Property(property: 'countryIsoCode', type: 'string', example: 'RWA'),
+                            new OA\Property(property: 'value', type: 'number', format: 'float', example: 58.3),
+                            new OA\Property(property: 'grade', type: 'string', enum: ['A', 'B', 'C', 'D', 'E']),
+                        ]
+                    )),
+                    new OA\Property(property: 'giniIndex', type: 'number', format: 'float', example: 0.42),
+                ])
+            ),
+        ]
+    )]
+    public function equity(): JsonResponse
+    {
+        return $this->json($this->equityScoreService->getRanking());
     }
 }

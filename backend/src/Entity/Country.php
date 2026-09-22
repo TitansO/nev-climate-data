@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Repository\CountryRepository;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CountryRepository::class)]
@@ -32,6 +33,21 @@ class Country
     // CountryFixtures has one.
     #[ORM\Column(length: 3, nullable: true)]
     private ?string $currency = null;
+
+    // C3.3 (Equity Score) : population totale la plus récente connue.
+    // Nullable et volontairement non renseignée pour la plupart des 54
+    // pays NEV - voir CountryEquityDataFixtures pour le sous-ensemble
+    // couvert et l'avertissement sur la fiabilité des chiffres.
+    #[ORM\Column(type: Types::INTEGER, nullable: true)]
+    private ?int $population = null;
+
+    // C3.3 (Equity Score) : indice de vulnérabilité climatique normalisé
+    // 0.0 (le moins vulnérable) à 1.0 (le plus vulnérable), inspiré de
+    // l'indice ND-GAIN (Notre Dame Global Adaptation Initiative) - jamais
+    // une extraction vérifiée ligne à ligne du registre ND-GAIN officiel,
+    // voir CountryEquityDataFixtures.
+    #[ORM\Column(type: Types::FLOAT, nullable: true)]
+    private ?float $vulnerabilityIndex = null;
 
     public function __construct(string $name, string $isoCode, string $region, ?string $currency = null)
     {
@@ -90,6 +106,30 @@ class Country
     public function setCurrency(?string $currency): static
     {
         $this->currency = $currency;
+
+        return $this;
+    }
+
+    public function getPopulation(): ?int
+    {
+        return $this->population;
+    }
+
+    public function setPopulation(?int $population): static
+    {
+        $this->population = $population;
+
+        return $this;
+    }
+
+    public function getVulnerabilityIndex(): ?float
+    {
+        return $this->vulnerabilityIndex;
+    }
+
+    public function setVulnerabilityIndex(?float $vulnerabilityIndex): static
+    {
+        $this->vulnerabilityIndex = $vulnerabilityIndex;
 
         return $this;
     }

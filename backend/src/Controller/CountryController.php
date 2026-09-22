@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Repository\CountryRepository;
+use App\Service\EquityScoreService;
 use App\Service\InvestmentRiskScoreService;
 use App\Service\NdcAlignmentScoreService;
 use App\Service\Scoring\ScoreService;
@@ -24,6 +25,7 @@ final class CountryController extends AbstractController
         private readonly CountryRepository $countryRepository,
         private readonly NdcAlignmentScoreService $ndcAlignmentScoreService,
         private readonly InvestmentRiskScoreService $investmentRiskScoreService,
+        private readonly EquityScoreService $equityScoreService,
     ) {
     }
 
@@ -94,5 +96,32 @@ final class CountryController extends AbstractController
         }
 
         return $this->json(ScoreService::toArray($this->investmentRiskScoreService->scoreForCountry($country)));
+    }
+
+    #[Route('/api/countries/{iso}/scores/equity', name: 'api_countries_equity_score', methods: ['GET'], requirements: ['iso' => '[A-Za-z]{3}'])]
+    #[OA\Get(
+        summary: 'C3.3 : score d\'équité du pays (0-100, grade A-E)',
+        description: '3 indicateurs pondérés transparents (financement/habitant vs vulnérabilité 0,4 ; part reçue vs besoin CDN 0,3 ; financement/tCO2 inversé 0,3, voir App\\Service\\Scoring\\Equity\\). `available=false` (jamais un score fabriqué) quand ce pays n\'a ni population ni indice de vulnérabilité chiffrés (~12/54 pays NEV, voir CountryEquityDataFixtures).',
+        tags: ['Countries'],
+        security: [],
+        parameters: [new OA\Parameter(name: 'iso', in: 'path', required: true, description: 'Code ISO-3 du pays', schema: new OA\Schema(type: 'string', example: 'RWA'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Score d\'équité, ou indisponibilité explicite'),
+            new OA\Response(response: 404, description: 'Code ISO inconnu'),
+        ]
+    )]
+    public function equityScore(string $iso): JsonResponse
+    {
+        $country = $this->countryRepository->findOneByIsoCode($iso);
+        if (null === $country) {
+            throw $this->createNotFoundException('Country not found.');
+        }
+
+        $score = $this->equityScoreService->scoreFor($country);
+        if (null === $score) {
+            return $this->json(['available' => false]);
+        }
+
+        return $this->json(array_merge(['available' => true], ScoreService::toArray($score)));
     }
 }

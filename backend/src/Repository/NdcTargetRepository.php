@@ -22,4 +22,26 @@ class NdcTargetRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['country' => $countryId]);
     }
+
+    /**
+     * C3.1 (Gap Detector) : uniquement les cibles CDN chiffrées
+     * (`declaredNeedUsd` non NULL) - un besoin non déclaré publiquement
+     * n'a rien à comparer, jamais traité comme un besoin nul. `sector`
+     * distingue une cible économie entière (NULL, comparée au total reçu
+     * par pays) d'une cible sectorielle (comparée au reçu de ce
+     * secteur précis).
+     *
+     * @return list<NdcTarget>
+     */
+    public function findAllWithDeclaredNeed(): array
+    {
+        return $this->createQueryBuilder('target')
+            ->addSelect('country')
+            ->addSelect('sector')
+            ->join('target.country', 'country')
+            ->leftJoin('target.sector', 'sector')
+            ->andWhere('target.declaredNeedUsd IS NOT NULL')
+            ->getQuery()
+            ->getResult();
+    }
 }
