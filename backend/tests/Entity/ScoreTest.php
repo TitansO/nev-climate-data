@@ -49,4 +49,22 @@ final class ScoreTest extends TestCase
         self::assertSame(1.0, $score->getBreakdown()[0]['value']);
         self::assertGreaterThan($firstComputedAt, $score->getComputedAt());
     }
+
+    public function testPreviousValueIsNullUntilTheFirstRefresh(): void
+    {
+        $score = $this->makeScore();
+
+        self::assertNull($score->getPreviousValue());
+    }
+
+    public function testRefreshCapturesTheValueThatWasJustReplaced(): void
+    {
+        $score = $this->makeScore();
+
+        $score->refresh(90.0, 'A', []);
+        self::assertSame(67.5, $score->getPreviousValue());
+
+        $score->refresh(40.0, 'D', []);
+        self::assertSame(90.0, $score->getPreviousValue());
+    }
 }

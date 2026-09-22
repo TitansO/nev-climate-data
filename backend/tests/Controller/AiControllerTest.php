@@ -225,4 +225,138 @@ final class AiControllerTest extends WebTestCase
 
         self::assertSame(429, $client->getResponse()->getStatusCode());
     }
+
+    /**
+     * C3.5 : POST /api/greenwashing/check - même patron que /api/ai/ask
+     * (AiController::checkGreenwashing() -> App\Service\GreenwashingService,
+     * lui-même un simple appel HTTP vers `ai/` mocké ici).
+     */
+    private function greenwashingPayload(array $overrides = []): string
+    {
+        return json_encode(array_merge([
+            'title' => 'Projet solaire communautaire',
+            'description' => 'Installation de panneaux solaires pour 12 villages.',
+            'sector' => 'Renewable Energy',
+            'amountUsd' => 500000,
+        ], $overrides));
+    }
+
+    public function testCheckGreenwashingWithoutAuthenticationFails(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/api/greenwashing/check', server: ['CONTENT_TYPE' => 'application/json'], content: $this->greenwashingPayload());
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testCheckGreenwashingForwardsTheRequestAndReturnsTheAiServiceResponse(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $user = $this->createUser();
+        $tokens = $this->loginAndGetTokens($client, $user);
+
+        $capturedRequests = [];
+        $mockClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedRequests) {
+            $capturedRequests[] = ['method' => $method, 'url' => $url, 'body' => $options['body']];
+
+            return new MockResponse(json_encode([
+                'available' => true,
+                'cached' => false,
+                'risk_level' => 'high',
+                'red_flags' => ['Montant disproportionné par rapport au descriptif'],
+                'reasoning' => 'Le montant demandé est très supérieur aux projets comparables de ce secteur.',
+            ]), ['http_code' => 200]);
+        });
+        $this->mockAiService($mockClient);
+
+        $client->request('POST', '/api/greenwashing/check', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: $this->greenwashingPayload());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $capturedRequests);
+        self::assertStringEndsWith('/ai/greenwashing', $capturedRequests[0]['url']);
+        $sentBody = json_decode($capturedRequests[0]['body'], true);
+        self::assertSame('Projet solaire communautaire', $sentBody['title']);
+        self::assertSame('Renewable Energy', $sentBody['sector']);
+        self::assertSame(500000.0, $sentBody['amount_usd']);
+
+        $body = json_decode($client->getResponse()->getContent(), true);
+        self::assertTrue($body['available']);
+        self::assertSame('high', $body['riskLevel']);
+        self::assertSame(['Montant disproportionné par rapport au descriptif'], $body['redFlags']);
+    }
+
+    public function testCheckGreenwashingRejectsAMissingTitle(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $user = $this->createUser();
+        $tokens = $this->loginAndGetTokens($client, $user);
+
+        $client->request('POST', '/api/greenwashing/check', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: $this->greenwashingPayload(['title' => '']));
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
+    }
+
+    public function testCheckGreenwashingRejectsAMissingAmount(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $user = $this->createUser();
+        $tokens = $this->loginAndGetTokens($client, $user);
+
+        $client->request('POST', '/api/greenwashing/check', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: $this->greenwashingPayload(['amountUsd' => null]));
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
+    }
+
+    public function testCheckGreenwashingReturns503WhenTheAiServiceIsUnreachable(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $user = $this->createUser();
+        $tokens = $this->loginAndGetTokens($client, $user);
+
+        $this->mockAiService(new MockHttpClient(fn () => new MockResponse('', ['error' => 'Connection refused'])));
+
+        $client->request('POST', '/api/greenwashing/check', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: $this->greenwashingPayload());
+
+        self::assertSame(503, $client->getResponse()->getStatusCode());
+    }
+
+    /**
+     * ExternalPartner's daily greenwashing-check quota is 30
+     * (config/packages/rate_limiter.yaml, "greenwashing_external_partner") -
+     * separate budget from ai_ask_external_partner, same reasoning as
+     * classify_external_partner.
+     */
+    public function testCheckGreenwashingQuotaIsEnforcedByRole(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $user = $this->createUser(UserRole::ExternalPartner);
+        $tokens = $this->loginAndGetTokens($client, $user);
+        $this->mockAiService(new MockHttpClient(fn () => new MockResponse(json_encode(['available' => true, 'cached' => false, 'risk_level' => 'low', 'red_flags' => [], 'reasoning' => 'ok']), ['http_code' => 200])));
+
+        for ($i = 0; $i < 30; ++$i) {
+            $client->request('POST', '/api/greenwashing/check', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: $this->greenwashingPayload(['title' => 'Projet numéro '.$i]));
+            self::assertResponseIsSuccessful();
+        }
+
+        $client->request('POST', '/api/greenwashing/check', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: $this->greenwashingPayload(['title' => 'Un projet de trop']));
+
+        self::assertSame(429, $client->getResponse()->getStatusCode());
+    }
+
+    public function testGreenwashingEndpointIsDocumentedInSwagger(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/api/doc.json');
+
+        self::assertResponseIsSuccessful();
+        $spec = json_decode($client->getResponse()->getContent(), true);
+        self::assertArrayHasKey('/api/greenwashing/check', $spec['paths']);
+    }
 }
