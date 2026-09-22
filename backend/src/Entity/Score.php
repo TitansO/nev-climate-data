@@ -18,8 +18,11 @@ use Doctrine\ORM\Mapping as ORM;
  *
  * Une seule ligne courante par (subjectType, subjectId, scoreType) - pas
  * d'historisation SCD2 comme `Funding`/`Emission` : un score est une
- * évaluation recalculée périodiquement (`app:scores:recompute`), pas un
- * flux de données sourcées à conserver version par version. `breakdown`
+ * évaluation recalculée à la demande, à chaque appel d'un endpoint de
+ * score (`ScoreService::compute()`, appelé par le service consommateur
+ * concerné - EquityScoreService, NdcAlignmentScoreService, etc. - jamais
+ * par un recalcul de masse planifié), pas un flux de données sourcées à
+ * conserver version par version. `breakdown`
  * (JSONB) rend chaque score auditable : le détail par indicateur
  * (poids, valeur normalisée, explication) plutôt qu'un simple nombre.
  */
