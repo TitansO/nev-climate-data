@@ -160,18 +160,18 @@ export default function IndexPage() {
           </div>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
             {[
-              { key: "domains.renewableEnergy", fallback: SECTOR_LABELS["Renewable Energy"], path: "M13 10V3L4 14h7v7l9-11h-7z" },
-              { key: "domains.sustainableTransport", fallback: SECTOR_LABELS["Sustainable Transport"], path: "M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" },
-              { key: "domains.agriculture", fallback: SECTOR_LABELS.Agriculture, path: "M12 22v-9m0 0c0-3-2-4-2-4s2-1 2-4m0 8c0-3 2-4 2-4s-2-1-2-4" },
-              { key: "domains.forestry", fallback: SECTOR_LABELS.Forestry, path: "M12 2L6 12h3l-4 7h5v3h4v-3h5l-4-7h3L12 2z" },
-              { key: "domains.adaptation", fallback: SECTOR_LABELS.Adaptation, path: "M9 12.75L11.25 15 15 9.75M12 3c-2.755 0-5.455.232-8.083.678-.533.09-.917.556-.917 1.096v1.044a12.02 12.02 0 004.5 9.372A12.03 12.03 0 0012 21.75a12.03 12.03 0 006.5-6.06 12.02 12.02 0 004.5-9.372V4.774c0-.54-.384-1.006-.917-1.096A48.32 48.32 0 0012 3z" },
+              { key: "domains.renewableEnergy", fallback: SECTOR_LABELS["Renewable Energy"], image: "assets/images/domains/renewable-energy.jpg" },
+              { key: "domains.sustainableTransport", fallback: SECTOR_LABELS["Sustainable Transport"], image: "assets/images/domains/sustainable-transport.jpg" },
+              { key: "domains.agriculture", fallback: SECTOR_LABELS.Agriculture, image: "assets/images/domains/agriculture.jpg" },
+              { key: "domains.forestry", fallback: SECTOR_LABELS.Forestry, image: "assets/images/domains/forestry.jpg" },
+              { key: "domains.adaptation", fallback: SECTOR_LABELS.Adaptation, image: "assets/images/domains/adaptation.jpg" },
             ].map((domain) => (
               <NevCard key={domain.key} padding="md" interactive className="group text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-white">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-                    <path strokeLinecap="round" strokeLinejoin="round" d={domain.path} />
-                  </svg>
-                </div>
+                <img
+                  src={domain.image}
+                  alt={t(domain.key, domain.fallback)}
+                  className="mb-4 aspect-square w-full rounded-lg object-cover transition group-hover:opacity-90"
+                />
                 <h3 className="text-base font-semibold text-dark">{t(domain.key, domain.fallback)}</h3>
               </NevCard>
             ))}
@@ -189,6 +189,11 @@ export default function IndexPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <NevCard padding="md" interactive>
+              <img
+                src="assets/images/categories/funding.jpg"
+                alt={t("categories.funding.title", "Données de financement")}
+                className="mb-4 aspect-[4/3] w-full rounded-lg object-cover"
+              />
               <div className="mb-[10px] h-6 w-6 text-primary" aria-hidden="true">
                 <BanknoteIcon />
               </div>
@@ -199,6 +204,11 @@ export default function IndexPage() {
               </NevButton>
             </NevCard>
             <NevCard padding="md" interactive>
+              <img
+                src="assets/images/categories/visualizations.jpg"
+                alt={t("categories.viz.title", "Visualisations et tendances")}
+                className="mb-4 aspect-[4/3] w-full rounded-lg object-cover"
+              />
               <div className="mb-[10px] h-6 w-6 text-primary" aria-hidden="true">
                 <ChartBarIcon />
               </div>
@@ -209,6 +219,11 @@ export default function IndexPage() {
               </NevButton>
             </NevCard>
             <NevCard padding="md" interactive>
+              <img
+                src="assets/images/categories/reports.jpg"
+                alt={t("categories.reports.title", "Rapports et analyses")}
+                className="mb-4 aspect-[4/3] w-full rounded-lg object-cover"
+              />
               <div className="mb-[10px] h-6 w-6 text-primary" aria-hidden="true">
                 <DocumentIcon />
               </div>
