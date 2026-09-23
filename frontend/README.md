@@ -56,7 +56,7 @@ npm run dev         # recompilation automatique pendant le développement
 Fichiers statiques - servir le dossier (ne pas ouvrir `index.html` directement en `file://` : les appels `fetch()` vers le backend ont besoin d'une vraie origine HTTP pour que CORS s'applique). **Sur le Codespace, `python3` du système est cassé** (`No module named 'http'` - voir `docs/exploitation/runbooks.md` §9) : utiliser `npx http-server` à la place, qui fonctionne partout :
 
 ```bash
-npm run build   # rebuild d'abord si le dossier vient d'un `git reset`/`git pull` (point d'attention #41 du README racine)
+npm run build   # rebuild d'abord si le dossier vient d'un `git reset`/`git pull` (point d'attention #41, voir docs/exploitation/runbooks.md §12)
 npx http-server frontend -p 8123 -c-1 &
 ```
 
@@ -71,7 +71,7 @@ npx http-server frontend -p 8123 -c-1 &
 | `http://localhost:8123` (tunnel SSH local) | `http://localhost:8080` |
 | `https://<nom-du-codespace>-8123.app.github.dev` | `https://<nom-du-codespace>-8080.app.github.dev` |
 
-Voir la section « Base de l'URL de l'API » du `README.md` racine pour le détail, et le point d'attention n°10 (« Un port de Codespace en visibilité "private" ... ») si les appels API échouent avec une erreur ressemblant à du CORS alors que la config CORS du backend est correcte.
+Voir la section « Base de l'URL de l'API » du `README.md` racine pour le détail, et le point d'attention n°10 (« Un port de Codespace en visibilité "private" ... », `docs/exploitation/runbooks.md` §12) si les appels API échouent avec une erreur ressemblant à du CORS alors que la config CORS du backend est correcte.
 
 ## Identité visuelle
 
