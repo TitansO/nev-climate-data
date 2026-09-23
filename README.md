@@ -639,7 +639,7 @@ Nouveau service `db-backup` (`docker/db-backup/`), pattern boucle `sleep` identi
 
 ## Points d'attention (pièges déjà rencontrés - à ne pas réintroduire)
 
-72 pièges réels rencontrés et corrigés pendant ce projet (A1.3 à aujourd'hui) - accès,
+73 pièges réels rencontrés et corrigés pendant ce projet (A1.3 à aujourd'hui) - accès,
 configuration, tests, données, déploiement. Liste complète et numérotée, déplacée dans le
 runbook d'exploitation pour garder ce README centré sur la prise en main :
 [`docs/exploitation/runbooks.md` → §12](docs/exploitation/runbooks.md#12-points-dattention-à-ne-jamais-oublier).
