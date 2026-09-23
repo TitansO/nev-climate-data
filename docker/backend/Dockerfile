@@ -22,6 +22,15 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 # --- Apache : mod_rewrite + vhost pointant vers public/ --------------------
 RUN a2enmod rewrite
 COPY docker/backend/vhost.conf /etc/apache2/sites-available/000-default.conf
+# Audit pre-production 2026-09-23 (P2) : masque les en-tetes Server/
+# X-Powered-By (fingerprinting de version). Prefixe "zzz-" necessaire :
+# conf-enabled/*.conf se charge par ordre alphabetique, et le
+# security.conf par defaut de l'image (deja active, ServerTokens OS) sort
+# AVANT "security-nev.conf" (le tiret '-' < le point '.' en ASCII) - sans
+# ce prefixe, le reglage par defaut ecrasait silencieusement le notre.
+COPY docker/backend/security.conf /etc/apache2/conf-available/zzz-security-nev.conf
+RUN a2enconf zzz-security-nev
+COPY docker/backend/security.ini /usr/local/etc/php/conf.d/zz-security-nev.ini
 
 # --- Composer ----------------------------------------------------------------
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

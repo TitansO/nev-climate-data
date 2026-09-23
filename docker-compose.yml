@@ -47,6 +47,17 @@ services:
       - backend_vendor:/var/www/html/vendor
     networks:
       - nev-network
+    # Audit pre-production 2026-09-23 (P2) : `restart: unless-stopped` seul
+    # ne detecte pas un Apache "up" mais bloque/en boucle d'erreur (cf.
+    # point d'attention #22 sur le scheduler Airflow "vivant" mais
+    # inactif - meme risque ici). Pas de curl dans l'image (evite une
+    # dependance supplementaire) : php lui-meme fait l'appel HTTP.
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://localhost/api/health') !== false ? 0 : 1);"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # A2.3: consumes the async export queue (Symfony Messenger, Doctrine
   # transport - see backend/config/packages/messenger.yaml). Same image as
@@ -463,6 +474,15 @@ services:
         condition: service_started
     networks:
       - nev-network
+    # Audit pre-production 2026-09-23 (P2) : meme raisonnement que
+    # "backend" ci-dessus. curl absent de l'image python:3.12-slim -
+    # python lui-meme fait l'appel HTTP, pas de dependance supplementaire.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 networks:
   nev-network:
