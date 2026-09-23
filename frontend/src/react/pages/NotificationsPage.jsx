@@ -149,7 +149,7 @@ export default function NotificationsPage() {
                         {EVENT_TYPE_LABELS[item.eventType] || item.eventType}
                       </NevBadge>
                       <p className="text-sm text-dark">{item.content}</p>
-                      <p className="mt-1 text-xs text-dark-6">{formatDate(item.createdAt)}</p>
+                      <p className="mt-1 text-xs text-dark-5">{formatDate(item.createdAt)}</p>
                     </a>
                     {!item.isRead && (
                       <NevButton variant="outline" size="sm" className="shrink-0" onClick={() => markAsRead(item.id)}>

@@ -233,6 +233,15 @@ final class UserController extends AbstractController
         if (\strlen($password) < 8) {
             throw new BadRequestHttpException('Le mot de passe doit contenir au moins 8 caractères.');
         }
+        // Audit pre-production 2026-09-23 (P1) : la longueur seule
+        // n'excluait aucun mot de passe trivial ("password1" passait déjà
+        // la contrainte precedente). Regle minimale volontairement legere
+        // (pas de caracteres speciaux obligatoires) pour rester utilisable
+        // sans generateur de mot de passe dedie - au moins une lettre ET
+        // un chiffre, jamais uniquement l'un des deux.
+        if (1 !== preg_match('/[a-zA-Z]/', $password) || 1 !== preg_match('/[0-9]/', $password)) {
+            throw new BadRequestHttpException('Le mot de passe doit contenir au moins une lettre et un chiffre.');
+        }
 
         $role = self::parseRole($body['role'] ?? null);
 

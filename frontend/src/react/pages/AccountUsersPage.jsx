@@ -181,7 +181,7 @@ export default function AccountUsersPage() {
       align: "right",
       render: (user) =>
         user.email === currentUserEmail ? (
-          <span className="text-xs italic text-dark-6">{t("usersPage.you", "vous")}</span>
+          <span className="text-xs italic text-dark-5">{t("usersPage.you", "vous")}</span>
         ) : (
           <div className="flex items-center justify-end gap-2">
             <select

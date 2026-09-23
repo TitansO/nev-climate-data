@@ -82,9 +82,14 @@ final class FundingController extends AbstractController
                                         new OA\Property(property: 'id', type: 'integer', example: 1),
                                         new OA\Property(property: 'name', type: 'string', example: 'Renewable Energy'),
                                     ], type: 'object'),
-                                    new OA\Property(property: 'year', type: 'integer', example: 2025),
-                                    new OA\Property(property: 'amount', type: 'string', example: '4032000.00', description: 'Pivot currency (always USD)'),
-                                    new OA\Property(property: 'originalAmount', type: 'string', nullable: true, example: '2419200000.00', description: "Same amount in the country's own national currency"),
+                                    new OA\Property(property: 'year', type: 'integer', example: 2025, description: "Year of board approval/commitment (not disbursement) - can legitimately predate the collection date by decades for a real, older project (confirmed on live data, 2026-09-23 audit)."),
+                                    new OA\Property(
+                                        property: 'amount',
+                                        type: 'string',
+                                        example: '4032000.00',
+                                        description: 'Pivot currency (always USD). IMPORTANT (audit 2026-09-23) : for a row fed by more than one collection run, this is the CUMULATIVE sum across all contributions ever recorded for this (source, country, sector, year, fundingType) key - not necessarily the amount of a single transaction. `originalAmount`/`originalCurrency`/`exchangeRate` below describe only the LATEST contributing message, never the accumulated total, so `amount ≈ originalAmount × exchangeRate` only holds for a row fed by exactly one contribution. Confirmed on live data (2026-09-23): this equality fails on ~22% of rows carrying a non-USD original currency - by design, not a conversion bug. Do not use these three fields together to reverse-engineer amount from a single conversion.'
+                                    ),
+                                    new OA\Property(property: 'originalAmount', type: 'string', nullable: true, example: '2419200000.00', description: "Latest contributing message's amount in the country's own national currency - see the warning on `amount` above before comparing the two."),
                                     new OA\Property(property: 'originalCurrency', type: 'string', nullable: true, example: 'XOF'),
                                     new OA\Property(property: 'fundingType', type: 'string', example: 'public'),
                                     new OA\Property(property: 'source', properties: [

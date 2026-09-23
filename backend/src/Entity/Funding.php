@@ -64,6 +64,14 @@ class Funding
     #[ORM\JoinColumn(nullable: false)]
     private Sector $sector;
 
+    // Audit pre-production 2026-09-23 : confirme dans les connecteurs
+    // (pipeline/collectors/world_bank.py, afdb.py) que "year" est l'annee
+    // d'APPROBATION/ENGAGEMENT du financement (board approval date), pas
+    // l'annee de decaissement effectif - un projet reel peut donc porter
+    // une annee tres anterieure a sa collecte (confirme en base : 454
+    // lignes reelles 1967-1989, toutes issues d'AfDB/World Bank, pas de
+    // donnee corrompue). Un filtre/graphique qui suppose "year = flux de
+    // l'annee en cours" doit en tenir compte.
     #[ORM\Column]
     private int $year;
 

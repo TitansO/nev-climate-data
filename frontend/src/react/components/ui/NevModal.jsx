@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
 
+// Audit pre-production 2026-09-23 (P1) : selecteur standard des elements
+// focusables au clavier, utilise pour boucler le focus (Tab/Shift+Tab)
+// a l'interieur du panneau tant que la modale est ouverte - sans ca, un
+// Tab depuis le dernier element sortait vers la page sous l'overlay
+// (piege de focus manquant, WCAG 2.1 SC 2.1.2).
+const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 /**
  * Generic modal shell (overlay + centered panel + focus-on-open +
  * Escape/backdrop-click to close) extracted from NevConfirmDialog, which
@@ -20,6 +27,23 @@ export default function NevModal({ open, onClose, titleId, maxWidth = "max-w-sm"
     function onKeyDown(event) {
       if ("Escape" === event.key) {
         onClose();
+        return;
+      }
+      if ("Tab" !== event.key || !panelRef.current) {
+        return;
+      }
+      const focusable = Array.from(panelRef.current.querySelectorAll(FOCUSABLE_SELECTOR));
+      if (0 === focusable.length) {
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
     document.addEventListener("keydown", onKeyDown);

@@ -34,7 +34,7 @@ export default function NevPagination({ pageLabel, onPrevious, onNext, disabledP
         <span className="flex items-center gap-1" aria-live="polite">
           {items.map((p, i) => (
             <span key={p} className="flex items-center gap-1">
-              {i > 0 && p - items[i - 1] > 1 ? <span className="px-1 text-sm text-dark-6">…</span> : null}
+              {i > 0 && p - items[i - 1] > 1 ? <span className="px-1 text-sm text-dark-5">…</span> : null}
               <button
                 type="button"
                 onClick={() => onPageChange(p)}

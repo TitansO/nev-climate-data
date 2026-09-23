@@ -82,6 +82,53 @@ phpunit:
         coverage_format: cobertura
         path: backend/coverage.cobertura.xml
 
+# Audit pre-production 2026-09-23 (P0) : ai/tests/ (6 fichiers) et
+# pipeline/tests/ (28 fichiers) n'etaient executes par aucune CI, seulement
+# manuellement sur un Codespace de developpement - decouvert pendant
+# l'audit (voir docs/superpowers/specs/2026-09-23-audit-production.md).
+ai_tests:
+  stage: test
+  image: python:3.12-slim
+  variables:
+    # Jamais reellement lu : chaque test qui appelle get_connection() le
+    # mocke (unittest.mock.patch) - fourni par prudence si un futur test
+    # important le module sans mocker completement.
+    AI_DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci_unused"
+    GEMINI_API_KEY: "ci_ephemeral_unused_key"
+  before_script:
+    - cd ai
+    - pip install --no-cache-dir -r requirements.txt
+  script:
+    - cd ..
+    - python -m pytest ai/tests/ -v
+
+# Limite assumee (documentee, pas cachee) : sur 28 fichiers, seuls les 21
+# qui ne touchent ni une vraie base Postgres ni le package `airflow`
+# tournent ici. test_funding_validator.py/test_emission_validator.py
+# ecrivent reellement en base (necessiteraient un service Postgres +
+# migrations Doctrine appliquees dans ce job) et les 5 fichiers
+# test_dag_*_tasks.py importent `airflow` directement (package lourd, non
+# present dans pipeline/requirements.txt par design - voir le
+# docker-compose.yml, seul le conteneur `airflow` l'installe). Exclus
+# explicitement plutot que de pretendre une couverture qu'on n'a pas.
+pipeline_tests:
+  stage: test
+  image: python:3.12-slim
+  before_script:
+    - cd pipeline
+    - pip install --no-cache-dir -r requirements.txt
+  script:
+    - cd ..
+    - >
+      python -m pytest pipeline/tests/ -v -m "not live"
+      --ignore=pipeline/tests/test_funding_validator.py
+      --ignore=pipeline/tests/test_emission_validator.py
+      --ignore=pipeline/tests/test_dag_afdb_tasks.py
+      --ignore=pipeline/tests/test_dag_extraction_pdf_tasks.py
+      --ignore=pipeline/tests/test_dag_gcf_tasks.py
+      --ignore=pipeline/tests/test_dag_pnue_tasks.py
+      --ignore=pipeline/tests/test_dag_worldbank_tasks.py
+
 # Construit et publie l'image Docker sur le Container Registry GitLab.
 # Ce n'est PAS un déploiement : rien ne récupère ni ne fait tourner cette
 # image automatiquement. Le déploiement réel est la tâche A3.8.

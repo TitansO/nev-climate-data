@@ -147,7 +147,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Audit pre-production 2026-09-23 (P1) : lie a 127.0.0.1 plutot que
+      # 0.0.0.0 (defaut Docker) - reste utilisable pour le debug local/le
+      # port-forwarding Codespace (qui opere depuis la meme machine hote),
+      # sans exposer Postgres a quiconque joindrait le port hote depuis
+      # l'exterieur.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -232,7 +237,10 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     ports:
-      - "9092:9092"
+      # Audit pre-production 2026-09-23 (P1) : lie a 127.0.0.1 - meme
+      # raisonnement que "database" ci-dessus (Kafka UI, sur le reseau
+      # interne, n'a de toute facon pas besoin de ce port hote).
+      - "127.0.0.1:9092:9092"
     networks:
       - nev-network
 
@@ -298,7 +306,10 @@ services:
       - ./pipeline:/opt/airflow/pipeline
       - airflow_logs:/opt/airflow/logs
     ports:
-      - "8081:8080"
+      # Audit pre-production 2026-09-23 (P1) : lie a 127.0.0.1 - meme
+      # raisonnement que "database" ci-dessus ; le port-forwarding Codespace
+      # continue de fonctionner (opere depuis la meme machine hote).
+      - "127.0.0.1:8081:8080"
     command: standalone
     networks:
       - nev-network
@@ -319,10 +330,20 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_change_me}
+      # Audit pre-production 2026-09-23 (P1) : le fallback faible
+      # "minioadmin_change_me" a ete retire - c'etait le seul des 4 points
+      # d'injection de MINIO_ROOT_PASSWORD dans ce fichier a en avoir un
+      # (les 3 autres exigeaient deja la vraie valeur sans filet), une
+      # vraie incoherence : sans .env correctement rempli, MinIO acceptait
+      # silencieusement ce mot de passe faible pendant que les clients
+      # (backend/ai/pipeline) recevaient une chaine vide. Meme
+      # comportement que POSTGRES_PASSWORD ci-dessus desormais : requis,
+      # pas de valeur par defaut.
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      # Lie a 127.0.0.1 - meme raisonnement que "database" ci-dessus.
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
     networks:

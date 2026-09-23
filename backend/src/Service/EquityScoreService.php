@@ -15,6 +15,9 @@ use App\Service\Scoring\Equity\FundingPerTonneInvertedIndicator;
 use App\Service\Scoring\Equity\PerCapitaVsVulnerabilityIndicator;
 use App\Service\Scoring\Equity\ReceivedVsCdnNeedIndicator;
 use App\Service\Scoring\ScoreService;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 
 /**
  * C3.3 : "Equity Score" - GET /api/analytics/equity (classement + indice
@@ -34,6 +37,14 @@ final class EquityScoreService
 {
     private const SCORE_TYPE = 'equity';
 
+    // Audit pre-production 2026-09-22 (P1) : getRanking() etait le seul
+    // agregat de AnalyticsController sans cache - N+1 confirme (une passe
+    // scoreFor() par pays du pool), 383ms mesures en direct sur ~12 pays.
+    // Meme TTL/pool que le reste des agregats analytics (GapDetectionService,
+    // LocalFinanceService...), pour rester coherent.
+    private const CACHE_TTL_SECONDS = 900;
+    private const CACHE_KEY = 'analytics_equity_ranking';
+
     public function __construct(
         private readonly ScoreService $scoreService,
         private readonly CountryRepository $countryRepository,
@@ -41,6 +52,8 @@ final class EquityScoreService
         private readonly PerCapitaVsVulnerabilityIndicator $perCapitaVsVulnerabilityIndicator,
         private readonly ReceivedVsCdnNeedIndicator $receivedVsCdnNeedIndicator,
         private readonly FundingPerTonneInvertedIndicator $fundingPerTonneInvertedIndicator,
+        #[Autowire(service: 'cache.analytics')]
+        private readonly CacheInterface $cache,
     ) {
     }
 
@@ -74,25 +87,29 @@ final class EquityScoreService
      */
     public function getRanking(): array
     {
-        $pool = $this->countryRepository->findAllWithPopulationAndVulnerability();
+        return $this->cache->get(self::CACHE_KEY, function (ItemInterface $item): array {
+            $item->expiresAfter(self::CACHE_TTL_SECONDS);
 
-        $ranking = [];
-        foreach ($pool as $country) {
-            $score = $this->scoreFor($country);
-            if (null === $score) {
-                continue;
+            $pool = $this->countryRepository->findAllWithPopulationAndVulnerability();
+
+            $ranking = [];
+            foreach ($pool as $country) {
+                $score = $this->scoreFor($country);
+                if (null === $score) {
+                    continue;
+                }
+                $ranking[] = [
+                    'country' => $country->getName(),
+                    'countryIsoCode' => $country->getIsoCode(),
+                    'value' => $score->getValue(),
+                    'grade' => $score->getGrade(),
+                ];
             }
-            $ranking[] = [
-                'country' => $country->getName(),
-                'countryIsoCode' => $country->getIsoCode(),
-                'value' => $score->getValue(),
-                'grade' => $score->getGrade(),
-            ];
-        }
 
-        usort($ranking, static fn (array $a, array $b): int => $b['value'] <=> $a['value']);
+            usort($ranking, static fn (array $a, array $b): int => $b['value'] <=> $a['value']);
 
-        return ['ranking' => $ranking, 'giniIndex' => $this->computeGiniIndex()];
+            return ['ranking' => $ranking, 'giniIndex' => $this->computeGiniIndex()];
+        });
     }
 
     /**

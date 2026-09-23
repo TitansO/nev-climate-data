@@ -36,6 +36,10 @@ final class EquityScoreServiceTest extends KernelTestCase
 
         $this->entityManager = static::getContainer()->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
+        // getRanking() est mis en cache depuis l'audit du 2026-09-23 (P1) -
+        // sans ce clear, un run precedent (ou une verification live via
+        // curl) pourrait polluer testGetRankingOnlyIncludesCountriesWithFullEquityData.
+        static::getContainer()->get('cache.analytics')->clear();
     }
 
     protected function tearDown(): void

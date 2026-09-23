@@ -14,6 +14,9 @@ use App\Service\Scoring\Transparency\DescriptivePresenceIndicator;
 use App\Service\Scoring\Transparency\FreshnessIndicator;
 use App\Service\Scoring\Transparency\GranularityIndicator;
 use App\Service\Scoring\Transparency\IatiPublicationIndicator;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 
 /**
  * C3.6 : "Transparency Score" - GET /api/institutions/{sourceId}/scores/
@@ -31,6 +34,12 @@ final class TransparencyScoreService
 {
     private const SCORE_TYPE = 'transparency';
 
+    // Audit pre-production 2026-09-22 (P1) : getRanking() etait le seul
+    // agregat de AnalyticsController sans cache - meme N+1 qu'EquityScoreService,
+    // meme correctif (TTL/pool identiques aux autres agregats analytics).
+    private const CACHE_TTL_SECONDS = 900;
+    private const CACHE_KEY = 'analytics_transparency_ranking';
+
     public function __construct(
         private readonly ScoreService $scoreService,
         private readonly SourceRepository $sourceRepository,
@@ -39,6 +48,8 @@ final class TransparencyScoreService
         private readonly FreshnessIndicator $freshnessIndicator,
         private readonly GranularityIndicator $granularityIndicator,
         private readonly DescriptivePresenceIndicator $descriptivePresenceIndicator,
+        #[Autowire(service: 'cache.analytics')]
+        private readonly CacheInterface $cache,
     ) {
     }
 
@@ -69,17 +80,21 @@ final class TransparencyScoreService
      */
     public function getRanking(): array
     {
-        $ranking = array_map(
-            function (Source $source): array {
-                $score = $this->scoreFor($source);
+        return $this->cache->get(self::CACHE_KEY, function (ItemInterface $item): array {
+            $item->expiresAfter(self::CACHE_TTL_SECONDS);
 
-                return ['sourceId' => $source->getId(), 'sourceName' => $source->getName(), 'value' => $score->getValue(), 'grade' => $score->getGrade()];
-            },
-            $this->sourceRepository->findAll()
-        );
+            $ranking = array_map(
+                function (Source $source): array {
+                    $score = $this->scoreFor($source);
 
-        usort($ranking, static fn (array $a, array $b): int => $b['value'] <=> $a['value']);
+                    return ['sourceId' => $source->getId(), 'sourceName' => $source->getName(), 'value' => $score->getValue(), 'grade' => $score->getGrade()];
+                },
+                $this->sourceRepository->findAll()
+            );
 
-        return $ranking;
+            usort($ranking, static fn (array $a, array $b): int => $b['value'] <=> $a['value']);
+
+            return $ranking;
+        });
     }
 }

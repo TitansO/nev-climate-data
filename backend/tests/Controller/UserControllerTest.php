@@ -167,6 +167,10 @@ final class UserControllerTest extends WebTestCase
         yield 'missing name' => [['email' => 'a@example.com', 'password' => 'UnMotDePasseSolide2026!', 'role' => 'admin']];
         yield 'malformed email' => [['name' => 'X', 'email' => 'not-an-email', 'password' => 'UnMotDePasseSolide2026!', 'role' => 'admin']];
         yield 'short password' => [['name' => 'X', 'email' => 'b@example.com', 'password' => 'short', 'role' => 'admin']];
+        // Audit pre-production 2026-09-23 (P1) : la longueur seule ne
+        // suffisait pas a exclure un mot de passe trivial.
+        yield 'password with only letters' => [['name' => 'X', 'email' => 'letters-only@example.com', 'password' => 'onlyletters', 'role' => 'admin']];
+        yield 'password with only digits' => [['name' => 'X', 'email' => 'digits-only@example.com', 'password' => '12345678', 'role' => 'admin']];
         yield 'unknown role' => [['name' => 'X', 'email' => 'c@example.com', 'password' => 'UnMotDePasseSolide2026!', 'role' => 'root']];
     }
 
