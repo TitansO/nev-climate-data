@@ -7,7 +7,7 @@
 #
 # <filename>        object name in the backups bucket, e.g.
 #                    nev_climate_data_20260902T120000Z.sql.gz
-#                    ("mc ls backupminio/nev-climate-data-backups" lists them)
+#                    ("rclone lsf backupminio:nev-climate-data-backups" lists them)
 # [target-database] defaults to POSTGRES_DB (the real database!) - pass an
 #                    explicit throwaway name to verify a restore without
 #                    touching real data, e.g.:
@@ -23,16 +23,23 @@ export PGUSER="${POSTGRES_USER:?POSTGRES_USER is required}"
 export PGPASSWORD="${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
 TARGET_DB="${2:-${POSTGRES_DB:?POSTGRES_DB is required}}"
 
+# See backup.sh for why rclone (not `mc`, no longer installable).
+export RCLONE_CONFIG=/dev/null
+export RCLONE_CONFIG_BACKUPMINIO_TYPE=s3
+export RCLONE_CONFIG_BACKUPMINIO_PROVIDER=Minio
+export RCLONE_CONFIG_BACKUPMINIO_ENV_AUTH=false
+export RCLONE_CONFIG_BACKUPMINIO_ENDPOINT="http://${MINIO_ENDPOINT:-minio:9000}"
+export RCLONE_CONFIG_BACKUPMINIO_ACCESS_KEY_ID="${MINIO_ROOT_USER:-minioadmin}"
+export RCLONE_CONFIG_BACKUPMINIO_SECRET_ACCESS_KEY="${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}"
+
 log() {
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"
 }
 
-mc alias set backupminio "http://${MINIO_ENDPOINT:-minio:9000}" "${MINIO_ROOT_USER:-minioadmin}" "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}" >/dev/null
-
 tmpfile="/tmp/${FILENAME}"
-log "Téléchargement de ${FILENAME} depuis backupminio/${BACKUP_BUCKET}..."
-if ! mc cp --quiet "backupminio/${BACKUP_BUCKET}/${FILENAME}" "${tmpfile}" >/dev/null; then
-  log "ERREUR : impossible de télécharger ${FILENAME} (nom incorrect ? \"mc ls backupminio/${BACKUP_BUCKET}\" pour lister les sauvegardes disponibles)"
+log "Téléchargement de ${FILENAME} depuis backupminio:${BACKUP_BUCKET}..."
+if ! rclone copyto "backupminio:${BACKUP_BUCKET}/${FILENAME}" "${tmpfile}" >/dev/null 2>&1; then
+  log "ERREUR : impossible de télécharger ${FILENAME} (nom incorrect ? \"rclone lsf backupminio:${BACKUP_BUCKET}\" pour lister les sauvegardes disponibles)"
   exit 1
 fi
 

@@ -17,4 +17,11 @@ COPY ai/ ./ai/
 
 ENV PYTHONPATH=/app
 
+# Audit pre-production 2026-09-23 (P2) : tournait root faute d'un USER
+# explicite (comme les 3 autres Dockerfiles du projet). Port 8000 (non
+# privilegie, contrairement au 80 d'Apache dans docker/backend/Dockerfile)
+# rend ce cas simple : aucun binding privilegie a preserver.
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin appuser
+USER appuser
+
 CMD ["uvicorn", "ai.main:app", "--host", "0.0.0.0", "--port", "8000"]

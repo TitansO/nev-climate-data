@@ -51,6 +51,18 @@ RUN composer dump-autoload --optimize \
 COPY docker/backend/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# Audit pre-production 2026-09-23 (P2) : contrairement a ai/Dockerfile/
+# pipeline/Dockerfile/docker/db-backup/Dockerfile (corriges le meme jour),
+# aucun USER non-root n'est ajoute ici deliberement. Apache doit demarrer
+# root pour se lier au port privilegie 80 (<1024) ; il degrade ensuite
+# lui-meme ses processus worker vers "www-data" en interne (directive
+# "User www-data" du paquet Debian, deja active par defaut) - c'est deja
+# une separation de privileges reelle, juste invisible comme un "USER"
+# Docker explicite. Passer ce Dockerfile en non-root demanderait de faire
+# ecouter Apache sur un port >1024 (ex. 8080) et d'ajuster le mapping de
+# port cote docker-compose.yml/production (Render) en consequence - un
+# changement plus large, non fait ici pour rester dans le perimetre de
+# cette passe de durcissement.
 EXPOSE 80
 
 ENTRYPOINT ["entrypoint.sh"]
