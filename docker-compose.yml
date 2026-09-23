@@ -32,6 +32,11 @@ services:
       # unreachable at cold start the same way it handles any other
       # transient outage.
       AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai:8000}
+      # C3.8: shared secret verified by App\Controller\InternalAlertsController
+      # (POST /api/internal/alerts/evaluate) - same value must be set on the
+      # "airflow" service below, it's how the daily alerts DAG authenticates
+      # a machine-to-machine trigger with no Docker socket available to it.
+      INTERNAL_TRIGGER_TOKEN: ${INTERNAL_TRIGGER_TOKEN}
     depends_on:
       database:
         condition: service_healthy
@@ -275,6 +280,10 @@ services:
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # C3.8: same shared secret as "backend" above - lets
+      # pipeline/dags/evaluation_alertes_dag.py authenticate its daily call
+      # to POST /api/internal/alerts/evaluate.
+      INTERNAL_TRIGGER_TOKEN: ${INTERNAL_TRIGGER_TOKEN}
       # B1.9: real email alerting on DAG task failure - see
       # pipeline/common/alerting.py and the 2026-09-01 spec.
       AIRFLOW_ALERT_EMAIL: ${AIRFLOW_ALERT_EMAIL}

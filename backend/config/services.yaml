@@ -31,6 +31,14 @@ parameters:
     # AiController to proxy POST /api/ai/ask - see docker-compose.yml's
     # "backend" service env for the real value.
     app.ai_service_url: '%env(AI_SERVICE_URL)%'
+    # C3.8: shared secret checked by App\Controller\InternalAlertsController
+    # (POST /api/internal/alerts/evaluate) - lets the "evaluation_alertes"
+    # Airflow DAG (pipeline/dags/evaluation_alertes_dag.py) trigger
+    # AlertEvaluationService daily over HTTP, since the `airflow` container
+    # has no way to `docker exec` into `backend` (no Docker socket mounted,
+    # unlike a real docker-outside-of-docker setup) - see the endpoint's own
+    # docblock for the full reasoning.
+    app.internal_trigger_token: '%env(INTERNAL_TRIGGER_TOKEN)%'
 
 services:
     # default configuration for services in *this* file
@@ -41,6 +49,7 @@ services:
             string $exportStorageDir: '%app.export_storage_dir%'
             string $reportStorageDir: '%app.report_storage_dir%'
             string $aiServiceUrl: '%app.ai_service_url%'
+            string $internalTriggerToken: '%app.internal_trigger_token%'
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name

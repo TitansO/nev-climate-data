@@ -102,6 +102,11 @@ security:
         # C3.7: a read-only aggregation of already-public scores (C2.6/
         # C2.8/C3.1/C3.3) - same openness as /api/analytics above.
         - { path: ^/api/recommendations, roles: PUBLIC_ACCESS }
+        # C3.8: machine-to-machine trigger for the daily alerts DAG - no
+        # JWT/API-key identity makes sense here, real authentication is the
+        # shared-secret check inside App\Controller\InternalAlertsController
+        # itself (X-Internal-Token, hash_equals).
+        - { path: ^/api/internal/alerts/evaluate, roles: PUBLIC_ACCESS }
         # User management (create accounts, change roles, delete accounts)
         # is reserved to SuperAdmin - must come before the catch-all below,
         # same reasoning as /api/funding/export above it in this file.
