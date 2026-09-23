@@ -12,12 +12,20 @@ export const SECTOR_LABELS = {
   Adaptation: "Adaptation",
 };
 
-export const SECTOR_COLORS = ["#16a34a", "#22c55e", "#86efac", "#14532d", "#0b3d24"];
+// Audit pre-production 2026-09-23 (P3) : cette plateforme n'a qu'une
+// seule couleur de marque (le meme "#16a34a" que SECTOR_COLORS[0]/
+// TYPE_COLORS.public/INSTRUMENT_COLORS.grant ci-dessous), mais elle
+// etait encore recopiee en dur dans MovingAverageChart.jsx et
+// SankeyFlow.jsx plutot que reference d'ici - le genre de duplication
+// qui finit par diverger silencieusement si la teinte change un jour.
+export const PRIMARY_COLOR = "#16a34a";
+
+export const SECTOR_COLORS = [PRIMARY_COLOR, "#22c55e", "#86efac", "#14532d", "#0b3d24"];
 
 // Same 3 colors used consistently across every chart on this page that
 // breaks financing down by type (the bar chart and the donut) - so a color
 // always means the same type no matter which chart it's in.
-export const TYPE_COLORS = { public: "#16a34a", private: "#052e1c", multilateral: "#2563eb" };
+export const TYPE_COLORS = { public: PRIMARY_COLOR, private: "#052e1c", multilateral: "#2563eb" };
 export const TYPE_LABELS = { public: "Public", private: "Privé", multilateral: "Multilatéral" };
 
 /**
@@ -37,7 +45,7 @@ export const INSTRUMENT_LABELS = {
 
 /** C1.7: one color per FundingInstrument case, same palette family as SECTOR_COLORS (this platform's green scale) plus two distinct hues for the two loan variants so they read apart on a donut. */
 export const INSTRUMENT_COLORS = {
-  grant: "#16a34a",
+  grant: PRIMARY_COLOR,
   loan_concessional: "#2563eb",
   loan_non_concessional: "#1d4ed8",
   guarantee: "#0b3d24",
@@ -45,6 +53,16 @@ export const INSTRUMENT_COLORS = {
   results_based: "#22c55e",
   unknown: "#9ca3af",
 };
+
+// One color per Sankey layer (bailleur/pays/secteur), independent of the
+// fixed SECTOR_COLORS/INSTRUMENT_COLORS palettes above - here color
+// encodes *position in the flow* (which hop a node belongs to), not what
+// the node itself represents. Every "Autres X" bucket, whichever layer
+// it's in, shares one muted gray so it always reads as "aggregated",
+// never mistaken for a real distinguishable entity. Moved here from
+// SankeyFlow.jsx (audit pre-production 2026-09-23, P3) so its "source"
+// entry stays in sync with PRIMARY_COLOR instead of repeating the literal.
+export const SANKEY_LAYER_COLORS = { source: PRIMARY_COLOR, country: "#c98a2c", sector: "#2563eb", other: "#9aa5a0" };
 
 /**
  * ISO 3166-1 alpha-3 -> alpha-2, the 54 African countries seeded by

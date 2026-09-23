@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Chart from "chart.js/auto";
-import { formatCompactUsd } from "../../data/analyticsConstants";
+import { formatCompactUsd, PRIMARY_COLOR } from "../../data/analyticsConstants";
 
 /**
  * C1.6 : rendu graphique de `financing-trends.movingAverageTotal` (moyenne
@@ -25,7 +25,7 @@ export default function MovingAverageChart({ rows }) {
           {
             label: "Moyenne mobile 3 ans (USD)",
             data: rows.map((row) => row.value),
-            borderColor: "#16a34a",
+            borderColor: PRIMARY_COLOR,
             backgroundColor: "rgba(22,163,74,0.12)",
             fill: true,
             tension: 0.25,

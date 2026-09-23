@@ -1,23 +1,15 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Chart } from "chart.js";
 import { SankeyController, Flow } from "chartjs-chart-sankey";
-import { formatUsd } from "../../data/analyticsConstants";
+import { formatUsd, SANKEY_LAYER_COLORS } from "../../data/analyticsConstants";
 
 Chart.register(SankeyController, Flow);
 
-// One color per layer (bailleur/pays/secteur), independent of the fixed
-// SECTOR_COLORS/INSTRUMENT_COLORS palettes used elsewhere on this page -
-// here color encodes *position in the flow* (which hop a node belongs to),
-// not what the node itself represents. Every "Autres X" bucket, whichever
-// layer it's in, shares one muted gray so it always reads as "aggregated",
-// never mistaken for a real distinguishable entity.
-const LAYER_COLORS = { source: "#16a34a", country: "#c98a2c", sector: "#2563eb", other: "#9aa5a0" };
-
 function colorForNode(nodeId) {
   if (nodeId.endsWith(":other")) {
-    return LAYER_COLORS.other;
+    return SANKEY_LAYER_COLORS.other;
   }
-  return LAYER_COLORS[nodeId.split(":")[0]] || LAYER_COLORS.other;
+  return SANKEY_LAYER_COLORS[nodeId.split(":")[0]] || SANKEY_LAYER_COLORS.other;
 }
 
 /**

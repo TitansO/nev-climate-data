@@ -17,6 +17,29 @@ from ai import db, gemini_client, local_embeddings
 # document where cutting mid-argument would lose meaning.
 CHUNK_SIZE_CHARS = 1500
 
+# Audit pre-production 2026-09-23 (P3) : retrieve() renvoyait toujours ses
+# top_k resultats, meme quand aucun n'a de rapport reel avec la question
+# (ex. une question hors-sujet recevait quand meme 5 chunks "les moins
+# eloignes", que answer() transmettait ensuite a Gemini comme s'ils
+# etaient pertinents). MAX_COSINE_DISTANCE existe pour filtrer les cas
+# degeneres - mais calibre EN DIRECT (docker compose exec ai python -c
+# "...", sur le corpus reel) plutot que devine, ce calibrage a montre
+# une limite reelle qu'il faut documenter honnetement plutot que
+# masquer : avec all-MiniLM-L6-v2 (modele generaliste, jamais affine sur
+# ce corpus finance-climat), les distances des questions hors-sujet
+# testees ("Recette du gateau au chocolat" : 0.563 ; "Quelle heure est-il
+# a Tokyo ?" : 0.550 ; "Qui a gagne la coupe du monde 2018 ?" : 0.577)
+# chevauchent directement celles de questions pertinentes ("score
+# d'equite climatique" : jusqu'a 0.567 sur son 3e resultat). Aucun seuil
+# ne separe proprement les deux a ce corpus/modele - ce n'est donc pas
+# le filtre principal contre les reponses hors-sujet : ce role reste
+# tenu par la consigne "reponds UNIQUEMENT a partir du contexte fourni"
+# deja dans gemini_client.ask() (Gemini juge sur le texte complet, pas
+# sur un seul chiffre de distance). Ce seuil, volontairement large,
+# n'ecarte que les cas franchement degeneres (embedding quasi-oppose -
+# aucun exemple teste n'a jamais depasse 0.61).
+MAX_COSINE_DISTANCE = 0.9
+
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE_CHARS) -> list[str]:
     """Splits `text` into chunks of at most `chunk_size` characters,
@@ -89,11 +112,13 @@ def upsert_chunk(content: str, source_ref: str) -> bool:
 
 def retrieve(question: str, top_k: int = 5) -> list[tuple[str, str]]:
     """Returns up to `top_k` (content, source_ref) pairs closest to
-    `question` by cosine distance. No ivfflat/HNSW index: this corpus
-    (specs, README, report titles, aggregate figures) is small enough
-    (low thousands of chunks at most) that an exact sequential scan is
-    fast - an approximate index would trade correctness for a speedup
-    this corpus size doesn't need yet.
+    `question` by cosine distance, excluding matches beyond
+    MAX_COSINE_DISTANCE (see its comment for why this is a coarse safety
+    net, not a precision relevance filter). No ivfflat/HNSW index: this
+    corpus (specs, README, report titles, aggregate figures) is small
+    enough (low thousands of chunks at most) that an exact sequential
+    scan is fast - an approximate index would trade correctness for a
+    speedup this corpus size doesn't need yet.
     """
     query_embedding = local_embeddings.embed(question)
     embedding_literal = "[" + ",".join(str(v) for v in query_embedding) + "]"
@@ -105,10 +130,11 @@ def retrieve(question: str, top_k: int = 5) -> list[tuple[str, str]]:
                 """
                 SELECT content, source_ref
                 FROM rag_chunk
+                WHERE embedding <=> %s::vector <= %s
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s
                 """,
-                (embedding_literal, top_k),
+                (embedding_literal, MAX_COSINE_DISTANCE, embedding_literal, top_k),
             )
             return list(cursor.fetchall())
     finally:
