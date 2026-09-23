@@ -5,6 +5,7 @@ import NevButton from "../components/ui/NevButton";
 import NevCard from "../components/ui/NevCard";
 import HeroIllustration from "../components/HeroIllustration";
 import { GlobeIcon, BanknoteIcon, ChartBarIcon, DocumentIcon } from "../components/ui/icons";
+import { SECTOR_LABELS } from "../data/analyticsConstants";
 
 const ARROW_ICON = (
   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -159,11 +160,11 @@ export default function IndexPage() {
           </div>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
             {[
-              { key: "domains.climate", fallback: "Climat", path: "M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c1.657 0 3-4.03 3-9s-1.343-9-3-9-3 4.03-3 9 1.343 9 3 9zM3.5 9h17M3.5 15h17" },
-              { key: "domains.funding", fallback: "Financement", path: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 2v8m0 0v2m0-2c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-              { key: "domains.energy", fallback: "Énergie", path: "M13 10V3L4 14h7v7l9-11h-7z" },
-              { key: "domains.environment", fallback: "Environnement", path: "M12 3c-4.5 4-7 8-7 11.5A7 7 0 0012 21a7 7 0 007-6.5C19 11 16.5 7 12 3z" },
-              { key: "domains.sustainability", fallback: "Développement durable", path: "M5 13l4 4L19 7" },
+              { key: "domains.renewableEnergy", fallback: SECTOR_LABELS["Renewable Energy"], path: "M13 10V3L4 14h7v7l9-11h-7z" },
+              { key: "domains.sustainableTransport", fallback: SECTOR_LABELS["Sustainable Transport"], path: "M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" },
+              { key: "domains.agriculture", fallback: SECTOR_LABELS.Agriculture, path: "M12 22v-9m0 0c0-3-2-4-2-4s2-1 2-4m0 8c0-3 2-4 2-4s-2-1-2-4" },
+              { key: "domains.forestry", fallback: SECTOR_LABELS.Forestry, path: "M12 2L6 12h3l-4 7h5v3h4v-3h5l-4-7h3L12 2z" },
+              { key: "domains.adaptation", fallback: SECTOR_LABELS.Adaptation, path: "M9 12.75L11.25 15 15 9.75M12 3c-2.755 0-5.455.232-8.083.678-.533.09-.917.556-.917 1.096v1.044a12.02 12.02 0 004.5 9.372A12.03 12.03 0 0012 21.75a12.03 12.03 0 006.5-6.06 12.02 12.02 0 004.5-9.372V4.774c0-.54-.384-1.006-.917-1.096A48.32 48.32 0 0012 3z" },
             ].map((domain) => (
               <NevCard key={domain.key} padding="md" interactive className="group text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-white">
