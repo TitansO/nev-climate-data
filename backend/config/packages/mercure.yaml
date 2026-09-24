@@ -3,6 +3,39 @@ mercure:
         default:
             url: '%env(default::MERCURE_URL)%'
             public_url: '%env(default::MERCURE_PUBLIC_URL)%'
+            # Audit pre-production 2026-09-24 (validation finale) : le hub
+            # dunglas/mercure a bascule sur Mercure.rocks 1.0.0 (image non
+            # epinglee, "latest" a change de comportement) - qui EXIGE
+            # desormais un claim JWT "iss" de confiance (RFC 9068), verifie
+            # contre "issuer {$MERCURE_TRUSTED_ISSUERS:https://localhost}"
+            # dans le Caddyfile genere par l'image. Sans "protocol_version:
+            # 1.0" ici, le bundle Symfony reste en mode Legacy et ne pose
+            # aucun claim "iss" - le hub rejetait alors chaque publication
+            # avec "invalid JWT: untrusted issuer \"\"" (verifie en direct :
+            # secret partage confirme identique des deux cotes, ce n'est
+            # pas un probleme de MERCURE_JWT_SECRET). "https://nev-climate-
+            # data.local" est la meme convention deja utilisee comme base
+            # du topic KPI (PublishKpiSnapshotCommand::TOPIC) - doit
+            # correspondre exactement a MERCURE_TRUSTED_ISSUERS cote hub
+            # (docker-compose.yml, service "mercure").
+            protocol_version: '1.0'
             jwt:
                 secret: '%env(MERCURE_JWT_SECRET)%'
                 publish: '*'
+                claims:
+                    iss: 'https://nev-climate-data.local'
+                    # RFC 9068 exige aussi "sub"/"client_id" en protocol_version
+                    # 1.0 - decouvert via l'erreur de validation Symfony elle-
+                    # meme apres le premier essai (iss seul). Application interne
+                    # de premiere partie (pas de vrai flux OAuth ici), donc les
+                    # deux pointent vers la meme identite stable.
+                    sub: 'nev-climate-data-backend'
+                    client_id: 'nev-climate-data-backend'
+                    # Sans ceci, "aud" retombe sur "public_url" (non defini
+                    # ici) puis sur "url" par defaut - mais le hub a quand
+                    # meme rejete la publication avec "invalid audience".
+                    # Fixe explicitement a la meme valeur que "url" ci-dessus
+                    # pour garantir une correspondance exacte avec ce que le
+                    # hub attend pour une requete arrivant sur ce chemin
+                    # interne (verifie en direct : resout l'erreur).
+                    aud: '%env(default::MERCURE_URL)%'

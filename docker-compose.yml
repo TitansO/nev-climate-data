@@ -102,13 +102,25 @@ services:
   # 80 rather than attempting automatic HTTPS/ACME, which would fail with
   # no real public domain.
   mercure:
-    image: dunglas/mercure
+    # Audit pre-production 2026-09-24 (validation finale) : image epinglee
+    # a un tag exact (au lieu de "latest") apres qu'un pull silencieux vers
+    # Mercure.rocks 1.0.0 a casse la publication en production sans aucun
+    # changement de code de notre cote - meme lecon deja appliquee ailleurs
+    # dans ce projet (point d'attention #29, modeles IA) : une dependance
+    # non epinglee peut changer de comportement a tout moment. v1.0.0
+    # verifiee fonctionnelle en direct le 2026-09-24 (avec
+    # MERCURE_TRUSTED_ISSUERS ci-dessous).
+    image: dunglas/mercure:v1.0.0
     container_name: nev-climate-data-mercure
     restart: unless-stopped
     environment:
       SERVER_NAME: ':80'
       MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET}
       MERCURE_SUBSCRIBER_JWT_KEY: ${MERCURE_JWT_SECRET}
+      # Doit correspondre exactement au claim "iss" pose cote Symfony
+      # (backend/config/packages/mercure.yaml, jwt.claims.iss) - voir son
+      # commentaire pour le detail complet de l'incident.
+      MERCURE_TRUSTED_ISSUERS: https://nev-climate-data.local
       MERCURE_EXTRA_DIRECTIVES: |
         anonymous
         cors_origins *
