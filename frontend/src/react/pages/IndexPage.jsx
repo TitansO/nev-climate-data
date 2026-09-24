@@ -145,7 +145,7 @@ export default function IndexPage() {
       </section>
 
       {/* ====== Value banner ====== */}
-      <section className="pt-16">
+      <section className="bg-white pt-16">
         <div className="container mx-auto px-4">
           <div className="rounded-2xl border border-stroke bg-surface-alt px-6 py-8 text-center sm:px-12">
             <p className="text-lg font-semibold text-deep-3 sm:text-xl">{t("valueBanner.text", "Des données structurées pour mieux comprendre les enjeux climatiques.")}</p>
@@ -154,7 +154,7 @@ export default function IndexPage() {
       </section>
 
       {/* ====== Domaines ====== */}
-      <section className="py-20">
+      <section className="bg-white py-20">
         <div className="container mx-auto px-4">
           <div className="mx-auto mb-14 max-w-[600px] text-center">
             <span className="mb-2 block text-sm font-semibold uppercase tracking-wide text-primary">{t("domains.eyebrow", "Domaines couverts")}</span>
@@ -241,7 +241,7 @@ export default function IndexPage() {
       </section>
 
       {/* ====== Sources / crédibilité ====== */}
-      <section className="py-16">
+      <section className="bg-white py-16">
         <div className="container mx-auto px-4">
           <div className="flex flex-col items-center gap-6 rounded-2xl border border-stroke bg-surface-alt px-6 py-10 text-center sm:px-12">
             <span className="text-sm font-semibold uppercase tracking-wide text-primary">{t("trustBand.eyebrow", "Données sourcées et traçables")}</span>
@@ -263,7 +263,7 @@ export default function IndexPage() {
       </section>
 
       {/* ====== Comment ça fonctionne ====== */}
-      <section className="py-20">
+      <section className="bg-white py-20">
         <div className="container mx-auto px-4">
           <div className="mx-auto mb-14 max-w-[600px] text-center">
             <span className="mb-2 block text-sm font-semibold uppercase tracking-wide text-primary">{t("howItWorks.eyebrow", "Méthodologie")}</span>
