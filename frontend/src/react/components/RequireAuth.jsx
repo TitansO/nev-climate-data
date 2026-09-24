@@ -2,6 +2,7 @@ import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import NevCard from "./ui/NevCard";
 import NevButton from "./ui/NevButton";
+import { LockIcon } from "./ui/icons";
 
 /**
  * Structuration des accès (2026-09-24) : garde de page pour toute
@@ -39,8 +40,8 @@ export default function RequireAuth({ children }) {
   return (
     <section className="flex min-h-[60vh] items-center justify-center px-4 py-20">
       <NevCard as="div" padding="lg" className="mx-auto w-full max-w-[440px] rounded-2xl text-center shadow-card">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-2xl" aria-hidden="true">
-          🔒
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden="true">
+          <LockIcon className="h-6 w-6" />
         </div>
         <h1 className="mb-2 text-lg font-bold text-dark">{t("requireAuth.title", "Connexion requise")}</h1>
         <p className="mb-6 text-sm leading-relaxed text-body-color">

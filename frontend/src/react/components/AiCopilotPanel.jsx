@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
-import { SparklesIcon } from "./ui/icons";
+import { SparklesIcon, CloseIcon } from "./ui/icons";
 
 const STORAGE_KEY = "nev_ai_copilot_history";
 const MAX_STORED_MESSAGES = 50;
@@ -106,7 +106,7 @@ export default function AiCopilotPanel() {
               aria-label={t("aiCopilot.close", "Fermer")}
               className="rounded p-1 text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             >
-              ✕
+              <CloseIcon className="h-4 w-4" />
             </button>
           </div>
 

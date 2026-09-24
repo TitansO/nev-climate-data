@@ -150,3 +150,21 @@ export function DatabaseIcon(props) {
     </svg>
   );
 }
+
+export function LockIcon(props) {
+  return (
+    <svg className={base} {...strokeProps} {...props}>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 018 0v4" />
+      <path d="M12 15v3" />
+    </svg>
+  );
+}
+
+export function CloseIcon(props) {
+  return (
+    <svg className={base} {...strokeProps} {...props}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
