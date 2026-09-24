@@ -8,18 +8,21 @@ use App\Entity\Country;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
+use App\Entity\Enum\UserRole;
 use App\Entity\Enum\ValidationStatus;
 use App\Entity\Funding;
 use App\Entity\Sector;
 use App\Entity\Source;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Predis\Client as PredisClient;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 /**
- * GET /api/institutions/{sourceId} (C1.4). Dataset seeded by
- * seedDataset(): one Source ("World Bank Data API", high reliability)
+ * GET /api/institutions/{sourceId} (C1.4). Réservé à ROLE_USER depuis la
+ * structuration des accès du 2026-09-24 (auparavant PUBLIC_ACCESS).
+ * Dataset seeded by seedDataset(): one Source ("World Bank Data API", high reliability)
  * funding Senegal/Renewable Energy/2024/public $300 and Kenya/
  * Agriculture/2025/multilateral $200 - two countries and two sectors so
  * the breakdown/percentage math is unambiguous. A second, unrelated
@@ -64,7 +67,10 @@ final class InstitutionControllerTest extends WebTestCase
         return $matches[0] ?? null;
     }
 
-    private function seedDataset(KernelBrowser $client): Source
+    /**
+     * @return array{0: Source, 1: array{HTTP_AUTHORIZATION: string}}
+     */
+    private function seedDataset(KernelBrowser $client): array
     {
         $client->disableReboot();
 
@@ -78,8 +84,9 @@ final class InstitutionControllerTest extends WebTestCase
         $agriculture = new Sector('Agriculture');
         $worldBank = new Source('World Bank Data API', SourceType::OfficialApi, SourceReliability::High);
         $localRegistry = new Source('Local Registry', SourceType::InternalDemo, SourceReliability::Medium);
+        $user = new User('Amina Diallo', 'amina@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
 
-        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture, $worldBank, $localRegistry] as $entity) {
+        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture, $worldBank, $localRegistry, $user] as $entity) {
             $this->entityManager->persist($entity);
         }
 
@@ -89,15 +96,28 @@ final class InstitutionControllerTest extends WebTestCase
         $this->entityManager->flush();
         $container->get('cache.analytics')->clear();
 
-        return $worldBank;
+        $client->request('POST', '/api/auth/login', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['email' => 'amina@example.com', 'password' => 'correct-horse-battery-staple']));
+        $token = json_decode($client->getResponse()->getContent(), true)['token'];
+
+        return [$worldBank, ['HTTP_AUTHORIZATION' => 'Bearer '.$token]];
     }
 
-    public function testInstitutionProfileIsPubliclyAccessible(): void
+    public function testInstitutionProfileRequiresAuthentication(): void
     {
         $client = static::createClient();
-        $worldBank = $this->seedDataset($client);
+        [$worldBank] = $this->seedDataset($client);
 
         $client->request('GET', '/api/institutions/'.$worldBank->getId());
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testInstitutionProfileSucceedsForAnAuthenticatedUser(): void
+    {
+        $client = static::createClient();
+        [$worldBank, $auth] = $this->seedDataset($client);
+
+        $client->request('GET', '/api/institutions/'.$worldBank->getId(), server: $auth);
 
         self::assertResponseIsSuccessful();
     }
@@ -105,9 +125,9 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfileReturns404ForAnUnknownSource(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        [, $auth] = $this->seedDataset($client);
 
-        $client->request('GET', '/api/institutions/999999');
+        $client->request('GET', '/api/institutions/999999', server: $auth);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -115,9 +135,9 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfileIncludesIdentityAndReliability(): void
     {
         $client = static::createClient();
-        $worldBank = $this->seedDataset($client);
+        [$worldBank, $auth] = $this->seedDataset($client);
 
-        $client->request('GET', '/api/institutions/'.$worldBank->getId());
+        $client->request('GET', '/api/institutions/'.$worldBank->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame($worldBank->getId(), $data['id']);
@@ -129,9 +149,9 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfilePortfolioSummary(): void
     {
         $client = static::createClient();
-        $worldBank = $this->seedDataset($client);
+        [$worldBank, $auth] = $this->seedDataset($client);
 
-        $client->request('GET', '/api/institutions/'.$worldBank->getId());
+        $client->request('GET', '/api/institutions/'.$worldBank->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertEquals(500.0, $data['portfolio']['totalAmountUsd']);
@@ -143,10 +163,10 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfileWithNoFundingReturnsANullPortfolioNotAFabricatedZero(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        [, $auth] = $this->seedDataset($client);
         $localRegistry = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Local Registry']);
 
-        $client->request('GET', '/api/institutions/'.$localRegistry->getId());
+        $client->request('GET', '/api/institutions/'.$localRegistry->getId(), server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -161,9 +181,9 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfileSectorAndCountryBreakdownComputePercentages(): void
     {
         $client = static::createClient();
-        $worldBank = $this->seedDataset($client);
+        [$worldBank, $auth] = $this->seedDataset($client);
 
-        $client->request('GET', '/api/institutions/'.$worldBank->getId());
+        $client->request('GET', '/api/institutions/'.$worldBank->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
 
@@ -181,9 +201,9 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfileYearlyTrendIsChronological(): void
     {
         $client = static::createClient();
-        $worldBank = $this->seedDataset($client);
+        [$worldBank, $auth] = $this->seedDataset($client);
 
-        $client->request('GET', '/api/institutions/'.$worldBank->getId());
+        $client->request('GET', '/api/institutions/'.$worldBank->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame([2024, 2025], array_column($data['yearlyTrend'], 'period'));
@@ -194,9 +214,9 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfileTransparencyReflectsTheLastRealCollection(): void
     {
         $client = static::createClient();
-        $worldBank = $this->seedDataset($client);
+        [$worldBank, $auth] = $this->seedDataset($client);
 
-        $client->request('GET', '/api/institutions/'.$worldBank->getId());
+        $client->request('GET', '/api/institutions/'.$worldBank->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame('2025-01-10', $data['transparency']['lastCollectedAt']);
@@ -206,7 +226,7 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfileExcludesHistorizedAndDemoRows(): void
     {
         $client = static::createClient();
-        $worldBank = $this->seedDataset($client);
+        [$worldBank, $auth] = $this->seedDataset($client);
 
         $historized = new Funding(
             $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']),
@@ -235,7 +255,7 @@ final class InstitutionControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/institutions/'.$worldBank->getId());
+        $client->request('GET', '/api/institutions/'.$worldBank->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertEquals(500.0, $data['portfolio']['totalAmountUsd']); // unchanged, not +999999*2
@@ -244,10 +264,10 @@ final class InstitutionControllerTest extends WebTestCase
     public function testInstitutionProfileIsServedFromRedisCacheOnSecondCall(): void
     {
         $client = static::createClient();
-        $worldBank = $this->seedDataset($client);
+        [$worldBank, $auth] = $this->seedDataset($client);
         $redis = $this->redisClient();
 
-        $client->request('GET', '/api/institutions/'.$worldBank->getId());
+        $client->request('GET', '/api/institutions/'.$worldBank->getId(), server: $auth);
         self::assertResponseIsSuccessful();
 
         self::assertNotNull($this->findCacheKey($redis, 'institution_profile_'.$worldBank->getId()), 'first request must populate Redis');

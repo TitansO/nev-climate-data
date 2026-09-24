@@ -6,7 +6,9 @@ namespace App\Tests\Controller;
 
 use App\Entity\Country;
 use App\Entity\Enum\ReportStatus;
+use App\Entity\Enum\UserRole;
 use App\Entity\Report;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -49,7 +51,10 @@ final class ReportControllerTest extends WebTestCase
         parent::tearDown();
     }
 
-    private function seedDataset(KernelBrowser $client): void
+    /**
+     * @return array{HTTP_AUTHORIZATION: string}
+     */
+    private function seedDataset(KernelBrowser $client): array
     {
         $client->disableReboot();
 
@@ -62,6 +67,10 @@ final class ReportControllerTest extends WebTestCase
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
         $this->entityManager->persist($senegal);
         $this->entityManager->persist($kenya);
+        // Structuration des accès (2026-09-24) : /api/reports est désormais
+        // ROLE_USER (auparavant PUBLIC_ACCESS).
+        $user = new User('Amina Diallo', 'reports@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+        $this->entityManager->persist($user);
 
         $annual = new Report('Annual Report Title', 'Annual Report', 'test-reports/annual.pdf');
         $annual->setStatus(ReportStatus::Published);
@@ -96,9 +105,14 @@ final class ReportControllerTest extends WebTestCase
             mkdir($directory, 0775, true);
         }
         file_put_contents($directory.'/with-file.pdf', '%PDF-1.4 test placeholder');
+
+        $client->request('POST', '/api/auth/login', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['email' => 'reports@example.com', 'password' => 'correct-horse-battery-staple']));
+        $token = json_decode($client->getResponse()->getContent(), true)['token'];
+
+        return ['HTTP_AUTHORIZATION' => 'Bearer '.$token];
     }
 
-    public function testReportsListReturns200AndIsPubliclyAccessible(): void
+    public function testReportsListRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
@@ -106,15 +120,25 @@ final class ReportControllerTest extends WebTestCase
         // No Authorization header, no X-API-Key - a visitor with no account.
         $client->request('GET', '/api/reports');
 
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testReportsListSucceedsForAnAuthenticatedUser(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/reports', server: $auth);
+
         self::assertResponseIsSuccessful();
     }
 
     public function testOnlyPublishedReportsAreListed(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports?limit=100');
+        $client->request('GET', '/api/reports?limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(3, $data['meta']['total']);
@@ -125,9 +149,9 @@ final class ReportControllerTest extends WebTestCase
     public function testFilterByType(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports?type=Country Report');
+        $client->request('GET', '/api/reports?type=Country Report', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(1, $data['meta']['total']);
@@ -137,9 +161,9 @@ final class ReportControllerTest extends WebTestCase
     public function testFilterByCountry(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports?country=SEN');
+        $client->request('GET', '/api/reports?country=SEN', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(1, $data['meta']['total']);
@@ -149,9 +173,9 @@ final class ReportControllerTest extends WebTestCase
     public function testDefaultPaginationMeta(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports');
+        $client->request('GET', '/api/reports', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(1, $data['meta']['page']);
@@ -163,9 +187,9 @@ final class ReportControllerTest extends WebTestCase
     public function testInvalidPageReturns400Json(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports?page=0');
+        $client->request('GET', '/api/reports?page=0', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -175,9 +199,9 @@ final class ReportControllerTest extends WebTestCase
     public function testResponseShapeMatchesContract(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports?type=Country Report');
+        $client->request('GET', '/api/reports?type=Country Report', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $item = $data['data'][0];
@@ -194,14 +218,14 @@ final class ReportControllerTest extends WebTestCase
     public function testDownloadIncrementsCountAndStreamsFile(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports/'.$this->publishedWithFileId.'/download');
+        $client->request('GET', '/api/reports/'.$this->publishedWithFileId.'/download', server: $auth);
 
         self::assertResponseIsSuccessful();
         self::assertSame('application/pdf', $client->getResponse()->headers->get('Content-Type'));
 
-        $client->request('GET', '/api/reports?type=Country Report');
+        $client->request('GET', '/api/reports?type=Country Report', server: $auth);
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(1, $data['data'][0]['downloadCount']);
     }
@@ -209,9 +233,9 @@ final class ReportControllerTest extends WebTestCase
     public function testDownloadOfDraftReportReturns404(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports/'.$this->draftId.'/download');
+        $client->request('GET', '/api/reports/'.$this->draftId.'/download', server: $auth);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -219,9 +243,9 @@ final class ReportControllerTest extends WebTestCase
     public function testDownloadOfNonexistentReportReturns404(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/reports/999999/download');
+        $client->request('GET', '/api/reports/999999/download', server: $auth);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -229,12 +253,12 @@ final class ReportControllerTest extends WebTestCase
     public function testDownloadWithMissingFileReturns404(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // "Annual Report Title" is published but its PDF was never written
         // to disk by seedDataset() (only with-file.pdf was) - the missing-
         // file branch in ReportController::download().
-        $client->request('GET', '/api/reports/'.$this->publishedWithoutFileId.'/download');
+        $client->request('GET', '/api/reports/'.$this->publishedWithoutFileId.'/download', server: $auth);
 
         self::assertResponseStatusCodeSame(404);
     }

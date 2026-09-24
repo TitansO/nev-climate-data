@@ -13,6 +13,20 @@
     <php>
         <ini name="display_errors" value="1" />
         <ini name="error_reporting" value="-1" />
+        <!--
+        Les deux formes sont necessaires, pas redondantes : <server> ne
+        force que $_SERVER['APP_ENV'], mais ce conteneur Docker a un vrai
+        $_ENV['APP_ENV']=dev defini au niveau OS (docker-compose.yml, pour
+        le serveur de dev normal) - PHP le peuple deja dans $_ENV avant meme
+        que PHPUnit ne demarre. Sans le <env> ci-dessous, Symfony resout
+        l'environnement du noyau sur $_ENV (="dev"), jamais sur le $_SERVER
+        force par <server> - "framework.test: true" (when@test) ne
+        s'applique alors jamais, et tout test WebTestCase/KernelTestCase
+        echoue avec "Could not find service test.service_container" (root-
+        cause identifiee en direct le 2026-09-24 : un noyau de debogage
+        temporaire a montre env=dev alors que $_SERVER disait deja "test").
+        -->
+        <env name="APP_ENV" value="test" force="true" />
         <server name="APP_ENV" value="test" force="true" />
         <server name="SHELL_VERBOSITY" value="-1" />
     </php>

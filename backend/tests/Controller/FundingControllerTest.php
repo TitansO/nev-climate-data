@@ -8,10 +8,12 @@ use App\Entity\Country;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
+use App\Entity\Enum\UserRole;
 use App\Entity\Enum\ValidationStatus;
 use App\Entity\Funding;
 use App\Entity\Sector;
 use App\Entity\Source;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -49,7 +51,10 @@ final class FundingControllerTest extends WebTestCase
         parent::tearDown();
     }
 
-    private function seedDataset(KernelBrowser $client): void
+    /**
+     * @return array{HTTP_AUTHORIZATION: string}
+     */
+    private function seedDataset(KernelBrowser $client): array
     {
         $client->disableReboot();
 
@@ -61,8 +66,12 @@ final class FundingControllerTest extends WebTestCase
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
         $renewableEnergy = new Sector('Renewable Energy');
         $agriculture = new Sector('Agriculture');
+        // Structuration des accès (2026-09-24) : /api/funding est désormais
+        // ROLE_USER (auparavant PUBLIC_ACCESS, sauf /api/funding/export
+        // déjà protégé, inchangé).
+        $user = new User('Amina Diallo', 'funding@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
 
-        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture] as $entity) {
+        foreach ([$senegal, $kenya, $renewableEnergy, $agriculture, $user] as $entity) {
             $this->entityManager->persist($entity);
         }
 
@@ -132,6 +141,11 @@ final class FundingControllerTest extends WebTestCase
         }
 
         $this->entityManager->flush();
+
+        $client->request('POST', '/api/auth/login', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['email' => 'funding@example.com', 'password' => 'correct-horse-battery-staple']));
+        $token = json_decode($client->getResponse()->getContent(), true)['token'];
+
+        return ['HTTP_AUTHORIZATION' => 'Bearer '.$token];
     }
 
     private function sectorId(string $name): int
@@ -142,7 +156,7 @@ final class FundingControllerTest extends WebTestCase
         return $sector->getId();
     }
 
-    public function testFundingListReturns200AndIsPubliclyAccessible(): void
+    public function testFundingListRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
@@ -150,15 +164,25 @@ final class FundingControllerTest extends WebTestCase
         // No Authorization header, no X-API-Key - a visitor with no account.
         $client->request('GET', '/api/funding');
 
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testFundingListSucceedsForAnAuthenticatedUser(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/funding', server: $auth);
+
         self::assertResponseIsSuccessful();
     }
 
     public function testDefaultPaginationMeta(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding');
+        $client->request('GET', '/api/funding', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertCount(20, $data['data']);
@@ -171,9 +195,9 @@ final class FundingControllerTest extends WebTestCase
     public function testCustomPagination(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?page=2&limit=10');
+        $client->request('GET', '/api/funding?page=2&limit=10', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertCount(10, $data['data']);
@@ -186,9 +210,9 @@ final class FundingControllerTest extends WebTestCase
     public function testLimitAboveMaximumIsClampedNotRejected(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?limit=500');
+        $client->request('GET', '/api/funding?limit=500', server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -199,9 +223,9 @@ final class FundingControllerTest extends WebTestCase
     public function testFilterByCountry(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?country=SEN&limit=100');
+        $client->request('GET', '/api/funding?country=SEN&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(15, $data['meta']['total']);
@@ -213,9 +237,9 @@ final class FundingControllerTest extends WebTestCase
     public function testFilterBySector(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?sector='.$this->sectorId('Agriculture').'&limit=100');
+        $client->request('GET', '/api/funding?sector='.$this->sectorId('Agriculture').'&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(10, $data['meta']['total']);
@@ -227,9 +251,9 @@ final class FundingControllerTest extends WebTestCase
     public function testFilterByYear(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?year=2025&limit=100');
+        $client->request('GET', '/api/funding?year=2025&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(15, $data['meta']['total']);
@@ -241,9 +265,9 @@ final class FundingControllerTest extends WebTestCase
     public function testFilterByFundingType(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?fundingType=private&limit=100');
+        $client->request('GET', '/api/funding?fundingType=private&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(15, $data['meta']['total']);
@@ -255,9 +279,9 @@ final class FundingControllerTest extends WebTestCase
     public function testFilterByPeriodStart(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?periodStart=2025-01-01&limit=100');
+        $client->request('GET', '/api/funding?periodStart=2025-01-01&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(15, $data['meta']['total']);
@@ -266,9 +290,9 @@ final class FundingControllerTest extends WebTestCase
     public function testFilterByPeriodEnd(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?periodEnd=2024-12-31&limit=100');
+        $client->request('GET', '/api/funding?periodEnd=2024-12-31&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(10, $data['meta']['total']);
@@ -277,9 +301,9 @@ final class FundingControllerTest extends WebTestCase
     public function testCumulativeFiltersNarrowTheResultBelowEitherFilterAlone(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?country=SEN&fundingType=private&limit=100');
+        $client->request('GET', '/api/funding?country=SEN&fundingType=private&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(5, $data['meta']['total']);
@@ -292,9 +316,9 @@ final class FundingControllerTest extends WebTestCase
     public function testNoResultsReturnsEmptyDataWithCorrectMeta(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?country=SEN&sector='.$this->sectorId('Agriculture'));
+        $client->request('GET', '/api/funding?country=SEN&sector='.$this->sectorId('Agriculture'), server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -306,9 +330,9 @@ final class FundingControllerTest extends WebTestCase
     public function testInvalidFundingTypeReturns400Json(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?fundingType=invalid');
+        $client->request('GET', '/api/funding?fundingType=invalid', server: $auth);
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
         self::assertSame('application/json', $client->getResponse()->headers->get('Content-Type'));
@@ -320,9 +344,9 @@ final class FundingControllerTest extends WebTestCase
     public function testInvalidDateReturns400Json(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?periodStart=not-a-date');
+        $client->request('GET', '/api/funding?periodStart=not-a-date', server: $auth);
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -332,9 +356,9 @@ final class FundingControllerTest extends WebTestCase
     public function testPeriodStartAfterPeriodEndReturns400Json(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?periodStart=2025-12-31&periodEnd=2022-01-01');
+        $client->request('GET', '/api/funding?periodStart=2025-12-31&periodEnd=2022-01-01', server: $auth);
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -344,12 +368,12 @@ final class FundingControllerTest extends WebTestCase
     public function testInvalidPageReturns400Json(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?page=0');
+        $client->request('GET', '/api/funding?page=0', server: $auth);
         self::assertSame(400, $client->getResponse()->getStatusCode());
 
-        $client->request('GET', '/api/funding?page=-1');
+        $client->request('GET', '/api/funding?page=-1', server: $auth);
         self::assertSame(400, $client->getResponse()->getStatusCode());
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(400, $data['code']);
@@ -358,12 +382,12 @@ final class FundingControllerTest extends WebTestCase
     public function testInvalidLimitReturns400Json(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?limit=0');
+        $client->request('GET', '/api/funding?limit=0', server: $auth);
         self::assertSame(400, $client->getResponse()->getStatusCode());
 
-        $client->request('GET', '/api/funding?limit=-10');
+        $client->request('GET', '/api/funding?limit=-10', server: $auth);
         self::assertSame(400, $client->getResponse()->getStatusCode());
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(400, $data['code']);
@@ -372,9 +396,9 @@ final class FundingControllerTest extends WebTestCase
     public function testResponseShapeMatchesContractAndHidesInternalFields(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/funding?country=SEN&fundingType=public&limit=1');
+        $client->request('GET', '/api/funding?country=SEN&fundingType=public&limit=1', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertCount(1, $data['data']);
@@ -415,7 +439,7 @@ final class FundingControllerTest extends WebTestCase
     public function testHistorizedRowsAreExcludedFromListingsAndCounts(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // A superseded (historized) row satisfying the same sector filter as
         // Group C (Kenya/Agriculture/2024/private, 10 records) - must never be
@@ -438,7 +462,7 @@ final class FundingControllerTest extends WebTestCase
         $this->entityManager->persist($historized);
         $this->entityManager->flush();
 
-        $client->request('GET', '/api/funding?sector='.$this->sectorId('Agriculture').'&limit=100');
+        $client->request('GET', '/api/funding?sector='.$this->sectorId('Agriculture').'&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(10, $data['meta']['total']); // unchanged - the historized row never counts
@@ -450,7 +474,7 @@ final class FundingControllerTest extends WebTestCase
     public function testDemoRowsAreExcludedFromListingsAndCounts(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // A ValidationStatus::Demo row (A1.6 fixture kind) satisfying the same
         // sector filter as Group C (Kenya/Agriculture/2024/private, 10 records)
@@ -471,7 +495,7 @@ final class FundingControllerTest extends WebTestCase
         ));
         $this->entityManager->flush();
 
-        $client->request('GET', '/api/funding?sector='.$this->sectorId('Agriculture').'&limit=100');
+        $client->request('GET', '/api/funding?sector='.$this->sectorId('Agriculture').'&limit=100', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(10, $data['meta']['total']); // unchanged - the demo row never counts

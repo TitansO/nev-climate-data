@@ -9,11 +9,13 @@ use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\ReportStatus;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
+use App\Entity\Enum\UserRole;
 use App\Entity\Opportunity;
 use App\Entity\Project;
 use App\Entity\Report;
 use App\Entity\Sector;
 use App\Entity\Source;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -52,13 +54,21 @@ final class SearchControllerTest extends WebTestCase
         parent::tearDown();
     }
 
-    private function seedDataset(KernelBrowser $client): void
+    /**
+     * @return array{HTTP_AUTHORIZATION: string}
+     */
+    private function seedDataset(KernelBrowser $client): array
     {
         $client->disableReboot();
 
         $container = static::getContainer();
         $this->entityManager = $container->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
+
+        // Structuration des accès (2026-09-24) : /api/search est désormais
+        // ROLE_USER (auparavant PUBLIC_ACCESS).
+        $user = new User('Amina Diallo', 'search@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+        $this->entityManager->persist($user);
 
         $senegal = new Country('Senegal', 'SEN', "Afrique de l'Ouest");
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
@@ -86,14 +96,29 @@ final class SearchControllerTest extends WebTestCase
         }
 
         $this->entityManager->flush();
+
+        $client->request('POST', '/api/auth/login', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['email' => 'search@example.com', 'password' => 'correct-horse-battery-staple']));
+        $token = json_decode($client->getResponse()->getContent(), true)['token'];
+
+        return ['HTTP_AUTHORIZATION' => 'Bearer '.$token];
     }
 
-    public function testMissingQueryReturns400(): void
+    public function testMissingQueryRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
 
         $client->request('GET', '/api/search');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testMissingQueryReturns400(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/search', server: $auth);
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -103,9 +128,9 @@ final class SearchControllerTest extends WebTestCase
     public function testEmptyQueryReturns400(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=');
+        $client->request('GET', '/api/search?q=', server: $auth);
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
     }
@@ -113,9 +138,9 @@ final class SearchControllerTest extends WebTestCase
     public function testWhitespaceOnlyQueryReturns400(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q='.urlencode('   '));
+        $client->request('GET', '/api/search?q='.urlencode('   '), server: $auth);
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
     }
@@ -123,9 +148,9 @@ final class SearchControllerTest extends WebTestCase
     public function testTooShortQueryReturns400(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=a');
+        $client->request('GET', '/api/search?q=a', server: $auth);
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
     }
@@ -133,19 +158,19 @@ final class SearchControllerTest extends WebTestCase
     public function testTooLongQueryReturns400(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q='.str_repeat('a', 101));
+        $client->request('GET', '/api/search?q='.str_repeat('a', 101), server: $auth);
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
     }
 
-    public function testSearchIsPubliclyAccessible(): void
+    public function testSearchSucceedsForAnAuthenticatedUser(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=senegal');
+        $client->request('GET', '/api/search?q=senegal', server: $auth);
 
         self::assertResponseIsSuccessful();
     }
@@ -153,9 +178,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchFindsACountryCaseInsensitively(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=SeNeGaL');
+        $client->request('GET', '/api/search?q=SeNeGaL', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         // "query" echoes back what was typed (trimmed), not a normalized
@@ -170,10 +195,10 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchFindsAnAccentedCountryWithAnUnaccentedQuery(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // Data has the accents ("Côte d'Ivoire"), the query doesn't.
-        $client->request('GET', '/api/search?q='.urlencode("cote d'ivoire"));
+        $client->request('GET', '/api/search?q='.urlencode("cote d'ivoire"), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $countryResults = array_values(array_filter($data['results'], static fn (array $r) => 'country' === $r['type']));
@@ -185,11 +210,11 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchFindsAnUnaccentedCountryWithAnAccentedQuery(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // Reverse direction: the query has accents ("Sénégal"), the seeded
         // data doesn't ("Senegal").
-        $client->request('GET', '/api/search?q='.urlencode('Sénégal'));
+        $client->request('GET', '/api/search?q='.urlencode('Sénégal'), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $countryResults = array_values(array_filter($data['results'], static fn (array $r) => 'country' === $r['type']));
@@ -200,9 +225,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchIgnoresLeadingAndTrailingWhitespace(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q='.urlencode('  senegal  '));
+        $client->request('GET', '/api/search?q='.urlencode('  senegal  '), server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -213,9 +238,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchFindsASector(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=renewable');
+        $client->request('GET', '/api/search?q=renewable', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $sectorResults = array_values(array_filter($data['results'], static fn (array $r) => 'sector' === $r['type']));
@@ -226,9 +251,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchFindsASource(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=world+bank');
+        $client->request('GET', '/api/search?q=world+bank', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $sourceResults = array_values(array_filter($data['results'], static fn (array $r) => 'source' === $r['type']));
@@ -240,9 +265,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchFindsAPublishedReportButNeverADraft(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=senegal');
+        $client->request('GET', '/api/search?q=senegal', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $reportResults = array_values(array_filter($data['results'], static fn (array $r) => 'report' === $r['type']));
@@ -253,9 +278,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchAcrossMultipleTypesForTheSameTerm(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=senegal');
+        $client->request('GET', '/api/search?q=senegal', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $types = array_unique(array_column($data['results'], 'type'));
@@ -266,9 +291,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchWithNoMatchesReturnsEmptyResultsNotAnError(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=zzzznomatchzzzz');
+        $client->request('GET', '/api/search?q=zzzznomatchzzzz', server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -278,12 +303,12 @@ final class SearchControllerTest extends WebTestCase
     public function testSpecialCharactersAreHandledSafelyWithoutActingAsWildcards(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // A literal "%" or "_" in the query must not act as a SQL wildcard
         // and match everything - it must be searched for literally (and
         // find nothing here, since no seeded name contains it).
-        $client->request('GET', '/api/search?q='.urlencode('%_test'));
+        $client->request('GET', '/api/search?q='.urlencode('%_test'), server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -293,9 +318,9 @@ final class SearchControllerTest extends WebTestCase
     public function testResultsWithinATypeAreAlphabeticallyOrdered(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=re'); // matches both sectors: "Renewable Energy" (starts with "Re"), "Agriculture" (ends with "re")
+        $client->request('GET', '/api/search?q=re', server: $auth); // matches both sectors: "Renewable Energy" (starts with "Re"), "Agriculture" (ends with "re")
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $sectorTitles = array_column(array_filter($data['results'], static fn (array $r) => 'sector' === $r['type']), 'title');
@@ -307,9 +332,9 @@ final class SearchControllerTest extends WebTestCase
     public function testResultShapeNeverExposesUnexpectedFields(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=senegal');
+        $client->request('GET', '/api/search?q=senegal', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertNotEmpty($data['results']);
@@ -321,9 +346,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchFindsAProjectByTitle(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=wind+corridor');
+        $client->request('GET', '/api/search?q=wind+corridor', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $projectResults = array_values(array_filter($data['results'], static fn (array $r) => 'project' === $r['type']));
@@ -335,9 +360,9 @@ final class SearchControllerTest extends WebTestCase
     public function testSearchFindsAnOpportunityByTitle(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=coastal+resilience');
+        $client->request('GET', '/api/search?q=coastal+resilience', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $opportunityResults = array_values(array_filter($data['results'], static fn (array $r) => 'opportunity' === $r['type']));
@@ -354,10 +379,10 @@ final class SearchControllerTest extends WebTestCase
     public function testSectorFacetExcludesCountryEntirely(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
 
-        $client->request('GET', '/api/search?q=kenya&sector='.$agriculture->getId());
+        $client->request('GET', '/api/search?q=kenya&sector='.$agriculture->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame([], $data['results']);
@@ -372,9 +397,9 @@ final class SearchControllerTest extends WebTestCase
     public function testCountryFacetExcludesSectorEntirely(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=agriculture&country=KEN');
+        $client->request('GET', '/api/search?q=agriculture&country=KEN', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame([], $data['results']);
@@ -383,13 +408,13 @@ final class SearchControllerTest extends WebTestCase
     public function testInstrumentFacetNarrowsProjectResults(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=wind&instrument=grant');
+        $client->request('GET', '/api/search?q=wind&instrument=grant', server: $auth);
         $matching = json_decode($client->getResponse()->getContent(), true)['results'];
         self::assertCount(1, $matching);
 
-        $client->request('GET', '/api/search?q=wind&instrument=guarantee');
+        $client->request('GET', '/api/search?q=wind&instrument=guarantee', server: $auth);
         $nonMatching = json_decode($client->getResponse()->getContent(), true)['results'];
         self::assertSame([], $nonMatching);
     }
@@ -401,9 +426,9 @@ final class SearchControllerTest extends WebTestCase
     public function testInstrumentFacetExcludesCountryEntirely(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=kenya&instrument=grant');
+        $client->request('GET', '/api/search?q=kenya&instrument=grant', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame([], $data['results']);
@@ -412,13 +437,13 @@ final class SearchControllerTest extends WebTestCase
     public function testYearFacetNarrowsOpportunityByItsApplicationWindow(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=coastal&year=2024');
+        $client->request('GET', '/api/search?q=coastal&year=2024', server: $auth);
         $matching = json_decode($client->getResponse()->getContent(), true)['results'];
         self::assertCount(1, $matching);
 
-        $client->request('GET', '/api/search?q=coastal&year=2023');
+        $client->request('GET', '/api/search?q=coastal&year=2023', server: $auth);
         $nonMatching = json_decode($client->getResponse()->getContent(), true)['results'];
         self::assertSame([], $nonMatching);
     }
@@ -426,14 +451,14 @@ final class SearchControllerTest extends WebTestCase
     public function testYearFacetNarrowsProjectByItsCreationYear(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $currentYear = (int) (new \DateTimeImmutable())->format('Y');
 
-        $client->request('GET', '/api/search?q=wind&year='.$currentYear);
+        $client->request('GET', '/api/search?q=wind&year='.$currentYear, server: $auth);
         $matching = json_decode($client->getResponse()->getContent(), true)['results'];
         self::assertCount(1, $matching);
 
-        $client->request('GET', '/api/search?q=wind&year='.($currentYear - 1));
+        $client->request('GET', '/api/search?q=wind&year='.($currentYear - 1), server: $auth);
         $nonMatching = json_decode($client->getResponse()->getContent(), true)['results'];
         self::assertSame([], $nonMatching);
     }
@@ -446,9 +471,9 @@ final class SearchControllerTest extends WebTestCase
     public function testYearFacetExcludesAReportWithNoPublicationDateAndCountryEntirely(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=senegal&year=2025');
+        $client->request('GET', '/api/search?q=senegal&year=2025', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame([], $data['results']);
@@ -457,24 +482,24 @@ final class SearchControllerTest extends WebTestCase
     public function testMinAmountFacetNarrowsProjectAndOpportunityResults(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=wind&minAmount=750000');
+        $client->request('GET', '/api/search?q=wind&minAmount=750000', server: $auth);
         self::assertCount(1, json_decode($client->getResponse()->getContent(), true)['results']);
 
-        $client->request('GET', '/api/search?q=wind&minAmount=750001');
+        $client->request('GET', '/api/search?q=wind&minAmount=750001', server: $auth);
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['results']);
 
-        $client->request('GET', '/api/search?q=coastal&minAmount=3000000');
+        $client->request('GET', '/api/search?q=coastal&minAmount=3000000', server: $auth);
         self::assertCount(1, json_decode($client->getResponse()->getContent(), true)['results']);
     }
 
     public function testMinAmountFacetExcludesCountryEntirely(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=kenya&minAmount=1');
+        $client->request('GET', '/api/search?q=kenya&minAmount=1', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame([], $data['results']);
@@ -483,9 +508,9 @@ final class SearchControllerTest extends WebTestCase
     public function testInvalidInstrumentFacetReturns400(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=wind&instrument=not-a-real-instrument');
+        $client->request('GET', '/api/search?q=wind&instrument=not-a-real-instrument', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -493,9 +518,9 @@ final class SearchControllerTest extends WebTestCase
     public function testInvalidYearFacetReturns400(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=wind&year=not-a-year');
+        $client->request('GET', '/api/search?q=wind&year=not-a-year', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -503,9 +528,9 @@ final class SearchControllerTest extends WebTestCase
     public function testInvalidMinAmountFacetReturns400(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=wind&minAmount=-5');
+        $client->request('GET', '/api/search?q=wind&minAmount=-5', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -513,9 +538,9 @@ final class SearchControllerTest extends WebTestCase
     public function testInvalidSectorFacetReturns400(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/search?q=wind&sector=not-a-number');
+        $client->request('GET', '/api/search?q=wind&sector=not-a-number', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }

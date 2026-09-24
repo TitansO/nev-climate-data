@@ -49,7 +49,10 @@ final class OpportunityControllerTest extends WebTestCase
         parent::tearDown();
     }
 
-    private function seedDataset(KernelBrowser $client): void
+    /**
+     * @return array{HTTP_AUTHORIZATION: string}
+     */
+    private function seedDataset(KernelBrowser $client): array
     {
         $client->disableReboot();
 
@@ -60,8 +63,15 @@ final class OpportunityControllerTest extends WebTestCase
         $renewableEnergy = new Sector('Renewable Energy');
         $agriculture = new Sector('Agriculture');
         $source = new Source('Test Fund', SourceType::OfficialApi, SourceReliability::High);
+        // Structuration des accès (2026-09-24) : GET /api/opportunities est
+        // désormais ROLE_USER (auparavant PUBLIC_ACCESS) - seedDataset()
+        // crée et connecte un utilisateur pour tous les tests de la liste,
+        // en plus des données déjà nécessaires. Les tests /candidates plus
+        // bas créaient déjà leur propre utilisateur séparément (déjà
+        // protégé avant cette structuration) - inchangés.
+        $listUser = new User('Amina Diallo', 'opportunities-list@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
 
-        foreach ([$renewableEnergy, $agriculture, $source] as $entity) {
+        foreach ([$renewableEnergy, $agriculture, $source, $listUser] as $entity) {
             $this->entityManager->persist($entity);
         }
 
@@ -85,14 +95,29 @@ final class OpportunityControllerTest extends WebTestCase
         $this->entityManager->persist($upcoming);
 
         $this->entityManager->flush();
+
+        $client->request('POST', '/api/auth/login', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['email' => 'opportunities-list@example.com', 'password' => 'correct-horse-battery-staple']));
+        $token = json_decode($client->getResponse()->getContent(), true)['token'];
+
+        return ['HTTP_AUTHORIZATION' => 'Bearer '.$token];
     }
 
-    public function testOpportunitiesIsPubliclyAccessible(): void
+    public function testOpportunitiesRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
 
         $client->request('GET', '/api/opportunities');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testOpportunitiesSucceedsForAnAuthenticatedUser(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/opportunities', server: $auth);
 
         self::assertResponseIsSuccessful();
     }
@@ -100,9 +125,9 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesComputesStatusRelativeToNow(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/opportunities');
+        $client->request('GET', '/api/opportunities', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         $byTitle = array_column($data, null, 'title');
@@ -114,9 +139,9 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesAreOrderedByClosingDateAscending(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/opportunities');
+        $client->request('GET', '/api/opportunities', server: $auth);
 
         $titles = array_column(json_decode($client->getResponse()->getContent(), true)['data'], 'title');
         self::assertSame(['Closed Grant', 'Open Grant', 'Upcoming Grant'], $titles);
@@ -125,10 +150,10 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesFiltersBySector(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
 
-        $client->request('GET', '/api/opportunities?sector='.$agriculture->getId());
+        $client->request('GET', '/api/opportunities?sector='.$agriculture->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -143,10 +168,10 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesSectorFilterExcludesSectorlessRows(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
 
-        $client->request('GET', '/api/opportunities?sector='.$renewableEnergy->getId());
+        $client->request('GET', '/api/opportunities?sector='.$renewableEnergy->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -156,9 +181,9 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesFiltersByCountryTextSearch(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/opportunities?country=kenya');
+        $client->request('GET', '/api/opportunities?country=kenya', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -168,10 +193,10 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesCountryFilterIsAccentInsensitive(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // Data has the accent ("Sénégal"), the query doesn't.
-        $client->request('GET', '/api/opportunities?'.http_build_query(['country' => 'senegal']));
+        $client->request('GET', '/api/opportunities?'.http_build_query(['country' => 'senegal']), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         $titles = array_column($data, 'title');
@@ -182,9 +207,9 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesFiltersByStatus(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/opportunities?status=open');
+        $client->request('GET', '/api/opportunities?status=open', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -194,10 +219,10 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesCombinesSectorAndStatusFilters(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
 
-        $client->request('GET', '/api/opportunities?sector='.$renewableEnergy->getId().'&status=open');
+        $client->request('GET', '/api/opportunities?sector='.$renewableEnergy->getId().'&status=open', server: $auth);
 
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
     }
@@ -205,9 +230,9 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesRejectsAnInvalidStatusValue(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/opportunities?status=not-a-real-status');
+        $client->request('GET', '/api/opportunities?status=not-a-real-status', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -215,9 +240,9 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesRejectsAnInvalidSectorValue(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/opportunities?sector=not-a-number');
+        $client->request('GET', '/api/opportunities?sector=not-a-number', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -225,9 +250,9 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesResultShapeIncludesSectorlessAsNull(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/opportunities?status=upcoming');
+        $client->request('GET', '/api/opportunities?status=upcoming', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -239,9 +264,9 @@ final class OpportunityControllerTest extends WebTestCase
     public function testOpportunitiesWithNoMatchesReturnsEmptyArrayNotAnError(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/opportunities?country=zzzznomatchzzzz');
+        $client->request('GET', '/api/opportunities?country=zzzznomatchzzzz', server: $auth);
 
         self::assertResponseIsSuccessful();
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);

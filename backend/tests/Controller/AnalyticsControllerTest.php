@@ -10,10 +10,12 @@ use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\FundingType;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
+use App\Entity\Enum\UserRole;
 use App\Entity\Enum\ValidationStatus;
 use App\Entity\Funding;
 use App\Entity\Sector;
 use App\Entity\Source;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Predis\Client as PredisClient;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -91,7 +93,26 @@ final class AnalyticsControllerTest extends WebTestCase
         return $matches[0] ?? null;
     }
 
-    private function seedDataset(KernelBrowser $client): void
+    /**
+     * Structuration des accès (2026-09-24) : POST /api/auth/login avec un
+     * utilisateur déjà persisté et flush - jamais appelé avant que
+     * l'appelant n'ait fait les deux, sinon "email ou mot de passe
+     * incorrect".
+     *
+     * @return array{HTTP_AUTHORIZATION: string}
+     */
+    private function loginAs(KernelBrowser $client, User $user, string $plainPassword = 'correct-horse-battery-staple'): array
+    {
+        $client->request('POST', '/api/auth/login', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['email' => $user->getEmail(), 'password' => $plainPassword]));
+        $token = json_decode($client->getResponse()->getContent(), true)['token'];
+
+        return ['HTTP_AUTHORIZATION' => 'Bearer '.$token];
+    }
+
+    /**
+     * @return array{HTTP_AUTHORIZATION: string}
+     */
+    private function seedDataset(KernelBrowser $client): array
     {
         $client->disableReboot();
 
@@ -103,8 +124,11 @@ final class AnalyticsControllerTest extends WebTestCase
         $renewableEnergy = new Sector('Renewable Energy');
         $agriculture = new Sector('Agriculture');
         $source = new Source('Test Source', SourceType::InternalDemo, SourceReliability::Medium);
+        // Structuration des accès (2026-09-24) : /api/analytics/* est
+        // désormais ROLE_USER (auparavant PUBLIC_ACCESS).
+        $user = new User('Amina Diallo', 'analytics@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
 
-        foreach ([$senegal, $renewableEnergy, $agriculture, $source] as $entity) {
+        foreach ([$senegal, $renewableEnergy, $agriculture, $source, $user] as $entity) {
             $this->entityManager->persist($entity);
         }
 
@@ -117,14 +141,26 @@ final class AnalyticsControllerTest extends WebTestCase
         // The service's own cache pool, flushed so each test starts on a
         // guaranteed miss regardless of what a previous test left behind.
         $container->get('cache.analytics')->clear();
+
+        return $this->loginAs($client, $user);
     }
 
-    public function testFinancingTrendsIsPubliclyAccessible(): void
+    public function testFinancingTrendsRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
 
         $client->request('GET', '/api/analytics/financing-trends');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testFinancingTrendsSucceedsForAnAuthenticatedUser(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
 
         self::assertResponseIsSuccessful();
     }
@@ -132,9 +168,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsAggregatesByYearAndType(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/financing-trends');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(2, $data);
@@ -159,9 +195,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsOrderIsChronological(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/financing-trends');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
 
         $periods = array_column(json_decode($client->getResponse()->getContent(), true)['data'], 'period');
         self::assertSame([2024, 2025], $periods);
@@ -175,9 +211,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsGroupedBySectorAggregatesCorrectly(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/financing-trends?groupBy=sector');
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=sector', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertSame(2024, $data[0]['period']);
@@ -198,9 +234,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsGroupedByFundingTypeMatchesDefaultTotals(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/financing-trends?groupBy=fundingType');
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=fundingType', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(300.0, $data[0]['groups']['public']);
@@ -212,7 +248,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsGroupedByCountryAggregatesCorrectly(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client); // Senegal: 400 in 2024
+        $auth = $this->seedDataset($client); // Senegal: 400 in 2024
 
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
         $this->entityManager->persist($kenya);
@@ -222,7 +258,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/financing-trends?groupBy=country');
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=country', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertSame(2024, $data[0]['period']);
@@ -239,9 +275,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsGroupedByInstrumentFoldsUnsetRowsUnderUnknown(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/financing-trends?groupBy=instrument');
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=instrument', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(400.0, $data[0]['groups']['unknown']);
@@ -251,9 +287,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsRejectsAnInvalidGroupByValue(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/financing-trends?groupBy=not-a-real-dimension');
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=not-a-real-dimension', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -261,11 +297,11 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsGroupedBySectorAndDefaultUseDifferentCacheKeys(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $redis = $this->redisClient();
 
-        $client->request('GET', '/api/analytics/financing-trends');
-        $client->request('GET', '/api/analytics/financing-trends?groupBy=sector');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
+        $client->request('GET', '/api/analytics/financing-trends?groupBy=sector', server: $auth);
 
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_FINANCING_TRENDS), 'the default call must use its own plain cache key');
         self::assertNotNull($this->findCacheKey($redis, 'groupBy=sector'), 'the grouped call must have its own cache entry');
@@ -280,7 +316,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFinancingTrendsIncludesAThreeYearMovingAverageOfTheTotal(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
         $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
@@ -288,7 +324,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/financing-trends');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
 
         $movingAverage = json_decode($client->getResponse()->getContent(), true)['movingAverageTotal'];
         self::assertSame([2023, 2024, 2025], array_column($movingAverage, 'period'));
@@ -300,9 +336,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testSectorDistributionAggregatesAndComputesPercentage(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/sector-distribution');
+        $client->request('GET', '/api/analytics/sector-distribution', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(2, $data);
@@ -317,12 +353,22 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertEquals(12.5, $data[1]['percentage']);
     }
 
-    public function testInstrumentDistributionIsPubliclyAccessible(): void
+    public function testInstrumentDistributionRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
 
         $client->request('GET', '/api/analytics/instrument-distribution');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testInstrumentDistributionSucceedsForAnAuthenticatedUser(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/instrument-distribution', server: $auth);
 
         self::assertResponseIsSuccessful();
     }
@@ -335,7 +381,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testInstrumentDistributionAggregatesAndComputesPercentage(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
         $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
@@ -346,7 +392,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/instrument-distribution');
+        $client->request('GET', '/api/analytics/instrument-distribution', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         $byInstrument = array_column($data, null, 'instrument');
@@ -359,7 +405,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testInstrumentDistributionCrossTabsBySectorAndCountry(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $senegal = $this->entityManager->getRepository(Country::class)->findOneBy(['isoCode' => 'SEN']);
         $renewableEnergy = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Renewable Energy']);
         $source = $this->entityManager->getRepository(Source::class)->findOneBy(['name' => 'Test Source']);
@@ -370,7 +416,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/instrument-distribution');
+        $client->request('GET', '/api/analytics/instrument-distribution', server: $auth);
         $body = json_decode($client->getResponse()->getContent(), true);
 
         $grantSectorRow = current(array_filter($body['bySector'], static fn (array $r): bool => 'grant' === $r['instrument']));
@@ -387,21 +433,31 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testInstrumentDistributionIsServedFromRedisCacheOnSecondCall(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $redis = $this->redisClient();
 
-        $client->request('GET', '/api/analytics/instrument-distribution');
+        $client->request('GET', '/api/analytics/instrument-distribution', server: $auth);
         self::assertResponseIsSuccessful();
 
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_INSTRUMENT_DISTRIBUTION), 'first request must populate Redis');
     }
 
-    public function testFundingFlowsIsPubliclyAccessible(): void
+    public function testFundingFlowsRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
 
         $client->request('GET', '/api/analytics/funding-flows');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testFundingFlowsSucceedsForAnAuthenticatedUser(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/funding-flows', server: $auth);
 
         self::assertResponseIsSuccessful();
     }
@@ -425,8 +481,9 @@ final class AnalyticsControllerTest extends WebTestCase
         $kenya = new Country('Flow Kenya', 'KEN', "Afrique de l'Est");
         $renewableEnergy = new Sector('Renewable Energy');
         $agriculture = new Sector('Agriculture');
+        $user = new User('Amina Diallo', 'flows@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
 
-        foreach ([$sourceA, $sourceB, $senegal, $kenya, $renewableEnergy, $agriculture] as $entity) {
+        foreach ([$sourceA, $sourceB, $senegal, $kenya, $renewableEnergy, $agriculture, $user] as $entity) {
             $this->entityManager->persist($entity);
         }
 
@@ -440,7 +497,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         $container->get('cache.analytics')->clear();
 
-        return ['sourceA' => $sourceA, 'sourceB' => $sourceB, 'senegal' => $senegal, 'kenya' => $kenya, 'renewableEnergy' => $renewableEnergy, 'agriculture' => $agriculture];
+        return ['sourceA' => $sourceA, 'sourceB' => $sourceB, 'senegal' => $senegal, 'kenya' => $kenya, 'renewableEnergy' => $renewableEnergy, 'agriculture' => $agriculture, 'auth' => $this->loginAs($client, $user)];
     }
 
     public function testFundingFlowsBuildsNodesAndLinksFromRealData(): void
@@ -448,7 +505,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $client = static::createClient();
         $entities = $this->seedFlowDataset($client);
 
-        $client->request('GET', '/api/analytics/funding-flows');
+        $client->request('GET', '/api/analytics/funding-flows', server: $entities['auth']);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $nodeIds = array_column($data['nodes'], 'id');
@@ -475,9 +532,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFundingFlowsBucketsBeyondTopNIntoAnOthersNodeWithARealCount(): void
     {
         $client = static::createClient();
-        $this->seedFlowDataset($client); // 2 distinct sources
+        $entities = $this->seedFlowDataset($client); // 2 distinct sources
 
-        $client->request('GET', '/api/analytics/funding-flows?topN=1');
+        $client->request('GET', '/api/analytics/funding-flows?topN=1', server: $entities['auth']);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $sourceNodes = array_column($data['nodes'], null, 'id');
@@ -497,9 +554,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFundingFlowsFiltersByYear(): void
     {
         $client = static::createClient();
-        $this->seedFlowDataset($client);
+        $entities = $this->seedFlowDataset($client);
 
-        $client->request('GET', '/api/analytics/funding-flows?year=2025');
+        $client->request('GET', '/api/analytics/funding-flows?year=2025', server: $entities['auth']);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $total = array_sum(array_column($data['links'], 'value'));
@@ -511,9 +568,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFundingFlowsRejectsAnInvalidTopNValue(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/funding-flows?topN=0');
+        $client->request('GET', '/api/analytics/funding-flows?topN=0', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -521,9 +578,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFundingFlowsRejectsAnInvalidInstrumentValue(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/funding-flows?instrument=not-a-real-instrument');
+        $client->request('GET', '/api/analytics/funding-flows?instrument=not-a-real-instrument', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -535,9 +592,13 @@ final class AnalyticsControllerTest extends WebTestCase
         $container = static::getContainer();
         $this->entityManager = $container->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
+        $user = new User('Amina Diallo', 'flows-empty@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
         $container->get('cache.analytics')->clear();
+        $auth = $this->loginAs($client, $user);
 
-        $client->request('GET', '/api/analytics/funding-flows');
+        $client->request('GET', '/api/analytics/funding-flows', server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -548,10 +609,10 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFundingFlowsIsServedFromRedisCacheOnSecondCall(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $redis = $this->redisClient();
 
-        $client->request('GET', '/api/analytics/funding-flows');
+        $client->request('GET', '/api/analytics/funding-flows', server: $auth);
         self::assertResponseIsSuccessful();
 
         // The cache key is "analytics_funding_flows|instrument=,year=,topN=8"
@@ -561,10 +622,20 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertNotNull($this->findCacheKey($redis, 'topN=8'), 'first request must populate Redis');
     }
 
+    public function testCountryDistributionRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+        $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/country-distribution');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
     public function testCountryDistributionAggregatesAndComputesPercentage(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client); // Senegal: 300 + 100 + 400 = 800
+        $auth = $this->seedDataset($client); // Senegal: 300 + 100 + 400 = 800
 
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
         $this->entityManager->persist($kenya);
@@ -574,7 +645,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/country-distribution');
+        $client->request('GET', '/api/analytics/country-distribution', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(2, $data);
@@ -599,10 +670,10 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCountryDistributionFiltersBySector(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $agriculture = $this->entityManager->getRepository(Sector::class)->findOneBy(['name' => 'Agriculture']);
 
-        $client->request('GET', '/api/analytics/country-distribution?sector='.$agriculture->getId());
+        $client->request('GET', '/api/analytics/country-distribution?sector='.$agriculture->getId(), server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -614,9 +685,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCountryDistributionFiltersByYear(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/country-distribution?year=2025');
+        $client->request('GET', '/api/analytics/country-distribution?year=2025', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -627,9 +698,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCountryDistributionFiltersByFundingType(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/country-distribution?fundingType=private');
+        $client->request('GET', '/api/analytics/country-distribution?fundingType=private', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -640,7 +711,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCountryDistributionFiltersByInstrument(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client); // every seeded row defaults to FundingInstrument::Unknown
+        $auth = $this->seedDataset($client); // every seeded row defaults to FundingInstrument::Unknown
 
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
         $this->entityManager->persist($kenya);
@@ -652,7 +723,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/country-distribution?instrument=grant');
+        $client->request('GET', '/api/analytics/country-distribution?instrument=grant', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -664,11 +735,11 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCountryDistributionCombinesMultipleFiltersAsAnd(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // year=2024 AND fundingType=private matches only the Agriculture
         // row (100) - year=2024 alone would also match the public 300 one.
-        $client->request('GET', '/api/analytics/country-distribution?year=2024&fundingType=private');
+        $client->request('GET', '/api/analytics/country-distribution?year=2024&fundingType=private', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertCount(1, $data);
@@ -678,9 +749,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCountryDistributionRejectsAnUnknownInstrumentValue(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/country-distribution?instrument=not-a-real-instrument');
+        $client->request('GET', '/api/analytics/country-distribution?instrument=not-a-real-instrument', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -688,9 +759,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCountryDistributionRejectsANonIntegerYear(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/country-distribution?year=not-a-year');
+        $client->request('GET', '/api/analytics/country-distribution?year=not-a-year', server: $auth);
 
         self::assertResponseStatusCodeSame(400);
     }
@@ -698,13 +769,13 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCountryDistributionUsesASeparateCacheKeyPerFilterCombination(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $redis = $this->redisClient();
 
-        $client->request('GET', '/api/analytics/country-distribution');
+        $client->request('GET', '/api/analytics/country-distribution', server: $auth);
         $unfilteredData = json_decode($client->getResponse()->getContent(), true)['data'];
 
-        $client->request('GET', '/api/analytics/country-distribution?year=2025');
+        $client->request('GET', '/api/analytics/country-distribution?year=2025', server: $auth);
         $filteredData = json_decode($client->getResponse()->getContent(), true)['data'];
 
         // Different results prove the filtered call was not served from the
@@ -720,12 +791,22 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertNotEmpty(array_filter($allKeys, static fn (string $key): bool => str_contains($key, 'year=2025')), 'the filtered call must have its own cache entry');
     }
 
-    public function testCo2ReductionExplicitlyReportsUnavailableRatherThanFabricatingAValue(): void
+    public function testCo2ReductionRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
 
         $client->request('GET', '/api/analytics/co2-reduction');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testCo2ReductionExplicitlyReportsUnavailableRatherThanFabricatingAValue(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/co2-reduction', server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -738,7 +819,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCo2ReductionComputesYearOverYearVariationOnCommonCountries(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $container = static::getContainer();
         $entityManager = $container->get(EntityManagerInterface::class);
 
@@ -757,7 +838,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $entityManager->flush();
         $container->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/co2-reduction');
+        $client->request('GET', '/api/analytics/co2-reduction', server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -771,7 +852,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testCo2ReductionReportsNegativeValueOnARealIncrease(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $container = static::getContainer();
         $entityManager = $container->get(EntityManagerInterface::class);
 
@@ -783,7 +864,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $entityManager->flush();
         $container->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/co2-reduction');
+        $client->request('GET', '/api/analytics/co2-reduction', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertTrue($data['available']);
@@ -792,22 +873,22 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertEqualsWithDelta(-4.0, $data['data']['reductionMt'], 0.001);
     }
 
-    public function testDataFreshnessIsPubliclyAccessible(): void
+    public function testDataFreshnessRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
 
         $client->request('GET', '/api/analytics/data-freshness');
 
-        self::assertResponseIsSuccessful();
+        self::assertSame(401, $client->getResponse()->getStatusCode());
     }
 
     public function testDataFreshnessReturnsTheLastCollectionDatePerSource(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client); // "Test Source": 2024-03-15, 2024-06-01, 2025-01-10
+        $auth = $this->seedDataset($client); // "Test Source": 2024-03-15, 2024-06-01, 2025-01-10
 
-        $client->request('GET', '/api/analytics/data-freshness');
+        $client->request('GET', '/api/analytics/data-freshness', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertCount(1, $data['sources']);
@@ -819,7 +900,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testDataFreshnessIncludesEmissionSourcesAlongsideFundingSources(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         $container = static::getContainer();
         $kenya = new Country('Kenya', 'KEN', "Afrique de l'Est");
@@ -830,7 +911,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         $container->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/data-freshness');
+        $client->request('GET', '/api/analytics/data-freshness', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         $names = array_column($data['sources'], 'name');
@@ -846,9 +927,13 @@ final class AnalyticsControllerTest extends WebTestCase
         $container = static::getContainer();
         $this->entityManager = $container->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
+        $user = new User('Amina Diallo', 'freshness-empty@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
         $container->get('cache.analytics')->clear();
+        $auth = $this->loginAs($client, $user);
 
-        $client->request('GET', '/api/analytics/data-freshness');
+        $client->request('GET', '/api/analytics/data-freshness', server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -860,10 +945,10 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testDataFreshnessIsServedFromRedisCacheOnSecondCall(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $redis = $this->redisClient();
 
-        $client->request('GET', '/api/analytics/data-freshness');
+        $client->request('GET', '/api/analytics/data-freshness', server: $auth);
         self::assertResponseIsSuccessful();
 
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_DATA_FRESHNESS), 'first request must populate Redis');
@@ -876,21 +961,25 @@ final class AnalyticsControllerTest extends WebTestCase
         $container = static::getContainer();
         $this->entityManager = $container->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
+        $user = new User('Amina Diallo', 'empty-dataset@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
         $container->get('cache.analytics')->clear();
+        $auth = $this->loginAs($client, $user);
 
-        $client->request('GET', '/api/analytics/financing-trends');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
         self::assertResponseIsSuccessful();
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
 
-        $client->request('GET', '/api/analytics/sector-distribution');
+        $client->request('GET', '/api/analytics/sector-distribution', server: $auth);
         self::assertResponseIsSuccessful();
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
 
-        $client->request('GET', '/api/analytics/country-distribution');
+        $client->request('GET', '/api/analytics/country-distribution', server: $auth);
         self::assertResponseIsSuccessful();
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
 
-        $client->request('GET', '/api/analytics/instrument-distribution');
+        $client->request('GET', '/api/analytics/instrument-distribution', server: $auth);
         self::assertResponseIsSuccessful();
         $instrumentBody = json_decode($client->getResponse()->getContent(), true);
         self::assertSame([], $instrumentBody['data']);
@@ -912,22 +1001,22 @@ final class AnalyticsControllerTest extends WebTestCase
         }
     }
 
-    public function testHeroStatsIsPubliclyAccessible(): void
+    public function testHeroStatsRequiresAuthentication(): void
     {
         $client = static::createClient();
         $this->seedDataset($client);
 
         $client->request('GET', '/api/analytics/hero-stats');
 
-        self::assertResponseIsSuccessful();
+        self::assertSame(401, $client->getResponse()->getStatusCode());
     }
 
     public function testHeroStatsMatchesTheSeededDataset(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/hero-stats');
+        $client->request('GET', '/api/analytics/hero-stats', server: $auth);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(['countriesCovered', 'sectorsTracked', 'fundingRecords', 'activeSources'], array_keys($data));
@@ -944,9 +1033,13 @@ final class AnalyticsControllerTest extends WebTestCase
         $container = static::getContainer();
         $this->entityManager = $container->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
+        $user = new User('Amina Diallo', 'hero-empty@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
         $container->get('cache.analytics')->clear();
+        $auth = $this->loginAs($client, $user);
 
-        $client->request('GET', '/api/analytics/hero-stats');
+        $client->request('GET', '/api/analytics/hero-stats', server: $auth);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($client->getResponse()->getContent(), true);
@@ -959,10 +1052,10 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testHeroStatsIsServedFromRedisCacheOnSecondCall(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $redis = $this->redisClient();
 
-        $client->request('GET', '/api/analytics/hero-stats');
+        $client->request('GET', '/api/analytics/hero-stats', server: $auth);
         self::assertResponseIsSuccessful();
 
         self::assertNotNull($this->findCacheKey($redis, 'analytics_hero_stats'), 'first request must populate Redis');
@@ -971,12 +1064,12 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testFirstRequestPopulatesTheRedisCacheWithA900SecondTtl(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $redis = $this->redisClient();
 
         self::assertNull($this->findCacheKey($redis, self::CACHE_KEY_FINANCING_TRENDS), 'key must not exist before the first request');
 
-        $client->request('GET', '/api/analytics/financing-trends');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
         self::assertResponseIsSuccessful();
 
         $key = $this->findCacheKey($redis, self::CACHE_KEY_FINANCING_TRENDS);
@@ -989,14 +1082,14 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testEachAggregateUsesItsOwnCacheKey(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
         $redis = $this->redisClient();
 
-        $client->request('GET', '/api/analytics/financing-trends');
-        $client->request('GET', '/api/analytics/sector-distribution');
-        $client->request('GET', '/api/analytics/country-distribution');
-        $client->request('GET', '/api/analytics/co2-reduction');
-        $client->request('GET', '/api/analytics/instrument-distribution');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
+        $client->request('GET', '/api/analytics/sector-distribution', server: $auth);
+        $client->request('GET', '/api/analytics/country-distribution', server: $auth);
+        $client->request('GET', '/api/analytics/co2-reduction', server: $auth);
+        $client->request('GET', '/api/analytics/instrument-distribution', server: $auth);
 
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_FINANCING_TRENDS));
         self::assertNotNull($this->findCacheKey($redis, self::CACHE_KEY_SECTOR_DISTRIBUTION));
@@ -1014,9 +1107,9 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testSecondRequestIsServedFromCacheEvenAfterTheUnderlyingDataChanges(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
-        $client->request('GET', '/api/analytics/sector-distribution');
+        $client->request('GET', '/api/analytics/sector-distribution', server: $auth);
         $firstResponse = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(700.0, $firstResponse[0]['amount']);
 
@@ -1029,7 +1122,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->persist(new Funding($senegal, $renewableEnergy, 2023, '999999.00', FundingType::Public, $source, new \DateTimeImmutable('2023-03-15'), ValidationStatus::Validated));
         $this->entityManager->flush();
 
-        $client->request('GET', '/api/analytics/sector-distribution');
+        $client->request('GET', '/api/analytics/sector-distribution', server: $auth);
         $secondResponse = json_decode($client->getResponse()->getContent(), true)['data'];
 
         self::assertEquals(700.0, $secondResponse[0]['amount'], 'must still be the cached pre-change value, not a recomputed one');
@@ -1038,7 +1131,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testHistorizedRowsAreExcludedFromEveryAggregate(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // A superseded (historized) row sharing the exact same dedup key as
         // an existing current row from seedDataset() (Senegal/Renewable
@@ -1055,19 +1148,19 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/financing-trends');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(300.0, $data[0]['public']); // unchanged, not 999999 + 300
 
-        $client->request('GET', '/api/analytics/sector-distribution');
+        $client->request('GET', '/api/analytics/sector-distribution', server: $auth);
         $sectorData = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(700.0, $sectorData[0]['amount']); // unchanged, not 999999 + 700
 
-        $client->request('GET', '/api/analytics/country-distribution');
+        $client->request('GET', '/api/analytics/country-distribution', server: $auth);
         $countryData = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(800.0, $countryData[0]['amount']); // unchanged, not 999999 + 800
 
-        $client->request('GET', '/api/analytics/hero-stats');
+        $client->request('GET', '/api/analytics/hero-stats', server: $auth);
         $heroData = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(3, $heroData['fundingRecords']); // unchanged, not 4
     }
@@ -1075,7 +1168,7 @@ final class AnalyticsControllerTest extends WebTestCase
     public function testDemoRowsAreExcludedFromEveryAggregate(): void
     {
         $client = static::createClient();
-        $this->seedDataset($client);
+        $auth = $this->seedDataset($client);
 
         // A ValidationStatus::Demo row (A1.6 fixture kind) with a large amount -
         // B3.3: no demo data ever reaches the frontend, so none of the
@@ -1088,15 +1181,15 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->entityManager->flush();
         static::getContainer()->get('cache.analytics')->clear();
 
-        $client->request('GET', '/api/analytics/financing-trends');
+        $client->request('GET', '/api/analytics/financing-trends', server: $auth);
         $data = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(100.0, $data[0]['private']); // unchanged, not 999999 + 100
 
-        $client->request('GET', '/api/analytics/sector-distribution');
+        $client->request('GET', '/api/analytics/sector-distribution', server: $auth);
         $sectorData = json_decode($client->getResponse()->getContent(), true)['data'];
         self::assertEquals(100.0, $sectorData[1]['amount']); // Agriculture unchanged, not 999999 + 100
 
-        $client->request('GET', '/api/analytics/hero-stats');
+        $client->request('GET', '/api/analytics/hero-stats', server: $auth);
         $heroData = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(3, $heroData['fundingRecords']); // unchanged, not 4
         self::assertSame(1, $heroData['activeSources']); // "Demo Source" not counted
