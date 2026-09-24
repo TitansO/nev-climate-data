@@ -110,6 +110,9 @@ export default function IndexPage() {
                 <NevButton as="a" href="reports.html" variant="outline" className="border-white/30 bg-white/10 px-[18px] py-[9px] text-[0.82rem] text-white backdrop-blur hover:bg-white/20 hover:text-white">
                   <span>{t("hero.viewReports", "Consulter les rapports")}</span>
                 </NevButton>
+                <NevButton as="a" href="opportunities.html" variant="outline" className="border-white/30 bg-white/10 px-[18px] py-[9px] text-[0.82rem] text-white backdrop-blur hover:bg-white/20 hover:text-white">
+                  <span>{t("hero.viewOpportunities", "Consulter les appels à projets")}</span>
+                </NevButton>
               </div>
             </div>
             <div className="mx-auto flex w-full max-w-[420px] justify-center lg:max-w-none lg:justify-end">
