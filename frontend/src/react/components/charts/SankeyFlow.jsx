@@ -52,7 +52,23 @@ export default function SankeyFlow({ nodes, links }) {
             colorTo: (ctx) => colorForNode(data[ctx.dataIndex].to),
             colorMode: "gradient",
             borderWidth: 0,
-            nodeWidth: 12,
+            nodeWidth: 14,
+            // Par defaut, chartjs-chart-sankey dessine les etiquettes de
+            // noeud sans fond, directement par-dessus les flux en degrade -
+            // illisible des que le texte tombe sur une zone coloree ou
+            // sombre. Un fond blanc translucide derriere chaque etiquette
+            // (nodeLabels.backgroundColor) resout ca quel que soit ce qu'il
+            // y a en-dessous, et un texte plus grand/gras (14px, 600) reste
+            // net a la taille d'affichage reelle du graphe.
+            color: "#0f172a",
+            font: { size: 13, weight: "600", family: "'Inter', sans-serif" },
+            nodeLabels: {
+              color: "#0f172a",
+              font: { size: 14, weight: "600", family: "'Inter', sans-serif" },
+              backgroundColor: "rgba(255, 255, 255, 0.92)",
+              padding: 6,
+              borderRadius: 4,
+            },
           },
         ],
       },
@@ -79,7 +95,7 @@ export default function SankeyFlow({ nodes, links }) {
   }, [data, labels]);
 
   return (
-    <div className="relative h-[420px]">
+    <div className="relative h-[480px]">
       <canvas ref={canvasRef}></canvas>
     </div>
   );
