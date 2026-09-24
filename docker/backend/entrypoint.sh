@@ -22,4 +22,21 @@ if [ ! -f config/jwt/private.pem ] || [ ! -f config/jwt/public.pem ]; then
   chown -R www-data:www-data config/jwt
 fi
 
+# Symfony cache (var/cache/{env}) : incident reel de production le
+# 2026-09-24 (audit pre-production, validation finale) - sur le disque
+# Render de ce service, seul le sous-dossier var/cache DEJA present
+# depuis un tout premier deploiement a les bonnes permissions ; tout
+# sous-dossier var/cache/{env} pas encore cree echoue en "Permission
+# denied" des qu'Apache (worker en www-data, jamais root) essaie de le
+# creer lui-meme a la premiere requete - reproduit en direct en passant
+# APP_ENV a "prod" (jamais reconstruit avant), qui a casse toute la
+# prod (500 partout) jusqu'a revenir en arriere. Prechauffe ici, en
+# root, avant qu'Apache ne demarre - meme principe que la paire de cles
+# JWT ci-dessus : cree le dossier avec les bonnes permissions une fois
+# pour toutes, quel que soit APP_ENV reellement utilise, avant qu'aucune
+# requete n'en ait besoin.
+mkdir -p var/cache var/log
+php bin/console cache:warmup --no-interaction
+chown -R www-data:www-data var
+
 exec "$@"
