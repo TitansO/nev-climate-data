@@ -248,6 +248,104 @@ final class AuthenticationControllerTest extends WebTestCase
         self::assertSame(401, $client->getResponse()->getStatusCode());
     }
 
+    /**
+     * Structuration des accès (2026-09-24) : POST /api/auth/register, seul
+     * endpoint public restant hors auth/login-refresh/doc/health/public/*.
+     * Pas de créateur d'utilisateur ici (contrairement aux autres tests de
+     * ce fichier) - l'inscription crée elle-même le compte, c'est ce qui
+     * est testé.
+     */
+    public function testRegisterWithValidPayloadCreatesAnExternalPartnerAccount(): void
+    {
+        $client = static::createClient();
+        $email = sprintf('nouveau-%s@example.com', bin2hex(random_bytes(4)));
+
+        $client->request(
+            'POST',
+            '/api/auth/register',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['name' => 'Amina Diallo', 'email' => $email, 'password' => 'UnMotDePasse1']),
+        );
+
+        self::assertSame(201, $client->getResponse()->getStatusCode());
+        $data = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame($email, $data['email']);
+        // Jamais un autre rôle, quel que soit ce qui serait envoyé dans le
+        // corps de la requête (voir AuthenticationController::register()) -
+        // seul POST /api/users (réservé au SuperAdmin) accepte un champ "role".
+        self::assertSame('external_partner', $data['role']);
+
+        // Le compte créé fonctionne réellement pour se connecter ensuite.
+        $client->request(
+            'POST',
+            '/api/auth/login',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['email' => $email, 'password' => 'UnMotDePasse1']),
+        );
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testRegisterWithAlreadyUsedEmailFails(): void
+    {
+        $client = static::createClient();
+        $this->createTestUser($client, 'deja-utilise@example.com', 'correct-horse-battery-staple');
+
+        $client->request(
+            'POST',
+            '/api/auth/register',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['name' => 'Quelqu\'un d\'autre', 'email' => 'deja-utilise@example.com', 'password' => 'UnMotDePasse1']),
+        );
+
+        self::assertSame(409, $client->getResponse()->getStatusCode());
+    }
+
+    public function testRegisterWithWeakPasswordFails(): void
+    {
+        $client = static::createClient();
+
+        $client->request(
+            'POST',
+            '/api/auth/register',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            // Ni lettre ni chiffre mélangés (uniquement des lettres) -
+            // même règle minimale que POST /api/users (App\Controller\UserController).
+            content: json_encode(['name' => 'Test', 'email' => sprintf('faible-%s@example.com', bin2hex(random_bytes(4))), 'password' => 'seulementdeslettres']),
+        );
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
+    }
+
+    public function testRegisterNeverGrantsAdminAccess(): void
+    {
+        $client = static::createClient();
+        $email = sprintf('visiteur-%s@example.com', bin2hex(random_bytes(4)));
+
+        $client->request(
+            'POST',
+            '/api/auth/register',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            // Un champ "role" fourni malgre tout - doit etre ignore.
+            content: json_encode(['name' => 'Visiteur', 'email' => $email, 'password' => 'UnMotDePasse1', 'role' => 'super_admin']),
+        );
+        self::assertSame(201, $client->getResponse()->getStatusCode());
+
+        $client->request(
+            'POST',
+            '/api/auth/login',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['email' => $email, 'password' => 'UnMotDePasse1']),
+        );
+        $loginData = json_decode($client->getResponse()->getContent(), true);
+
+        $client->request(
+            'GET',
+            '/api/users',
+            server: ['HTTP_AUTHORIZATION' => 'Bearer '.$loginData['token']],
+        );
+        self::assertSame(403, $client->getResponse()->getStatusCode());
+    }
+
     public function testSixthFailedLoginAttemptIsThrottled(): void
     {
         // A unique email per run: login_throttling's rate limiter is keyed by

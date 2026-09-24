@@ -50,6 +50,19 @@ framework:
             policy: 'sliding_window'
             limit: 60
             interval: '1 minute'
+        # Structuration des accès (2026-09-24) : auto-inscription publique
+        # (POST /api/auth/register). Keyed par IP, comme api_anonymous
+        # ci-dessus - mais beaucoup plus stricte et sur une fenêtre plus
+        # longue, même raisonnement que login_throttling (security.yaml) :
+        # la création de compte est un point d'abus bien plus sensible que
+        # de simples lectures (spam d'inscriptions, épuisement de la table
+        # users), donc un plafond dédié plutôt que de compter sur le
+        # plafond général api_anonymous (30/minute, bien trop permissif
+        # pour cette action précise).
+        register_anonymous:
+            policy: 'sliding_window'
+            limit: 5
+            interval: '1 hour'
         # C2.1: POST /api/ai/ask calls out to Gemini (real cost per call,
         # unlike every other api_* endpoint above) - one daily quota per
         # role, same policy shape as export_* rather than api_* (a per-

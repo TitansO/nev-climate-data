@@ -6,6 +6,28 @@ import NevInput from "../components/ui/NevInput";
 import NevButton from "../components/ui/NevButton";
 import NevAlert from "../components/ui/NevAlert";
 
+/**
+ * Structuration des accès (2026-09-24) : ?redirect= permet de ramener le
+ * visiteur exactement là où il voulait aller avant d'être arrêté par
+ * RequireAuth (voir sa docblock). Toujours revalidé ici avant tout usage,
+ * même si le seul émetteur actuel (RequireAuth) construit déjà cette
+ * valeur à partir de la page courante - jamais depuis une saisie visiteur -
+ * pour ne jamais faire confiance à un paramètre d'URL sans le vérifier,
+ * qui reste manipulable par quiconque construit son propre lien. N'autorise
+ * qu'un nom de fichier .html relatif de ce même site (pas de "//", pas de
+ * "://", pas de chemin remontant) - une valeur absente ou invalide retombe
+ * silencieusement sur la page de profil par défaut plutôt que d'échouer.
+ */
+function safeRedirectTarget(rawValue) {
+  if ("string" !== typeof rawValue || "" === rawValue) {
+    return null;
+  }
+  if (!/^[a-zA-Z0-9_-]+\.html(\?[^\s]*)?$/.test(rawValue)) {
+    return null;
+  }
+  return rawValue;
+}
+
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth();
   const { t } = useI18n();
@@ -14,12 +36,15 @@ export default function LoginPage() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const redirectTarget = safeRedirectTarget(new URLSearchParams(window.location.search).get("redirect")) || "account-profile.html";
+
   // Same as the static page's inline script: bounce an already-logged-in
-  // visitor straight to their profile instead of showing the form again.
+  // visitor straight to where they were headed instead of showing the form again.
   useEffect(() => {
     if (isAuthenticated()) {
-      window.location.href = "account-profile.html";
+      window.location.href = redirectTarget;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   async function handleSubmit(event) {
@@ -29,7 +54,7 @@ export default function LoginPage() {
 
     try {
       await login(email.trim(), password);
-      window.location.href = "account-profile.html";
+      window.location.href = redirectTarget;
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
@@ -84,6 +109,13 @@ export default function LoginPage() {
               {submitting ? "Connexion…" : t("loginPage.submit", "Se connecter")}
             </NevButton>
           </form>
+
+          <p className="mt-6 text-center text-xs text-dark-5">
+            {t("loginPage.noAccount", "Pas encore de compte ?")}{" "}
+            <a href={"register.html?redirect=" + encodeURIComponent(redirectTarget)} className="font-semibold text-primary hover:underline">
+              {t("requireAuth.register", "Créer un compte")}
+            </a>
+          </p>
 
           <p
             className="mt-6 text-center text-xs text-dark-5"

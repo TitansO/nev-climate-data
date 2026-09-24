@@ -27,7 +27,7 @@ final class RecommendationController extends AbstractController
         summary: 'Classement priorisé des pays où allouer le prochain financement',
         description: 'Agrégation transparente (App\\Service\\RecommendationService), pas d\'apprentissage : moyenne pondérée à parts égales de l\'écart de couverture CDN (C3.1), l\'écart d\'équité (C3.3), l\'écart d\'alignement CDN (C2.6) et la sécurité d\'investissement (C2.8), sur les seuls signaux réellement disponibles par pays. Limité aux pays disposant d\'au moins un signal réel (le "pool équité", ~12/54 pays NEV).',
         tags: ['Recommendations'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,

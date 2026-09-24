@@ -48,9 +48,9 @@ final class FundingController extends AbstractController
     #[Route('/api/funding', name: 'api_funding_list', methods: ['GET'])]
     #[OA\Get(
         summary: 'Recherche paginée et filtrable dans les données de financement',
-        description: 'Endpoint public (aucune authentification requise). Tous les filtres sont optionnels et cumulables. `limit` est plafonné à 100 (garde-fou de performance, cahier des charges 5.2.c) : une valeur supérieure est silencieusement ramenée à 100, jamais rejetée.',
+        description: 'Réservé aux comptes authentifiés (ROLE_USER) depuis la structuration des accès du 2026-09-24 - un aperçu public agrégé existe séparément via GET /api/public/statistics. Tous les filtres sont optionnels et cumulables. `limit` est plafonné à 100 (garde-fou de performance, cahier des charges 5.2.c) : une valeur supérieure est silencieusement ramenée à 100, jamais rejetée.',
         tags: ['Funding'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'country', in: 'query', required: false, description: "Code ISO alpha-3 du pays (Country.isoCode)", schema: new OA\Schema(type: 'string'), example: 'SEN'),
             new OA\Parameter(name: 'sector', in: 'query', required: false, description: 'Identifiant du secteur (Sector.id)', schema: new OA\Schema(type: 'integer'), example: 1),
@@ -120,6 +120,7 @@ final class FundingController extends AbstractController
                     ]
                 )
             ),
+            new OA\Response(response: 401, description: 'Authentification requise'),
         ]
     )]
     public function list(Request $request): JsonResponse

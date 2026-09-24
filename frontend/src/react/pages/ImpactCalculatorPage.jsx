@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import NevCard from "../components/ui/NevCard";
 import NevSelect from "../components/ui/NevSelect";
 import NevInput from "../components/ui/NevInput";
@@ -28,7 +29,7 @@ function paramsFromUrl() {
  * construit lors du premier passage sur C2.
  */
 export default function ImpactCalculatorPage() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, isAuthenticated } = useAuth();
   const { t } = useI18n();
   const prefill = useMemo(() => paramsFromUrl(), []);
 
@@ -95,6 +96,10 @@ export default function ImpactCalculatorPage() {
       setErrorMessage(t("impactCalculator.error", "Impossible de calculer cette estimation."));
       setStatus("error");
     }
+  }
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
   }
 
   return (

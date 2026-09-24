@@ -51,57 +51,47 @@ security:
                 - App\Security\ApiKeyAuthenticator
 
     # Note: Only the *first* matching rule is applied
+    #
+    # Structuration des accès (2026-09-24) : jusqu'ici, la quasi-totalité
+    # de la surface C1/C3 ci-dessous était volontairement PUBLIC_ACCESS
+    # (voir l'historique git de ce fichier pour le raisonnement A2.x/C1.x/
+    # C3.x d'origine, endpoint par endpoint - une décision d'audit
+    # délibérée à l'époque). Décision produit explicite : un visiteur sans
+    # compte doit pouvoir découvrir NEV (page d'accueil, statistiques
+    # générales agrégées) mais pas reproduire le jeu de données ni utiliser
+    # les fonctionnalités principales sans créer de compte. Tout /api/analytics/*
+    # (y compris l'ancien hero-stats, désormais dupliqué en accès public via
+    # GET /api/public/statistics) bascule donc sur ROLE_USER, sans
+    # exception. GET /api/public/* est la nouvelle couche dédiée aux
+    # aperçus publics (App\Controller\PublicController) - elle n'expose que
+    # des agrégats ou des champs non sensibles, jamais un jeu de données
+    # complet.
     access_control:
         - { path: ^/api/auth/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/refresh, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/register, roles: PUBLIC_ACCESS }
+        - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
-        # A2.3: must come before the /api/funding PUBLIC_ACCESS rule below -
-        # access_control matches by prefix regex, so /api/funding/export
-        # would otherwise also match ^/api/funding and inherit public access
-        # instead of requiring authentication.
+        # Doit venir avant la règle générale /api/funding ci-dessous -
+        # access_control ne retient que la première règle qui correspond,
+        # donc toute exception doit précéder la règle générale de son
+        # propre préfixe.
         - { path: ^/api/funding/export, roles: IS_AUTHENTICATED_FULLY }
-        # A2.1: GET /api/funding is public read - a visitor with no account
-        # can browse the dataset without a JWT or an API key.
-        - { path: ^/api/funding, roles: PUBLIC_ACCESS }
-        # A2.5: the analytics aggregates feed visualizations.html, which
-        # itself has no login requirement - same reasoning as /api/funding.
-        - { path: ^/api/analytics, roles: PUBLIC_ACCESS }
-        # A2.8: every searched entity is already public data (see
-        # App\Service\SearchService's docblock).
-        - { path: ^/api/search, roles: PUBLIC_ACCESS }
-        # A2.13: reports.html has no login requirement, same reasoning as
-        # /api/funding (A2.1) - only published reports are ever exposed by
-        # the controller itself (see App\Repository\ReportRepository).
-        - { path: ^/api/reports, roles: PUBLIC_ACCESS }
-        # C1.4: every Source is already public data (exposed via
-        # GET /api/funding's own responses) - same reasoning as /api/analytics.
-        - { path: ^/api/institutions, roles: PUBLIC_ACCESS }
-        # C2.2: the reverse-direction matching endpoint exposes internal
-        # pipeline Project data (title, amount sought, stage) - same
-        # sensitivity as GET /api/projects/{id}/matches, so it must come
-        # before the /api/opportunities PUBLIC_ACCESS rule below, same
-        # reasoning as /api/funding/export above it in this file.
+        - { path: ^/api/funding, roles: ROLE_USER }
+        - { path: ^/api/analytics, roles: ROLE_USER }
+        - { path: ^/api/search, roles: ROLE_USER }
+        - { path: ^/api/reports, roles: ROLE_USER }
+        - { path: ^/api/institutions, roles: ROLE_USER }
+        # C2.2 : doit venir avant la règle générale /api/opportunities
+        # ci-dessous, même raisonnement que /api/funding/export ci-dessus.
         - { path: ^/api/opportunities/\d+/candidates, roles: IS_AUTHENTICATED_FULLY }
-        # C1.8: opportunities are manually-seeded public information (F4),
-        # same reasoning as /api/search.
-        - { path: ^/api/opportunities, roles: PUBLIC_ACCESS }
-        # C2.6: Country is already public data everywhere else on this
-        # platform (GET /api/analytics/*, GET /api/search) - same
-        # reasoning for its scores.
-        - { path: ^/api/countries, roles: PUBLIC_ACCESS }
-        # C2.5: a pure calculation with no write and no sensitive data -
-        # same openness as the rest of this platform's exploration tools.
-        - { path: ^/api/impact, roles: PUBLIC_ACCESS }
-        # Reference data (id -> name) needed to build the C2.5 sector
-        # picker - no sensitive data, same openness as /api/impact above.
-        - { path: ^/api/sectors, roles: PUBLIC_ACCESS }
-        # C3.4: a pure calculation with no write and no sensitive data -
-        # same openness as /api/impact above.
-        - { path: ^/api/blended, roles: PUBLIC_ACCESS }
-        # C3.7: a read-only aggregation of already-public scores (C2.6/
-        # C2.8/C3.1/C3.3) - same openness as /api/analytics above.
-        - { path: ^/api/recommendations, roles: PUBLIC_ACCESS }
+        - { path: ^/api/opportunities, roles: ROLE_USER }
+        - { path: ^/api/countries, roles: ROLE_USER }
+        - { path: ^/api/impact, roles: ROLE_USER }
+        - { path: ^/api/sectors, roles: ROLE_USER }
+        - { path: ^/api/blended, roles: ROLE_USER }
+        - { path: ^/api/recommendations, roles: ROLE_USER }
         # C3.8: machine-to-machine trigger for the daily alerts DAG - no
         # JWT/API-key identity makes sense here, real authentication is the
         # shared-secret check inside App\Controller\InternalAlertsController

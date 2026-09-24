@@ -34,7 +34,7 @@ final class CountryController extends AbstractController
         summary: 'Score d\'alignement CDN du pays (0-100, grade A-E)',
         description: '3 indicateurs pondérés transparents (couverture des secteurs prioritaires 0,5 ; ratio reçu/besoin déclaré 0,3 ; conditionnalité de la cible 0,2). `available=false` (jamais un score fabriqué) quand ce pays n\'a pas de CDN chiffrée dans le jeu de données (F7, ~12/54 pays NEV).',
         tags: ['Countries'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [new OA\Parameter(name: 'iso', in: 'path', required: true, description: 'Code ISO-3 du pays', schema: new OA\Schema(type: 'string', example: 'SEN'))],
         responses: [
             new OA\Response(
@@ -81,7 +81,7 @@ final class CountryController extends AbstractController
         summary: 'Score de risque d\'investissement du pays (0-100, grade A-E - A = le plus sûr)',
         description: 'Risque pays à partir d\'indicateurs ouverts (volatilité des flux réels, concentration des bailleurs, écart CDN) - App\\Service\\Scoring\\CountryRiskCalculator, réutilisé tel quel depuis C2.4. Aucun indice souverain tiers. Grade orienté "plus haut = plus sûr", comme tous les autres scores de cette plateforme.',
         tags: ['Countries'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [new OA\Parameter(name: 'iso', in: 'path', required: true, description: 'Code ISO-3 du pays', schema: new OA\Schema(type: 'string', example: 'SEN'))],
         responses: [
             new OA\Response(response: 200, description: 'Score de risque d\'investissement'),
@@ -103,7 +103,7 @@ final class CountryController extends AbstractController
         summary: 'C3.3 : score d\'équité du pays (0-100, grade A-E)',
         description: '3 indicateurs pondérés transparents (financement/habitant vs vulnérabilité 0,4 ; part reçue vs besoin CDN 0,3 ; financement/tCO2 inversé 0,3, voir App\\Service\\Scoring\\Equity\\). `available=false` (jamais un score fabriqué) quand ce pays n\'a ni population ni indice de vulnérabilité chiffrés (~12/54 pays NEV, voir CountryEquityDataFixtures).',
         tags: ['Countries'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [new OA\Parameter(name: 'iso', in: 'path', required: true, description: 'Code ISO-3 du pays', schema: new OA\Schema(type: 'string', example: 'RWA'))],
         responses: [
             new OA\Response(response: 200, description: 'Score d\'équité, ou indisponibilité explicite'),

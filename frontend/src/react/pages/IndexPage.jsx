@@ -34,7 +34,11 @@ function useHeroStats() {
 
     (async () => {
       try {
-        const response = await fetch(API_BASE_URL + "/api/analytics/hero-stats", { headers: { Accept: "application/json" } });
+        // Structuration des accès : /api/analytics/* nécessite désormais un
+        // compte (ROLE_USER) - la page d'accueil, elle, reste publique et
+        // utilise donc son pendant non authentifié, /api/public/statistics
+        // (mêmes données, App\Controller\PublicController).
+        const response = await fetch(API_BASE_URL + "/api/public/statistics", { headers: { Accept: "application/json" } });
         if (!response.ok) {
           throw new Error("Une erreur est survenue (" + response.status + ").");
         }

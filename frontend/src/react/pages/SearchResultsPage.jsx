@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import { COUNTRY_GROUPS } from "../data/africaCountries";
 import { INSTRUMENT_LABELS } from "../data/analyticsConstants";
 import NevCard from "../components/ui/NevCard";
@@ -79,7 +80,7 @@ function buildQueryString(term, filters) {
  * (App\Dto\SearchQuery::$sectorId) is ready for a future UI once one does.
  */
 export default function SearchResultsPage() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, isAuthenticated } = useAuth();
   const { t } = useI18n();
 
   const initial = stateFromUrl();
@@ -145,6 +146,10 @@ export default function SearchResultsPage() {
     const next = { ...EMPTY_FILTERS };
     setFilters(next);
     runSearch(term, next);
+  }
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
   }
 
   return (

@@ -34,7 +34,7 @@ final class BlendedFinanceController extends AbstractController
         summary: 'Simule un montage de finance mixte (public + privé) et son effet de levier attendu',
         description: 'Modèle paramétrique (App\\Service\\BlendedFinanceService), jamais un modèle entraîné - ratios de levier illustratifs par secteur et par instrument, inspirés de la littérature OCDE. `instrumentMix` : pourcentage (0.0-1.0) par instrument (App\\Entity\\Enum\\FundingInstrument), doit sommer à 1.0 ± 0,01 ; omis ou vide, un multiplicateur neutre (1.0) est appliqué. `country` accepté mais sans effet sur le calcul pour l\'instant.',
         tags: ['Blended Finance'],
-        security: [],
+        security: [['bearerAuth' => []]],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(

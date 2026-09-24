@@ -16,10 +16,11 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * C1.4 : fiche institution (bailleur) - un `Source` vu à travers les
  * financements qu'il a déclarés (portefeuille, répartition, évolution,
- * fiabilité, transparence). Deliberately PUBLIC_ACCESS, même raisonnement
- * que GET /api/funding et GET /api/analytics/* : chaque `Source` est déjà
- * exposée par ces deux endpoints, il n'y a donc aucune raison d'exiger une
- * connexion pour la voir sous cet angle-ci.
+ * fiabilité, transparence). Réservé aux comptes authentifiés (ROLE_USER)
+ * depuis la structuration des accès du 2026-09-24 - un aperçu public
+ * dépouillé (nom, type, fiabilité - jamais le portefeuille ni les
+ * montants) existe séparément via GET /api/public/institutions
+ * (App\Controller\PublicController).
  */
 final class InstitutionController extends AbstractController
 {
@@ -35,7 +36,7 @@ final class InstitutionController extends AbstractController
         summary: 'Fiche institution (bailleur) : portefeuille, répartition, évolution, fiabilité, transparence (mis en cache 15 min)',
         description: 'Vue d\'un `Source` à travers ses financements réels (jamais les données de démonstration - B3.3). `portfolio` est `null` si cette source n\'a encore aucun financement réel (jamais un zéro fabriqué). `reliability` reprend Source.reliability tel quel. `transparency` reflète la dernière collecte réelle connue pour cette seule source (même notion que GET /api/analytics/data-freshness, C1.1) - une donnée vérifiable, jamais un score inventé.',
         tags: ['Institutions'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,
@@ -107,7 +108,7 @@ final class InstitutionController extends AbstractController
         summary: 'C3.6 : score de transparence de l\'institution (0-100, grade A-E)',
         description: '5 indicateurs pondérés transparents (complétude 0,3 ; publication IATI 0,2 ; fraîcheur 0,2 ; granularité 0,2 ; présence de descriptif 0,1, voir App\\Service\\Scoring\\Transparency\\) - jamais un modèle entraîné. Les 2 derniers indicateurs sont toujours neutres (0,5) : aucun signal de granularité par activité ni de texte descriptif n\'existe dans ce schéma, quelle que soit la source - `breakdown` le documente explicitement plutôt que de fabriquer une valeur.',
         tags: ['Institutions'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [new OA\Parameter(name: 'sourceId', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
         responses: [
             new OA\Response(response: 200, description: 'Score de transparence'),

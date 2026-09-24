@@ -64,6 +64,7 @@ export default defineConfig({
       input: {
         404: resolve(__dirname, "404.html"),
         login: resolve(__dirname, "login.html"),
+        register: resolve(__dirname, "register.html"),
         about: resolve(__dirname, "about.html"),
         sources: resolve(__dirname, "sources.html"),
         "api-docs": resolve(__dirname, "api-docs.html"),

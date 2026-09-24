@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import NevChartCard from "../components/ui/NevChartCard";
 import NevTable from "../components/ui/NevTable";
 import NevDataState from "../components/ui/NevDataState";
@@ -26,7 +27,7 @@ function instrumentLabel(value) {
  * x 54 pays).
  */
 export default function InstrumentsPage() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, isAuthenticated } = useAuth();
   const { t } = useI18n();
   const [state, setState] = useState("loading");
   const [profile, setProfile] = useState(null);
@@ -68,6 +69,10 @@ export default function InstrumentsPage() {
 
   const topBySector = useMemo(() => (profile ? profile.bySector.slice(0, CROSS_TAB_LIMIT) : []), [profile]);
   const topByCountry = useMemo(() => (profile ? profile.byCountry.slice(0, CROSS_TAB_LIMIT) : []), [profile]);
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <>

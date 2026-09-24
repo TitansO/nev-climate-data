@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import NevCard from "../components/ui/NevCard";
 import NevBadge from "../components/ui/NevBadge";
 import NevInput from "../components/ui/NevInput";
@@ -37,7 +38,7 @@ function stateFromUrl() {
  * menu (le filtre backend, lui, est prêt : GET /api/opportunities?sector=).
  */
 export default function OpportunityRadarPage() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, isAuthenticated } = useAuth();
   const { t } = useI18n();
   const initial = stateFromUrl();
 
@@ -95,6 +96,10 @@ export default function OpportunityRadarPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryString]);
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <>

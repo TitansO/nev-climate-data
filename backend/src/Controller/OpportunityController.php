@@ -37,7 +37,7 @@ final class OpportunityController extends AbstractController
         summary: 'Appels à projets ouverts, filtrables par secteur/pays/échéance',
         description: 'Triés par échéance croissante (les plus urgents d\'abord ; sans date de fermeture, en dernier). `status` (open/upcoming/closed) est calculé par rapport à maintenant, jamais stocké. `country` est une recherche texte insensible à la casse et aux accents dans le texte libre d\'éligibilité (`eligibilityCriteria`) - chaque appel à projets réel est régional/multi-pays ("tous pays NEV", "les 11 pays du G5 Sahel"...), il n\'existe donc pas de pays éligible unique à stocker par ligne (voir App\\Dto\\OpportunityCriteria).',
         tags: ['Opportunities'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'sector', in: 'query', required: false, description: 'Identifiant du secteur (Sector.id)', schema: new OA\Schema(type: 'integer', example: 3)),
             new OA\Parameter(name: 'country', in: 'query', required: false, description: 'Terme de recherche dans le texte d\'éligibilité (ex : "Senegal", "Sahel")', schema: new OA\Schema(type: 'string', example: 'Sahel')),

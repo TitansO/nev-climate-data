@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import useAnalyticsFetch from "../hooks/useAnalyticsFetch";
 import useMercureKpis from "../hooks/useMercureKpis";
 import ChartStateBox from "../components/charts/ChartStateBox";
@@ -167,6 +168,7 @@ function useActiveProjectsCount() {
 
 export default function VisualizationsPage() {
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
   const heroKpis = useKpiHeroStats();
   const co2 = useCo2Reduction();
   const activeProjects = useActiveProjectsCount();
@@ -205,6 +207,10 @@ export default function VisualizationsPage() {
   const co2ReductionMt = mercureKpis.snapshot && null !== mercureKpis.snapshot.co2ReductionMt && undefined !== mercureKpis.snapshot.co2ReductionMt
     ? mercureKpis.snapshot.co2ReductionMt
     : null;
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <>

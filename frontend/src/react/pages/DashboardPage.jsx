@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import useAnalyticsFetch from "../hooks/useAnalyticsFetch";
 import ChartStateBox from "../components/charts/ChartStateBox";
 import SectorDonutChart from "../components/charts/SectorDonutChart";
@@ -109,6 +110,7 @@ function useDataFreshness() {
 
 export default function DashboardPage() {
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
   const heroStats = useHeroStats();
   const freshness = useDataFreshness();
 
@@ -119,6 +121,10 @@ export default function DashboardPage() {
   // C1.2: years for the CountryMap layer selector's "Année" filter - reuses
   // financing-trends' own periods instead of a second endpoint.
   const availableYears = useMemo(() => (financing.data ? financing.data.data.map((row) => row.period) : []), [financing.data]);
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <>

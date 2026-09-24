@@ -1,4 +1,6 @@
+import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import useAnalyticsFetch from "../hooks/useAnalyticsFetch";
 import NevCard from "../components/ui/NevCard";
 import NevBadge from "../components/ui/NevBadge";
@@ -20,7 +22,12 @@ const GRADE_TONE = { A: "success", B: "success", C: "warning", D: "warning", E: 
  */
 export default function EquityScorePage() {
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
   const { state, data, message, reload } = useAnalyticsFetch("/api/analytics/equity", { emptyWhen: (body) => 0 === body.ranking.length });
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <div className="container mx-auto px-4 py-10">

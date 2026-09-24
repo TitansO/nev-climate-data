@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import useAnalyticsFetch from "../hooks/useAnalyticsFetch";
 import NevSelect from "../components/ui/NevSelect";
 import NevCard from "../components/ui/NevCard";
@@ -17,12 +19,15 @@ function isoFromUrl() {
  * C2.6 + C2.8 + C3.2 (volet pays) : fiche pays prévue par le plan initial
  * ("encart sur la fiche pays / carte") mais jamais construite lors des
  * premiers passages sur C2/C3 - alignement CDN (C2.6), risque
- * investissement (C2.8) et part locale estimée (C3.2), tous PUBLIC_ACCESS
- * côté backend. Route MPA autonome (country-profile.html?iso=...), même
- * famille que institution-profile.html/project-pipeline.html.
+ * investissement (C2.8) et part locale estimée (C3.2). Réservé à
+ * ROLE_USER depuis la structuration des accès (2026-09-24) -
+ * /api/countries/* était initialement PUBLIC_ACCESS. Route MPA autonome
+ * (country-profile.html?iso=...), même famille que
+ * institution-profile.html/project-pipeline.html.
  */
 export default function CountryProfilePage() {
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
   const [iso, setIso] = useState(isoFromUrl());
 
   const countryName = useMemo(() => {
@@ -51,6 +56,10 @@ export default function CountryProfilePage() {
       url.searchParams.delete("iso");
     }
     window.history.replaceState(null, "", url);
+  }
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
   }
 
   return (

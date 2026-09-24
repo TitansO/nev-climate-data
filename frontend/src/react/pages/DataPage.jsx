@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import { COUNTRY_GROUPS } from "../data/africaCountries";
 import NevCard from "../components/ui/NevCard";
 import NevSelect from "../components/ui/NevSelect";
@@ -336,6 +337,10 @@ export default function DataPage() {
       render: (item) => <NevBadge tone={"demo" === item.validationStatus ? "warning" : "success"}>{VALIDATION_STATUS_LABELS[item.validationStatus] || item.validationStatus}</NevBadge>,
     },
   ];
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <>

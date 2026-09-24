@@ -34,7 +34,7 @@ final class SearchController extends AbstractController
         summary: 'Recherche globale (pays, secteurs, sources, rapports publiés, projets, appels à projets)',
         description: 'Recherche insensible à la casse et aux accents, sur le nom/titre de chaque type. `q` est requis, entre 2 et 100 caractères (espaces superflus ignorés). Au plus 5 résultats par type, triés par ordre alphabétique au sein de chaque type. Les rapports en statut "draft" ne sont jamais retournés. C1.3 : filtres optionnels et cumulables country/sector/instrument/year/minAmount - chacun ne s\'applique qu\'aux types qui portent réellement cette dimension (voir App\\Service\\SearchService) ; un type qui n\'a pas un filtre actif en est simplement exclu.',
         tags: ['Search'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'q', in: 'query', required: true, description: 'Terme recherché (2 à 100 caractères)', schema: new OA\Schema(type: 'string'), example: 'senegal'),
             new OA\Parameter(name: 'country', in: 'query', required: false, description: 'Code ISO du pays (country, report, project)', schema: new OA\Schema(type: 'string', example: 'SEN')),

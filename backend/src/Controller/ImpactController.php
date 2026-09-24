@@ -33,7 +33,7 @@ final class ImpactController extends AbstractController
     #[OA\Get(
         summary: 'Liste les secteurs (référentiel) - notamment pour peupler le sélecteur du calculateur d\'impact',
         tags: ['Impact'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,
@@ -61,7 +61,7 @@ final class ImpactController extends AbstractController
         summary: 'Estime l\'impact d\'un montant investi dans un secteur (tCO2/an, MW, bénéficiaires)',
         description: 'Facteurs statiques et documentés par secteur (App\\Entity\\ImpactFactor), jamais un modèle entraîné - chaque métrique renvoyée porte une fourchette basse/haute, jamais un chiffre ponctuel présenté comme certain. `country` accepté mais actuellement sans effet sur le calcul (aucun facteur d\'ajustement par pays n\'existe encore).',
         tags: ['Impact'],
-        security: [],
+        security: [['bearerAuth' => []]],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(

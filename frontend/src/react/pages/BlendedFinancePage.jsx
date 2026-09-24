@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import NevCard from "../components/ui/NevCard";
 import NevSelect from "../components/ui/NevSelect";
 import { formatCount } from "../data/analyticsConstants";
@@ -17,7 +18,7 @@ const WATERFALL_COLORS = { "Financement public": "#0F7A37", "Capital privé mobi
  * bibliothèque de graphique de ce projet n'a de type "waterfall" natif.
  */
 export default function BlendedFinancePage() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, isAuthenticated } = useAuth();
   const { t } = useI18n();
 
   const [sectors, setSectors] = useState([]);
@@ -91,6 +92,10 @@ export default function BlendedFinancePage() {
   }, [API_BASE_URL, sectorId, publicAmount, guaranteeShare]);
 
   const maxWaterfallAmount = result ? Math.max(...result.waterfall.map((step) => step.amountUsd)) : 0;
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <div className="container mx-auto px-4 py-10">

@@ -91,6 +91,36 @@ export function AuthProvider({ children }) {
     setTokens(body.token, body.refresh_token);
   }, []);
 
+  /**
+   * Structuration des accès : POST /api/auth/register crée le compte
+   * (toujours "external_partner" côté backend, voir
+   * App\Controller\AuthenticationController::register()) mais ne renvoie
+   * aucun jeton - enchaîne donc login() avec les mêmes identifiants plutôt
+   * que de dupliquer la génération de JWT côté frontend.
+   */
+  const register = useCallback(
+    async (name, email, password) => {
+      let response;
+      try {
+        response = await fetch(API_BASE_URL + "/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ name, email, password }),
+        });
+      } catch (networkError) {
+        throw new Error("Impossible de contacter le serveur. Vérifiez votre connexion et réessayez.");
+      }
+
+      const body = await safeJson(response);
+      if (!response.ok) {
+        throw new Error(body && body.message ? body.message : "La création du compte a échoué.");
+      }
+
+      await login(email, password);
+    },
+    [login]
+  );
+
   const logout = useCallback(async () => {
     const token = getToken();
     clearTokens();
@@ -198,6 +228,7 @@ export function AuthProvider({ children }) {
   const value = {
     API_BASE_URL,
     login,
+    register,
     logout,
     isAuthenticated,
     getToken,

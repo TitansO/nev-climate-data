@@ -32,13 +32,21 @@ export default function AuthSlot() {
 
   if (!isAuthenticated() || null === user) {
     return (
-      <a
-        href="login.html"
-        id="auth-nav-slot"
-        className="loginBtn signUpBtn rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow-xs transition duration-300 ease-in-out hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      >
-        {t("nav.login", "Connexion")}
-      </a>
+      <div className="flex items-center gap-3">
+        <a
+          href="register.html"
+          className="loginBtn rounded-sm text-sm font-medium text-dark-4 transition hover:text-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          {t("requireAuth.register", "Créer un compte")}
+        </a>
+        <a
+          href="login.html"
+          id="auth-nav-slot"
+          className="loginBtn signUpBtn rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow-xs transition duration-300 ease-in-out hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          {t("nav.login", "Connexion")}
+        </a>
+      </div>
     );
   }
 

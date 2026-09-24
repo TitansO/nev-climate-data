@@ -23,15 +23,16 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Server-side aggregates for the analytics charts on the frontend's
  * visualizations page (A2.5, extended with country-distribution for the
- * funding map) and the Hero stats strip on index.html (A2.7).
- * Deliberately PUBLIC_ACCESS, like GET /api/funding (see security.yaml):
- * neither page has a login requirement, so there is no reason for the data
- * feeding them to require one either. Every endpoint but
- * country-distribution takes no query parameters (see the A2.5/A2.6
- * implementation report) - country-distribution gained optional
- * sector/instrument/year/fundingType filters in C1.2, for the Dashboard's
- * (C1.1) and Visualisations' map layer selector. Every response is served
- * through a 15-minute Redis cache (App\Service\AnalyticsService).
+ * funding map) and the Dashboard. Réservé aux comptes authentifiés
+ * (ROLE_USER) depuis la structuration des accès du 2026-09-24 - le Hero
+ * public de la page d'accueil utilise désormais son propre aperçu agrégé,
+ * GET /api/public/statistics (App\Controller\PublicController), plutôt que
+ * hero-stats() ci-dessous. Every endpoint but country-distribution takes no
+ * query parameters (see the A2.5/A2.6 implementation report) -
+ * country-distribution gained optional sector/instrument/year/fundingType
+ * filters in C1.2, for the Dashboard's (C1.1) and Visualisations' map layer
+ * selector. Every response is served through a 15-minute Redis cache
+ * (App\Service\AnalyticsService).
  */
 final class AnalyticsController extends AbstractController
 {
@@ -50,7 +51,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Statistiques agrégées affichées dans le Hero de la page d\'accueil (mis en cache 15 min)',
         description: 'countriesCovered/activeSources comptent les pays/sources ayant au moins un enregistrement Funding (pas le total des tables de référence) ; sectorsTracked est le nombre total de secteurs suivis par la plateforme ; fundingRecords est le nombre total d\'enregistrements Funding. Réponse servie depuis un cache Redis dédié, TTL 900 secondes (même pool que les autres agrégats A2.5).',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,
@@ -76,7 +77,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Tendances de financement par année, éventuellement ventilées par dimension (mis en cache 15 min)',
         description: 'Sans paramètre : montants agrégés (SUM) par année, ventilés par type de financement (public/private/multilateral) - comportement inchangé depuis A2.5. C1.6 : avec `groupBy`, `data` porte à la place un objet `groups` générique, ventilé par secteur/instrument/pays/type selon la valeur choisie. `movingAverageTotal` (nouveau, C1.6) est toujours présent : moyenne mobile du total sur 3 ans (les 1-2 premières années de la série moyennent sur moins de 3 points, jamais une valeur fabriquée). Ordre chronologique stable. Réponse servie depuis un cache Redis dédié par combinaison de paramètres, TTL 900 secondes.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'groupBy', in: 'query', required: false, description: 'Dimension de ventilation (par défaut : type de financement, forme historique)', schema: new OA\Schema(type: 'string', enum: ['sector', 'instrument', 'country', 'fundingType'])),
         ],
@@ -127,7 +128,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Répartition des financements par secteur (mis en cache 15 min)',
         description: 'Montants agrégés (SUM) par secteur réel, triés du plus grand au plus petit (ordre déterministe : égalité départagée par id de secteur). Le pourcentage est calculé côté serveur sur le total agrégé. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,
@@ -156,7 +157,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Répartition des financements par instrument financier + croisements secteur/pays (mis en cache 15 min)',
         description: 'C1.7 : montants agrégés (SUM) par instrument financier (F1), pour explorer la part de concessionnalité des financements (don vs prêt vs garantie, etc). `bySector`/`byCountry` sont deux croisements instrument x secteur et instrument x pays (montants bruts, non pourcentés - une cellule de croisement n\'a pas de total naturel à rapporter à un pourcentage). Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,
@@ -200,7 +201,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Flux de financement bailleur -> pays -> secteur, pour un diagramme de Sankey (mis en cache 15 min)',
         description: 'C1.5 : nœuds + liens agrégés en SQL, filtrables par instrument et année. Chaque "couche" (bailleur, pays, secteur) est plafonnée aux `topN` premiers par montant total ; le reste est regroupé dans un unique nœud "Autres" par couche (jamais un nœud "Autres" vide fabriqué s\'il n\'y a rien à y mettre). Un pays garde la même identité (lui-même, ou "Autres pays") des deux côtés du diagramme, pour ne jamais scinder un même pays réel en deux nœuds déconnectés.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'instrument', in: 'query', required: false, description: 'Instrument financier (F1)', schema: new OA\Schema(type: 'string', enum: ['grant', 'loan_concessional', 'loan_non_concessional', 'guarantee', 'equity', 'results_based', 'unknown'])),
             new OA\Parameter(name: 'year', in: 'query', required: false, description: 'Année du financement', schema: new OA\Schema(type: 'integer', example: 2025)),
@@ -244,7 +245,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Répartition des financements par pays (mis en cache 15 min)',
         description: 'Montants agrégés (SUM) par pays réel, triés du plus grand au plus petit (ordre déterministe : égalité départagée par id de pays). Le pourcentage est calculé côté serveur sur le total agrégé (déjà filtré par les paramètres ci-dessous, s\'il y en a). C1.2 : filtres optionnels et cumulables par secteur/instrument/année/type de financement - une requête sans aucun paramètre se comporte exactement comme avant C1.2 (même agrégat, même clé de cache). Chaque combinaison de filtres a sa propre entrée de cache Redis dédiée, TTL 900 secondes.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'sector', in: 'query', required: false, description: 'Identifiant du secteur (Sector.id - voir la répartition GET /api/analytics/sector-distribution pour les noms, ou GET /api/funding pour des lignes portant leur secteur)', schema: new OA\Schema(type: 'integer', example: 3)),
             new OA\Parameter(name: 'instrument', in: 'query', required: false, description: 'Instrument financier (F1)', schema: new OA\Schema(type: 'string', enum: ['grant', 'loan_concessional', 'loan_non_concessional', 'guarantee', 'equity', 'results_based', 'unknown'])),
@@ -283,7 +284,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Variation CO2 d\'une année sur l\'autre (mis en cache 15 min)',
         description: 'Variation totale des émissions entre les deux années les plus récentes disposant de données (B1.4/B3.2), calculée uniquement sur les pays ayant une donnée les deux années (jamais un pays manquant traité comme zéro). `reductionMt` positif = réduction réelle, négatif = hausse réelle - jamais tronqué. Retourne `available: false` si moins de 2 années de données existent, ou aucun pays commun entre les deux années les plus récentes. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,
@@ -318,7 +319,7 @@ final class AnalyticsController extends AbstractController
         summary: 'Fraîcheur des données par source (mis en cache 15 min)',
         description: 'Date de dernière collecte réelle connue pour chaque source (financements + émissions), triée de la plus en retard à la plus fraîche. `staleSourceCount` compte les sources sans nouvelle collecte depuis plus de 100 jours (un peu au-delà du cycle trimestriel de tous les connecteurs Volet B). `oldestCollectionAt` est `null` s\'il n\'existe aucune donnée réelle du tout. Réponse servie depuis un cache Redis dédié, TTL 900 secondes.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,
@@ -349,7 +350,7 @@ final class AnalyticsController extends AbstractController
         summary: 'C3.1 : écarts entre besoin CDN déclaré et financement réel reçu, par pays/secteur (mis en cache 15 min)',
         description: 'gap = besoin CDN déclaré - reçu réel (positif = sous-financé). Restreint strictement aux couples portant une cible CDN chiffrée (App\\Entity\\NdcTarget::$declaredNeedUsd non NULL) - jamais un besoin inventé. "by=sector"/"by=country-sector" ne renvoient un résultat que pour une cible CDN sectorielle (aucune connue à ce jour, voir App\\Service\\GapDetectionService). Seuils d\'alerte (severity) : "critical" sous 25% de couverture, "moderate" sous 75%, "low" au-delà (y compris un besoin déjà couvert).',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'by', in: 'query', required: false, description: 'Angle de regroupement (défaut : country)', schema: new OA\Schema(type: 'string', enum: ['country', 'sector', 'country-sector'], default: 'country')),
         ],
@@ -387,7 +388,7 @@ final class AnalyticsController extends AbstractController
         summary: 'C3.2 : part estimée des financements atteignant le niveau local, par pays (mis en cache 15 min)',
         description: 'Estimation par proxy (App\\Service\\LocalFinanceService) : part des financements validés dont l\'instrument est un don (grant) ET le montant est inférieur à 1 000 000 USD - le seul signal disponible dans ce schéma (`Funding` est une ligne agrégée sans texte descriptif par activité, le proxy par mots-clés prévu au plan n\'est pas réalisable ici). `methodology` rappelle cette limite dans chaque réponse.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'country', in: 'query', required: false, description: 'Code ISO-3 du pays (défaut : tous les pays)', schema: new OA\Schema(type: 'string', example: 'SEN')),
         ],
@@ -423,7 +424,7 @@ final class AnalyticsController extends AbstractController
         summary: 'C3.3 : classement d\'équité de la répartition des financements + indice de concentration (Gini)',
         description: 'Classement (App\\Service\\EquityScoreService) restreint aux pays disposant d\'une population et d\'un indice de vulnérabilité (App\\Entity\\Country, voir CountryEquityDataFixtures - ~12/54 pays NEV). `giniIndex` (0 = répartition parfaitement égale entre tous les pays financés, 1 = un seul pays concentre tout) est calculé séparément, sur TOUS les pays financés, pas seulement ceux classés.',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,
@@ -452,7 +453,7 @@ final class AnalyticsController extends AbstractController
         summary: 'C3.6 : classement de transparence de tous les bailleurs',
         description: 'Classement (App\\Service\\TransparencyScoreService::getRanking()) - contrairement à GET /api/analytics/equity, TOUS les bailleurs réels sont classés (jamais `null` : une Source existe indépendamment d\'avoir des financements réels, voir le docblock de TransparencyScoreService).',
         tags: ['Analytics'],
-        security: [],
+        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(
                 response: 200,

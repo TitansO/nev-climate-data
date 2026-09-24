@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import useAnalyticsFetch from "../hooks/useAnalyticsFetch";
 import NevCard from "../components/ui/NevCard";
 import NevSelect from "../components/ui/NevSelect";
@@ -24,10 +26,15 @@ const SEVERITY_LABEL = { critical: "Critique", moderate: "Modéré", low: "Faibl
  */
 export default function GapDetectorPage() {
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
   const [by, setBy] = useState("country");
   const { state, data, message, reload } = useAnalyticsFetch("/api/analytics/gaps?by=" + by, { emptyWhen: (body) => 0 === body.data.length });
 
   const rows = data ? data.data : [];
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <div className="container mx-auto px-4 py-10">

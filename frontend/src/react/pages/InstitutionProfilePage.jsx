@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import NevCard from "../components/ui/NevCard";
 import NevBadge from "../components/ui/NevBadge";
 import NevKpi from "../components/ui/NevKpi";
@@ -76,7 +77,7 @@ function useTransparencyScore(sourceId, API_BASE_URL) {
 }
 
 export default function InstitutionProfilePage() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, isAuthenticated } = useAuth();
   const { t } = useI18n();
   const sourceId = sourceIdFromUrl();
 
@@ -126,6 +127,10 @@ export default function InstitutionProfilePage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceId]);
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <div className="container mx-auto px-4 py-10">

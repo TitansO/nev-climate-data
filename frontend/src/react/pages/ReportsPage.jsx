@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import RequireAuth from "../components/RequireAuth";
 import { COUNTRY_GROUPS } from "../data/africaCountries";
 import NevCard from "../components/ui/NevCard";
 import NevBadge from "../components/ui/NevBadge";
@@ -107,7 +108,7 @@ const LIST_ICON = (
 );
 
 export default function ReportsPage() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, isAuthenticated } = useAuth();
   const { t } = useI18n();
 
   const [type, setType] = useState("");
@@ -176,6 +177,10 @@ export default function ReportsPage() {
   // déjà le plus récent (ReportRepository::findPublished trie par
   // publicationDate DESC), jamais un id/titre codé en dur.
   const featured = "" === type && "" === country && 1 === page && reports.length > 0 ? reports[0] : null;
+
+  if (!isAuthenticated()) {
+    return <RequireAuth />;
+  }
 
   return (
     <>
