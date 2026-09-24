@@ -26,6 +26,14 @@ export default function AboutPage() {
       <div className="container mx-auto px-4">
         <NevCard as="section" padding="lg" className="relative z-20 -mt-10 mb-16 rounded-2xl shadow-card sm:p-12">
           <div className="mx-auto max-w-[820px]">
+            <h2 className="mb-4 text-2xl font-bold text-dark">{t("aboutPage.visionTitle", "Notre vision")}</h2>
+            <p className="mb-8 leading-relaxed text-body-color">
+              {t(
+                "aboutPage.vision",
+                "Devenir une référence de confiance pour l'analyse du financement climatique en Afrique - une infrastructure de données ouverte, structurée et durable, utile aussi bien aux institutions qu'aux chercheurs et aux citoyens."
+              )}
+            </p>
+
             <h2 className="mb-4 text-2xl font-bold text-dark">{t("aboutPage.missionTitle", "Notre mission")}</h2>
             <p className="mb-8 leading-relaxed text-body-color">
               {t(
@@ -69,14 +77,6 @@ export default function AboutPage() {
               {t(
                 "aboutPage.why",
                 "Une décision d'investissement climatique - publique ou privée - ne vaut que ce que valent les données qui l'éclairent. En documentant précisément l'origine, la fiabilité et le statut de validation de chaque enregistrement, NEV Climate Data cherche à distinguer clairement une donnée démonstrative d'une donnée vérifiée, condition nécessaire à une utilisation responsable de l'information dans la prise de décision."
-              )}
-            </p>
-
-            <h2 className="mb-4 text-2xl font-bold text-dark">{t("aboutPage.visionTitle", "Notre vision")}</h2>
-            <p className="leading-relaxed text-body-color">
-              {t(
-                "aboutPage.vision",
-                "Devenir une référence de confiance pour l'analyse du financement climatique en Afrique - une infrastructure de données ouverte, structurée et durable, utile aussi bien aux institutions qu'aux chercheurs et aux citoyens."
               )}
             </p>
           </div>
