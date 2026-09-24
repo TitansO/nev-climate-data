@@ -61,6 +61,34 @@ _SAMPLE_ACTIVITY_GCF_ROUTED_THROUGH_AFDB = {
     "transaction_transaction_date_iso_date": ["2022-01-01T00:00:00Z"],
 }
 
+# Synthetic, forme reelle : activite avec un unique engagement anterieur a
+# MIN_PLAUSIBLE_COMMITMENT_YEAR (1992) - audit de robustesse 2026-09-24,
+# 454 lignes reelles (jusqu'a 1967) verifiees en direct contre l'API IATI
+# (aucun decalage de tableaux type/provider/value/date, donc pas un bug de
+# parsing - de vrais engagements AfDB historiques anterieurs a l'existence
+# du "financement climatique" comme categorie).
+_SAMPLE_ACTIVITY_PRE_CLIMATE_ERA_COMMITMENT = {
+    "iati_identifier": "46002-P-ZZ-AA0-1967",
+    "recipient_country_code": ["SN"],
+    "sector_code": ["31110"],
+    "transaction_transaction_type_code": ["2"],
+    "transaction_provider_org_ref": ["XM-DAC-46002"],
+    "transaction_value": [3143615.0],
+    "transaction_transaction_date_iso_date": ["1967-05-12T00:00:00Z"],
+}
+
+# Synthetic : meme activite qu'au-dessus, mais avec un 2e engagement
+# reellement plausible - seul celui-ci doit compter (montant ET annee).
+_SAMPLE_ACTIVITY_MIXED_OLD_AND_PLAUSIBLE_COMMITMENTS = {
+    "iati_identifier": "46002-P-ZZ-AA0-MIXED",
+    "recipient_country_code": ["SN"],
+    "sector_code": ["31110"],
+    "transaction_transaction_type_code": ["2", "2"],
+    "transaction_provider_org_ref": ["XM-DAC-46002", "XM-DAC-46002"],
+    "transaction_value": [3143615.0, 5000000.0],
+    "transaction_transaction_date_iso_date": ["1967-05-12T00:00:00Z", "2018-03-01T00:00:00Z"],
+}
+
 # Synthetic: no recipient country at all - 986/5,604 real AfDB activities
 # are like this (regional/institutional activities).
 _SAMPLE_ACTIVITY_NO_COUNTRY = {
@@ -101,6 +129,20 @@ def test_parse_activity_excludes_government_provided_commitment():
 
 def test_parse_activity_excludes_commitments_from_other_funds_routed_through_afdb():
     assert parse_activity(_SAMPLE_ACTIVITY_GCF_ROUTED_THROUGH_AFDB, xdr_to_usd_rate=1.5) is None
+
+
+def test_parse_activity_excludes_a_commitment_predating_the_climate_finance_era():
+    assert parse_activity(_SAMPLE_ACTIVITY_PRE_CLIMATE_ERA_COMMITMENT, xdr_to_usd_rate=1.5) is None
+
+
+def test_parse_activity_with_mixed_old_and_plausible_commitments_counts_only_the_plausible_one():
+    payload = parse_activity(_SAMPLE_ACTIVITY_MIXED_OLD_AND_PLAUSIBLE_COMMITMENTS, xdr_to_usd_rate=1.5)
+
+    assert payload["year"] == 2018
+    # Le montant de 1967 est exclu du total, pas seulement de l'annee -
+    # jamais un total qui inclurait un montant dont la date a ete ignoree.
+    assert payload["original_amount"] == 5000000.0
+    assert payload["board_approval_date"] == "2018-03-01"
 
 
 def test_parse_activity_returns_none_when_no_recipient_country():

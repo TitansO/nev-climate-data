@@ -37,6 +37,23 @@ FIELDS = ",".join([
 ])
 
 COMMITMENT_TRANSACTION_TYPE = "2"
+# Audit de robustesse 2026-09-24 : 454 lignes `funding` (8,8% du jeu de
+# donnees) portaient une annee anterieure a 1990, presque toutes issues de
+# ce connecteur - jusqu'a 1967. Verifie en direct contre l'API IATI reelle
+# (0/30 activites echantillonnees n'ont de decalage entre les tableaux
+# type/provider/value/date - donc pas un bug d'alignement de tableaux) :
+# ce sont de vrais engagements AfDB historiques, dont le secteur IATI
+# correspond par coincidence a une categorie suivie ici (Agriculture,
+# Sustainable Transport), mais anterieurs de plusieurs decennies a
+# l'existence meme du "financement climatique" comme categorie - 1992
+# (Sommet de la Terre de Rio / signature de la CCNUCC) est le plancher
+# le plus largement reconnu pour cette notion. Choix produit assume, pas
+# une regle IATI - PROVISIONNEL comme les autres seuils de ce connecteur,
+# a ajuster si un seuil different est prefere. Une activite dont TOUS les
+# engagements sont anterieurs a ce plancher n'est pas publiee (voir
+# _afdb_commitment_summary ci-dessous) - ne modifie jamais un engagement
+# deja publie, ne fait que filtrer les nouveaux.
+MIN_PLAUSIBLE_COMMITMENT_YEAR = 1992
 # Real AfDB Group entities only - see B1.3 spec decision 6. Everything
 # else appearing as a Commitment-transaction provider on an AfDB-reported
 # activity is either a recipient-country government counterpart
@@ -122,7 +139,15 @@ def _afdb_commitment_summary(activity: dict[str, Any]) -> tuple[float, int, str]
     total = 0.0
     matched_dates = []
     for i in range(n):
-        if types[i] == COMMITMENT_TRANSACTION_TYPE and providers[i] in AFDB_GROUP_PROVIDER_REFS:
+        # MIN_PLAUSIBLE_COMMITMENT_YEAR exclut la transaction entiere (montant
+        # inclus, pas seulement sa date) - garde `total` coherent avec
+        # `earliest_commitment_date` : jamais un total qui inclurait un
+        # montant engage a une date ensuite ignoree pour choisir l'annee.
+        if (
+            types[i] == COMMITMENT_TRANSACTION_TYPE
+            and providers[i] in AFDB_GROUP_PROVIDER_REFS
+            and int(dates[i][:4]) >= MIN_PLAUSIBLE_COMMITMENT_YEAR
+        ):
             total += values[i]
             matched_dates.append(dates[i])
 
