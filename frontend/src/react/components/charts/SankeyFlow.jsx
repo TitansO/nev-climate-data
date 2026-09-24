@@ -53,6 +53,14 @@ export default function SankeyFlow({ nodes, links }) {
             colorMode: "gradient",
             borderWidth: 0,
             nodeWidth: 14,
+            // Colonne "secteur" (3e colonne) : beaucoup de noeuds a faible
+            // valeur, empiles avec un tres petit ecart - leurs etiquettes
+            // (ex: "Renewable Energy" / "Forestry") se chevauchent avec
+            // l'espacement par defaut (10px). On augmente l'espacement
+            // uniquement pour cette colonne (prefixe "sector:") sans
+            // toucher aux colonnes bailleurs/pays, qui n'ont pas ce
+            // probleme.
+            nodePadding: (node) => (node.key.startsWith("sector:") ? 28 : 10),
             // Par defaut, chartjs-chart-sankey dessine les etiquettes de
             // noeud sans fond, directement par-dessus les flux en degrade -
             // illisible des que le texte tombe sur une zone coloree ou
