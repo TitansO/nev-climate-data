@@ -3,7 +3,8 @@ rag/ingest calls are all mocked, so this file needs neither a real
 ai-db connection nor a real Gemini key (same offline-by-default
 convention as the rest of this project's test suites).
 """
-from unittest.mock import patch
+import os
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -15,12 +16,52 @@ def _client() -> TestClient:
         return TestClient(app)
 
 
-def test_health_returns_ok():
-    with _client() as client:
+def test_health_returns_ok_when_database_and_gemini_config_are_both_fine():
+    fake_connection = MagicMock()
+    fake_connection.cursor.return_value.__enter__.return_value = MagicMock()
+    with (
+        _client() as client,
+        patch("ai.main.db.get_connection", return_value=fake_connection),
+        patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key-for-tests"}),
+        patch("ai.main.gemini_client._client"),
+    ):
         response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "database": True, "gemini_configured": True}
+    fake_connection.close.assert_called_once()
+
+
+def test_health_returns_503_when_the_database_is_unreachable():
+    with (
+        _client() as client,
+        patch("ai.main.db.get_connection", side_effect=Exception("connection refused")),
+        patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key-for-tests"}),
+        patch("ai.main.gemini_client._client"),
+    ):
+        response = client.get("/health")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["database"] is False
+
+
+def test_health_returns_503_when_the_gemini_api_key_is_missing():
+    fake_connection = MagicMock()
+    fake_connection.cursor.return_value.__enter__.return_value = MagicMock()
+    with (
+        _client() as client,
+        patch("ai.main.db.get_connection", return_value=fake_connection),
+        patch.dict("os.environ", {}, clear=False),
+    ):
+        os.environ.pop("GEMINI_API_KEY", None)
+        response = client.get("/health")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["gemini_configured"] is False
 
 
 def test_ask_returns_the_rag_answer():

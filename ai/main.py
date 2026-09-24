@@ -5,13 +5,14 @@ this sprint exposes this service directly to the internet).
 """
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from pydantic import BaseModel
 
 from ai import classify as classify_module
-from ai import db, greenwashing as greenwashing_module, ingest, rag
+from ai import db, gemini_client, greenwashing as greenwashing_module, ingest, rag
 
 
 @asynccontextmanager
@@ -24,8 +25,47 @@ app = FastAPI(title="NEV Climate Data - AI service", version="0.1.0", lifespan=l
 
 
 @app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
+def health(response: Response) -> dict:
+    """Audit de robustesse 2026-09-24 : renvoyait auparavant {"status": "ok"}
+    de façon inconditionnelle - affichait "healthy" côté Docker même pendant
+    une vraie panne Gemini constatée en direct (503 UNAVAILABLE côté Google).
+    Ne fait volontairement PAS d'appel Gemini réel ici (le healthcheck tourne
+    toutes les 15s - épuiserait le quota du palier gratuit en quelques
+    minutes pour ne détecter qu'une indisponibilité déjà correctement gérée
+    par _with_retry()/le 503 propre renvoyé à l'appelant) : vérifie
+    seulement que la config est valide (clé API présente, client
+    constructible - aucun appel réseau) et que la base RAG locale répond
+    réellement, deux dépendances dont la panne était, elle, invisible.
+    """
+    checks = {"database": _check_database(), "gemini_configured": _check_gemini_configured()}
+    if not all(checks.values()):
+        response.status_code = 503
+        return {"status": "degraded", **checks}
+
+    return {"status": "ok", **checks}
+
+
+def _check_database() -> bool:
+    try:
+        connection = db.get_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+        finally:
+            connection.close()
+        return True
+    except Exception:
+        return False
+
+
+def _check_gemini_configured() -> bool:
+    if not os.environ.get("GEMINI_API_KEY"):
+        return False
+    try:
+        gemini_client._client()
+        return True
+    except Exception:
+        return False
 
 
 class AskRequest(BaseModel):
