@@ -50,14 +50,14 @@ function sumTotals(rows) {
 
 /** Small local hook, matches loadKpiHeroStats(): populates 3 of the 4 KPI tiles (countries/sectors/sources), each falling back to "-" independently on error - no retry UI, same as the original. */
 function useKpiHeroStats() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, authorizedFetch } = useAuth();
   const [stats, setStats] = useState({ countries: "…", sectors: "…", sources: "…" });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(API_BASE_URL + "/api/analytics/hero-stats", { headers: { Accept: "application/json" } });
+        const response = await authorizedFetch(API_BASE_URL + "/api/analytics/hero-stats", { headers: { Accept: "application/json" } });
         if (!response.ok) {
           throw new Error("http " + response.status);
         }
@@ -81,7 +81,7 @@ function useKpiHeroStats() {
 
 /** Local hook for /api/analytics/co2-reduction - its {available: false} shape doesn't fit the generic empty/error/success chart-card pattern (it's a single value tile, not a chart), same as analytics.js's loadCo2Reduction(). B3.2: `data` is now a structured object ({reductionMt, latestYear, previousYear, countriesCompared}), never a bare number. */
 function useCo2Reduction() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, authorizedFetch } = useAuth();
   const [value, setValue] = useState("…");
   const [note, setNote] = useState("Chargement…");
 
@@ -89,7 +89,7 @@ function useCo2Reduction() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(API_BASE_URL + "/api/analytics/co2-reduction", { headers: { Accept: "application/json" } });
+        const response = await authorizedFetch(API_BASE_URL + "/api/analytics/co2-reduction", { headers: { Accept: "application/json" } });
         if (!response.ok) {
           throw new Error("Une erreur est survenue (" + response.status + ").");
         }

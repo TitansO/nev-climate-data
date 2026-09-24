@@ -29,7 +29,7 @@ function paramsFromUrl() {
  * construit lors du premier passage sur C2.
  */
 export default function ImpactCalculatorPage() {
-  const { API_BASE_URL, isAuthenticated } = useAuth();
+  const { API_BASE_URL, isAuthenticated, authorizedFetch } = useAuth();
   const { t } = useI18n();
   const prefill = useMemo(() => paramsFromUrl(), []);
 
@@ -46,7 +46,7 @@ export default function ImpactCalculatorPage() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(API_BASE_URL + "/api/sectors", { headers: { Accept: "application/json" } });
+        const response = await authorizedFetch(API_BASE_URL + "/api/sectors", { headers: { Accept: "application/json" } });
         if (!response.ok) {
           throw new Error("http " + response.status);
         }
@@ -80,7 +80,7 @@ export default function ImpactCalculatorPage() {
     setErrorMessage("");
     setResult(null);
     try {
-      const response = await fetch(API_BASE_URL + "/api/impact/estimate", {
+      const response = await authorizedFetch(API_BASE_URL + "/api/impact/estimate", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ sector: Number(sectorId), amountUsd: Number(amountUsd), country: country || undefined }),

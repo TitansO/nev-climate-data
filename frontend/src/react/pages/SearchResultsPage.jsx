@@ -80,7 +80,7 @@ function buildQueryString(term, filters) {
  * (App\Dto\SearchQuery::$sectorId) is ready for a future UI once one does.
  */
 export default function SearchResultsPage() {
-  const { API_BASE_URL, isAuthenticated } = useAuth();
+  const { API_BASE_URL, isAuthenticated, authorizedFetch } = useAuth();
   const { t } = useI18n();
 
   const initial = stateFromUrl();
@@ -105,7 +105,7 @@ export default function SearchResultsPage() {
 
     let response;
     try {
-      response = await fetch(API_BASE_URL + "/api/search?" + query, { headers: { Accept: "application/json" } });
+      response = await authorizedFetch(API_BASE_URL + "/api/search?" + query, { headers: { Accept: "application/json" } });
     } catch (networkError) {
       setState("error");
       setMessage(t("searchPage.networkError", "Impossible de contacter le serveur."));

@@ -13,7 +13,7 @@ import { useAuth } from "../providers/AuthProvider";
  * network/HTTP error).
  */
 export default function useAnalyticsFetch(path, { emptyWhen } = {}) {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, authorizedFetch } = useAuth();
   const [state, setState] = useState("loading");
   const [data, setData] = useState(null);
   const [message, setMessage] = useState("");
@@ -34,7 +34,7 @@ export default function useAnalyticsFetch(path, { emptyWhen } = {}) {
     (async () => {
       let response;
       try {
-        response = await fetch(API_BASE_URL + path, { headers: { Accept: "application/json" } });
+        response = await authorizedFetch(API_BASE_URL + path, { headers: { Accept: "application/json" } });
       } catch (networkError) {
         if (!cancelled) {
           setMessage("Impossible de contacter le serveur.");

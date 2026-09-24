@@ -27,7 +27,7 @@ function instrumentLabel(value) {
  * x 54 pays).
  */
 export default function InstrumentsPage() {
-  const { API_BASE_URL, isAuthenticated } = useAuth();
+  const { API_BASE_URL, isAuthenticated, authorizedFetch } = useAuth();
   const { t } = useI18n();
   const [state, setState] = useState("loading");
   const [profile, setProfile] = useState(null);
@@ -38,7 +38,7 @@ export default function InstrumentsPage() {
     (async () => {
       let response;
       try {
-        response = await fetch(API_BASE_URL + "/api/analytics/instrument-distribution", { headers: { Accept: "application/json" } });
+        response = await authorizedFetch(API_BASE_URL + "/api/analytics/instrument-distribution", { headers: { Accept: "application/json" } });
       } catch (networkError) {
         if (!cancelled) {
           setState("error");

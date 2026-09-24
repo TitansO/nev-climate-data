@@ -18,7 +18,7 @@ const WATERFALL_COLORS = { "Financement public": "#0F7A37", "Capital privé mobi
  * bibliothèque de graphique de ce projet n'a de type "waterfall" natif.
  */
 export default function BlendedFinancePage() {
-  const { API_BASE_URL, isAuthenticated } = useAuth();
+  const { API_BASE_URL, isAuthenticated, authorizedFetch } = useAuth();
   const { t } = useI18n();
 
   const [sectors, setSectors] = useState([]);
@@ -32,7 +32,7 @@ export default function BlendedFinancePage() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(API_BASE_URL + "/api/sectors", { headers: { Accept: "application/json" } });
+        const response = await authorizedFetch(API_BASE_URL + "/api/sectors", { headers: { Accept: "application/json" } });
         if (!response.ok) {
           throw new Error("http " + response.status);
         }
@@ -63,7 +63,7 @@ export default function BlendedFinancePage() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(API_BASE_URL + "/api/blended/simulate", {
+        const response = await authorizedFetch(API_BASE_URL + "/api/blended/simulate", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({

@@ -27,7 +27,7 @@ function sumTotals(rows) {
 
 /** Same hero-stats fetch as IndexPage/VisualizationsPage (A2.7) - the Dashboard's own copy, since C1.1 consolidates the two pages' KPI bands into one, not a shared hook (each page still owns its loading/error copy). */
 function useHeroStats() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, authorizedFetch } = useAuth();
   const [state, setState] = useState("loading");
   const [values, setValues] = useState({ countries: 0, sectors: 0, funding: 0, sources: 0 });
 
@@ -35,7 +35,7 @@ function useHeroStats() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(API_BASE_URL + "/api/analytics/hero-stats", { headers: { Accept: "application/json" } });
+        const response = await authorizedFetch(API_BASE_URL + "/api/analytics/hero-stats", { headers: { Accept: "application/json" } });
         if (!response.ok) {
           throw new Error("http " + response.status);
         }
@@ -66,7 +66,7 @@ function useHeroStats() {
  * hook's "data.data is an array" empty-detection convention.
  */
 function useDataFreshness() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, authorizedFetch } = useAuth();
   const [state, setState] = useState("loading");
   const [freshness, setFreshness] = useState(null);
   const [message, setMessage] = useState("");
@@ -77,7 +77,7 @@ function useDataFreshness() {
     (async () => {
       let response;
       try {
-        response = await fetch(API_BASE_URL + "/api/analytics/data-freshness", { headers: { Accept: "application/json" } });
+        response = await authorizedFetch(API_BASE_URL + "/api/analytics/data-freshness", { headers: { Accept: "application/json" } });
       } catch (networkError) {
         if (!cancelled) {
           setMessage("Impossible de contacter le serveur.");

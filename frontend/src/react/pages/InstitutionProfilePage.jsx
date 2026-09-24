@@ -53,7 +53,7 @@ function useTransparencyScore(sourceId, API_BASE_URL) {
     setState("loading");
     (async () => {
       try {
-        const response = await fetch(API_BASE_URL + "/api/institutions/" + sourceId + "/scores/transparency", { headers: { Accept: "application/json" } });
+        const response = await authorizedFetch(API_BASE_URL + "/api/institutions/" + sourceId + "/scores/transparency", { headers: { Accept: "application/json" } });
         if (!response.ok) {
           throw new Error("http " + response.status);
         }
@@ -77,7 +77,7 @@ function useTransparencyScore(sourceId, API_BASE_URL) {
 }
 
 export default function InstitutionProfilePage() {
-  const { API_BASE_URL, isAuthenticated } = useAuth();
+  const { API_BASE_URL, isAuthenticated, authorizedFetch } = useAuth();
   const { t } = useI18n();
   const sourceId = sourceIdFromUrl();
 
@@ -94,7 +94,7 @@ export default function InstitutionProfilePage() {
     (async () => {
       let response;
       try {
-        response = await fetch(API_BASE_URL + "/api/institutions/" + sourceId, { headers: { Accept: "application/json" } });
+        response = await authorizedFetch(API_BASE_URL + "/api/institutions/" + sourceId, { headers: { Accept: "application/json" } });
       } catch (networkError) {
         if (!cancelled) {
           setState("error");

@@ -38,7 +38,7 @@ function stateFromUrl() {
  * menu (le filtre backend, lui, est prêt : GET /api/opportunities?sector=).
  */
 export default function OpportunityRadarPage() {
-  const { API_BASE_URL, isAuthenticated } = useAuth();
+  const { API_BASE_URL, isAuthenticated, authorizedFetch } = useAuth();
   const { t } = useI18n();
   const initial = stateFromUrl();
 
@@ -67,7 +67,7 @@ export default function OpportunityRadarPage() {
     (async () => {
       let response;
       try {
-        response = await fetch(API_BASE_URL + "/api/opportunities" + (queryString ? "?" + queryString : ""), { headers: { Accept: "application/json" } });
+        response = await authorizedFetch(API_BASE_URL + "/api/opportunities" + (queryString ? "?" + queryString : ""), { headers: { Accept: "application/json" } });
       } catch (networkError) {
         if (!cancelled) {
           setState("error");
