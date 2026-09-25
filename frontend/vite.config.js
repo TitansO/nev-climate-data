@@ -81,6 +81,7 @@ export default defineConfig({
         "institution-profile": resolve(__dirname, "institution-profile.html"),
         instruments: resolve(__dirname, "instruments.html"),
         opportunities: resolve(__dirname, "opportunities.html"),
+        tenders: resolve(__dirname, "tenders.html"),
         "project-pipeline": resolve(__dirname, "project-pipeline.html"),
         "impact-calculator": resolve(__dirname, "impact-calculator.html"),
         "country-profile": resolve(__dirname, "country-profile.html"),

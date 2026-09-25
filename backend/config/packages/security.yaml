@@ -87,6 +87,7 @@ security:
         # ci-dessous, même raisonnement que /api/funding/export ci-dessus.
         - { path: ^/api/opportunities/\d+/candidates, roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/api/opportunities, roles: ROLE_USER }
+        - { path: ^/api/tenders, roles: ROLE_USER }
         - { path: ^/api/countries, roles: ROLE_USER }
         - { path: ^/api/impact, roles: ROLE_USER }
         - { path: ^/api/sectors, roles: ROLE_USER }
