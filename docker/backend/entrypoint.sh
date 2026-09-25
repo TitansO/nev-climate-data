@@ -39,6 +39,14 @@ fi
 # qu'un service qui ne demarre pas.
 php bin/console doctrine:migrations:migrate --no-interaction
 
+# A3.14 (2026-09-25) : seme les donnees de demonstration Opportunity/Tender
+# si elles sont absentes - meme contexte que la commande de migration
+# juste au-dessus (pas de Shell disponible sur le palier Render gratuit).
+# Voir App\Command\SeedDemoEnrichmentCommand pour le detail de son
+# idempotence (jamais via doctrine:fixtures:load, qui purge toute la
+# base - voir sa propre docblock pour l'incident qui a motive ce choix).
+php bin/console app:seed-demo-enrichment
+
 # Symfony cache (var/cache/{env}) : incident reel de production le
 # 2026-09-24 (audit pre-production, validation finale) - sur le disque
 # Render de ce service, seul le sous-dossier var/cache DEJA present
