@@ -108,7 +108,7 @@ const LIST_ICON = (
 );
 
 export default function ReportsPage() {
-  const { API_BASE_URL, isAuthenticated } = useAuth();
+  const { API_BASE_URL, isAuthenticated, authorizedFetch } = useAuth();
   const { t } = useI18n();
 
   const [type, setType] = useState("");
@@ -135,7 +135,7 @@ export default function ReportsPage() {
 
     let response;
     try {
-      response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+      response = await authorizedFetch(url.toString(), { headers: { Accept: "application/json" } });
     } catch (networkError) {
       setStatus("error");
       return;

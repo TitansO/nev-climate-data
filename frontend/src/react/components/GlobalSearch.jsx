@@ -56,7 +56,7 @@ function groupByType(results) {
 }
 
 export default function GlobalSearch() {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, authorizedFetch } = useAuth();
   const [term, setTerm] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | message | results
   const [message, setMessage] = useState("");
@@ -78,7 +78,7 @@ export default function GlobalSearch() {
     try {
       const url = new URL(API_BASE_URL + "/api/search", window.location.origin);
       url.searchParams.set("q", query);
-      response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+      response = await authorizedFetch(url.toString(), { headers: { Accept: "application/json" } });
     } catch (networkError) {
       if (myToken === requestToken.current) {
         setStatus("message");

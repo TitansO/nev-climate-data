@@ -154,7 +154,7 @@ export default function DataPage() {
 
       let response;
       try {
-        response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+        response = await authorizedFetch(url.toString(), { headers: { Accept: "application/json" } });
       } catch (networkError) {
         throw new Error("Impossible de contacter le serveur. Vérifiez votre connexion et réessayez.");
       }
