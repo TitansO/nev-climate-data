@@ -28,7 +28,6 @@ const NAV_LINKS = [
   { href: "data.html", key: "nav.data", fallback: "Données" },
   { href: "visualizations.html", key: "nav.visualizations", fallback: "Visualisations" },
   { href: "reports.html", key: "nav.reports", fallback: "Rapports" },
-  { href: "opportunities.html", key: "nav.opportunities", fallback: "Appels à projets" },
   { href: "tenders.html", key: "nav.tenders", fallback: "Appels d'offres" },
   { href: "sources.html", key: "nav.sources", fallback: "Sources" },
   { href: "about.html", key: "nav.about", fallback: "À propos" },

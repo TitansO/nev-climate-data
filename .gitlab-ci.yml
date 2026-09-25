@@ -2,6 +2,42 @@ stages:
   - test
   - build
 
+# Audit de robustesse 2026-09-24 : aucune verification automatisee des
+# dependances n'existait dans ce pipeline - composer audit / npm audit
+# n'avaient ete lances qu'a la main, une fois, lors de l'audit lui-meme
+# (0 vulnerabilite trouvee des deux cotes a cette date). Ajoute ici pour
+# que toute regression future (nouvelle dependance vulnerable) fasse
+# reellement echouer le pipeline, pas seulement lors d'un audit manuel
+# occasionnel - repond directement au constat de l'audit ("aucun gate CI
+# ne bloque un probleme de securite critique").
+composer_audit:
+  stage: test
+  image: php:8.4-cli
+  before_script:
+    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+  script:
+    - cd backend
+    - composer install --no-interaction --no-progress --prefer-dist --no-scripts
+    - composer audit
+
+pip_audit_ai:
+  stage: test
+  image: python:3.12-slim
+  before_script:
+    - cd ai
+    - pip install --no-cache-dir -r requirements.txt pip-audit
+  script:
+    - pip-audit --strict
+
+pip_audit_pipeline:
+  stage: test
+  image: python:3.12-slim
+  before_script:
+    - cd pipeline
+    - pip install --no-cache-dir -r requirements.txt pip-audit
+  script:
+    - pip-audit --strict
+
 phpunit:
   stage: test
   image: php:8.4-cli
