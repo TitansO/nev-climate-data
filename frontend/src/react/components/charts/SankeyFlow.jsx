@@ -24,14 +24,32 @@ export default function SankeyFlow({ nodes, links }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
-  const { data, labels } = useMemo(() => {
+  const sectorLabelPositionsRef = useRef(null);
+
+  const { data, labels, tightestSectorPair } = useMemo(() => {
     const labelsById = {};
     nodes.forEach((node) => {
       labelsById[node.id] = node.label;
     });
+    // Les 2 noeuds "secteur" (derniere colonne) au plus faible volume
+    // total sont, en pratique, les plus etroits et les plus rapproches
+    // verticalement - c'est systematiquement eux qui se chevauchent
+    // ("Renewable Energy" / "Forestry"), jamais les gros secteurs
+    // (Agriculture, Adaptation, Sustainable Transport...) qui ont deja
+    // assez d'ecart. On ne touche donc qu'a cette paire precise, tous les
+    // autres secteurs restent inchanges (centrage par defaut).
+    const sectorTotals = new Map();
+    links.forEach((link) => {
+      if (link.target.startsWith("sector:")) {
+        sectorTotals.set(link.target, (sectorTotals.get(link.target) ?? 0) + link.value);
+      }
+    });
+    const smallestFirst = [...sectorTotals.entries()].sort((a, b) => a[1] - b[1]);
+    const tightestSectorPair = smallestFirst.length >= 2 ? [smallestFirst[0][0], smallestFirst[1][0]] : null;
     return {
       data: links.map((link) => ({ from: link.source, to: link.target, flow: link.value })),
       labels: labelsById,
+      tightestSectorPair,
     };
   }, [nodes, links]);
 
@@ -39,6 +57,8 @@ export default function SankeyFlow({ nodes, links }) {
     if (!canvasRef.current) {
       return undefined;
     }
+
+    sectorLabelPositionsRef.current = null;
 
     chartRef.current = new Chart(canvasRef.current, {
       type: "sankey",
@@ -53,14 +73,6 @@ export default function SankeyFlow({ nodes, links }) {
             colorMode: "gradient",
             borderWidth: 0,
             nodeWidth: 14,
-            // Colonne "secteur" (3e colonne) : beaucoup de noeuds a faible
-            // valeur, empiles avec un tres petit ecart - leurs etiquettes
-            // (ex: "Renewable Energy" / "Forestry") se chevauchent avec
-            // l'espacement par defaut (10px). On augmente l'espacement
-            // uniquement pour cette colonne (prefixe "sector:") sans
-            // toucher aux colonnes bailleurs/pays, qui n'ont pas ce
-            // probleme.
-            nodePadding: (node) => (node.key.startsWith("sector:") ? 28 : 10),
             // Par defaut, chartjs-chart-sankey dessine les etiquettes de
             // noeud sans fond, directement par-dessus les flux en degrade -
             // illisible des que le texte tombe sur une zone coloree ou
@@ -76,6 +88,41 @@ export default function SankeyFlow({ nodes, links }) {
               backgroundColor: "rgba(255, 255, 255, 0.92)",
               padding: 6,
               borderRadius: 4,
+              // Seule la paire de secteurs au plus faible volume
+              // (tightestSectorPair, calculee ci-dessus a partir des
+              // vraies valeurs de flux) est concernee - tout le reste
+              // (Agriculture, Adaptation, Sustainable Transport...) garde
+              // le centrage par defaut ("auto"), inchange. Pour cette
+              // seule paire, on ecarte les 2 etiquettes (haut/bas) au lieu
+              // de les laisser toutes deux centrees sur des noeuds trop
+              // rapproches - en determinant lequel des 2 est reellement
+              // au-dessus via node.y (position verticale finale, deja
+              // calculee par la mise en page de la lib au moment du
+              // dessin), pas un ordre suppose cote React. Lit
+              // volontairement une propriete interne non documentee
+              // (controller._nodes) car l'API publique n'expose pas
+              // autrement les positions finales des noeuds ; en cas
+              // d'indisponibilite (ex. apres une mise a jour de la lib),
+              // se degrade simplement vers le centrage par defaut,
+              // sans casser le rendu.
+              position: (node) => {
+                if (!tightestSectorPair || !tightestSectorPair.includes(node.key)) {
+                  return "auto";
+                }
+                if (!sectorLabelPositionsRef.current) {
+                  const controller = chartRef.current?.getDatasetMeta(0)?.controller;
+                  const sankeyNodes = controller?._nodes ?? null;
+                  const [keyA, keyB] = tightestSectorPair;
+                  const nodeA = sankeyNodes?.get(keyA);
+                  const nodeB = sankeyNodes?.get(keyB);
+                  if (!nodeA || !nodeB) {
+                    return "auto";
+                  }
+                  const [topKey, bottomKey] = (nodeA.y ?? 0) <= (nodeB.y ?? 0) ? [keyA, keyB] : [keyB, keyA];
+                  sectorLabelPositionsRef.current = { [topKey]: "top", [bottomKey]: "bottom" };
+                }
+                return sectorLabelPositionsRef.current[node.key] ?? "auto";
+              },
             },
           },
         ],
@@ -97,10 +144,20 @@ export default function SankeyFlow({ nodes, links }) {
       },
     });
 
+    // Force un second passage de dessin, synchrone (pas d'animation),
+    // maintenant que chartRef.current est bien assigne : si le tout
+    // premier dessin (declenche en interne par "new Chart(...)"
+    // ci-dessus) s'est produit avant la fin de cette assignation, le
+    // callback position() ci-dessus est retombe sur "auto" faute de
+    // pouvoir lire chartRef.current. Ce second passage est synchrone et
+    // s'execute avant que le navigateur ne peigne quoi que ce soit,
+    // donc invisible pour l'utilisateur - seul le resultat final compte.
+    chartRef.current.update("none");
+
     return () => {
       chartRef.current?.destroy();
     };
-  }, [data, labels]);
+  }, [data, labels, tightestSectorPair]);
 
   return (
     <div className="relative h-[480px]">
