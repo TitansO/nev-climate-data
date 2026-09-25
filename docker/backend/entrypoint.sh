@@ -22,6 +22,23 @@ if [ ! -f config/jwt/private.pem ] || [ ! -f config/jwt/public.pem ]; then
   chown -R www-data:www-data config/jwt
 fi
 
+# A3.14 (2026-09-25) : applique les migrations Doctrine en attente a
+# chaque demarrage. Necessaire car Render (palier gratuit utilise par ce
+# projet) n'offre pas d'onglet Shell pour lancer
+# `doctrine:migrations:migrate` a la main apres un deploiement, contrairement
+# a un Codespace de developpement - sans cette etape, tout endpoint touchant
+# une colonne/table ajoutee par une migration recente casse silencieusement
+# en production des que le nouveau code est deploye mais que le schema, lui,
+# ne l'est pas encore (vecu en direct le 2026-09-25 avec Opportunity/Tender).
+# Idempotent : sans migration en attente, la commande ne fait rien et sort
+# en succes - memes garanties que Doctrine Migrations lui-meme (chaque
+# migration n'est appliquee qu'une seule fois, suivie dans la table
+# doctrine_migration_versions). `set -e` en tete de ce script fait
+# volontairement echouer tout le demarrage si une migration echoue - faire
+# tourner le code neuf contre un schema qui ne correspond pas serait pire
+# qu'un service qui ne demarre pas.
+php bin/console doctrine:migrations:migrate --no-interaction
+
 # Symfony cache (var/cache/{env}) : incident reel de production le
 # 2026-09-24 (audit pre-production, validation finale) - sur le disque
 # Render de ce service, seul le sous-dossier var/cache DEJA present
