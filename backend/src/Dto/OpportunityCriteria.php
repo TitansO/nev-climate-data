@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Dto;
 
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\OpportunityStatus;
 use Symfony\Component\HttpFoundation\InputBag;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -32,6 +33,7 @@ final readonly class OpportunityCriteria
         public ?int $sectorId,
         public ?string $countryTerm,
         public ?OpportunityStatus $status,
+        public ?FundingInstrument $instrument,
     ) {
     }
 
@@ -41,6 +43,7 @@ final readonly class OpportunityCriteria
             self::parseSectorId($query),
             self::parseCountryTerm($query),
             self::parseStatus($query),
+            self::parseInstrument($query),
         );
     }
 
@@ -79,6 +82,22 @@ final readonly class OpportunityCriteria
         }
 
         return $status;
+    }
+
+    private static function parseInstrument(InputBag $query): ?FundingInstrument
+    {
+        $raw = $query->get('instrument');
+        if (null === $raw || '' === $raw) {
+            return null;
+        }
+
+        $instrument = FundingInstrument::tryFrom((string) $raw);
+        if (null === $instrument) {
+            $allowed = implode(', ', array_map(static fn (FundingInstrument $case) => $case->value, FundingInstrument::cases()));
+            throw new BadRequestHttpException(\sprintf('Invalid value for parameter "instrument": must be one of %s.', $allowed));
+        }
+
+        return $instrument;
     }
 
     /**

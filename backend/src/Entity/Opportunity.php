@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Entity\Enum\FundingInstrument;
 use App\Repository\OpportunityRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -57,6 +58,22 @@ class Opportunity
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $applicationWindowClosesAt = null;
+
+    // A3.12 : quatre champs ajoutes pour enrichir la fiche d'un appel a
+    // projets au-dela du texte libre d'eligibilite - tous nullables (jeu
+    // de fixtures existant + saisies manuelles anterieures a completer
+    // progressivement, jamais un champ requis retroactivement).
+    #[ORM\Column(type: Types::STRING, enumType: FundingInstrument::class, length: 25, nullable: true)]
+    private ?FundingInstrument $instrument = null;
+
+    #[ORM\Column(length: 2048, nullable: true)]
+    private ?string $applicationUrl = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $contactEmail = null;
+
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $requiredDocuments = null;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
@@ -163,6 +180,54 @@ class Opportunity
     public function setApplicationWindowClosesAt(?\DateTimeImmutable $applicationWindowClosesAt): static
     {
         $this->applicationWindowClosesAt = $applicationWindowClosesAt;
+
+        return $this;
+    }
+
+    public function getInstrument(): ?FundingInstrument
+    {
+        return $this->instrument;
+    }
+
+    public function setInstrument(?FundingInstrument $instrument): static
+    {
+        $this->instrument = $instrument;
+
+        return $this;
+    }
+
+    public function getApplicationUrl(): ?string
+    {
+        return $this->applicationUrl;
+    }
+
+    public function setApplicationUrl(?string $applicationUrl): static
+    {
+        $this->applicationUrl = $applicationUrl;
+
+        return $this;
+    }
+
+    public function getContactEmail(): ?string
+    {
+        return $this->contactEmail;
+    }
+
+    public function setContactEmail(?string $contactEmail): static
+    {
+        $this->contactEmail = $contactEmail;
+
+        return $this;
+    }
+
+    public function getRequiredDocuments(): ?string
+    {
+        return $this->requiredDocuments;
+    }
+
+    public function setRequiredDocuments(?string $requiredDocuments): static
+    {
+        $this->requiredDocuments = $requiredDocuments;
 
         return $this;
     }

@@ -11,7 +11,7 @@ createRoot(document.getElementById("root")).render(
   <StrictMode>
     <I18nProvider>
       <AuthProvider>
-        <Navbar />
+        <Navbar activeHref="opportunities.html" />
         <OpportunityRadarPage />
         <Footer />
       </AuthProvider>

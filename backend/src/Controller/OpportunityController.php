@@ -19,9 +19,10 @@ use Symfony\Component\Routing\Attribute\Route;
  * C1.8 : "Opportunity Radar" - liste des appels à projets (`Opportunity`,
  * F4) ouverts par les bailleurs. Saisie manuelle pour ce sprint (voir
  * App\DataFixtures\OpportunityFixtures) - aucun connecteur automatique par
- * bailleur n'existe encore. Deliberately PUBLIC_ACCESS, même raisonnement
- * que GET /api/funding et GET /api/search : cette donnée n'a aucune
- * raison d'exiger une connexion.
+ * bailleur n'existe encore. Réservé à ROLE_USER depuis la structuration
+ * des accès (A3.12, 2026-09-24) - voir config/packages/security.yaml ;
+ * cette docblock disait auparavant "deliberately PUBLIC_ACCESS", devenu
+ * faux depuis ce changement et corrigé au passage.
  */
 final class OpportunityController extends AbstractController
 {
@@ -42,6 +43,7 @@ final class OpportunityController extends AbstractController
             new OA\Parameter(name: 'sector', in: 'query', required: false, description: 'Identifiant du secteur (Sector.id)', schema: new OA\Schema(type: 'integer', example: 3)),
             new OA\Parameter(name: 'country', in: 'query', required: false, description: 'Terme de recherche dans le texte d\'éligibilité (ex : "Senegal", "Sahel")', schema: new OA\Schema(type: 'string', example: 'Sahel')),
             new OA\Parameter(name: 'status', in: 'query', required: false, description: 'Statut par rapport à aujourd\'hui', schema: new OA\Schema(type: 'string', enum: ['open', 'upcoming', 'closed'])),
+            new OA\Parameter(name: 'instrument', in: 'query', required: false, description: 'Type d\'instrument financier proposé (A3.12)', schema: new OA\Schema(type: 'string', enum: ['grant', 'loan_concessional', 'loan_non_concessional', 'guarantee', 'equity', 'results_based', 'unknown'])),
         ],
         responses: [
             new OA\Response(
@@ -60,12 +62,16 @@ final class OpportunityController extends AbstractController
                                 new OA\Property(property: 'applicationWindowOpensAt', type: 'string', format: 'date', nullable: true, example: '2026-10-01'),
                                 new OA\Property(property: 'applicationWindowClosesAt', type: 'string', format: 'date', nullable: true, example: '2027-03-31'),
                                 new OA\Property(property: 'status', type: 'string', enum: ['open', 'upcoming', 'closed'], example: 'upcoming'),
+                                new OA\Property(property: 'instrument', type: 'string', nullable: true, enum: ['grant', 'loan_concessional', 'loan_non_concessional', 'guarantee', 'equity', 'results_based', 'unknown'], example: 'grant'),
+                                new OA\Property(property: 'applicationUrl', type: 'string', nullable: true, example: 'https://www.greenclimate.fund/sap'),
+                                new OA\Property(property: 'contactEmail', type: 'string', nullable: true, example: 'sap@gcfund.org'),
+                                new OA\Property(property: 'requiredDocuments', type: 'string', nullable: true, example: 'Note conceptuelle, lettre de non-objection du point focal national, budget prévisionnel.'),
                             ]
                         )),
                     ]
                 )
             ),
-            new OA\Response(response: 400, description: '"status" a une valeur hors de l\'énumération connue, ou "sector" n\'est pas un entier positif'),
+            new OA\Response(response: 400, description: '"status"/"instrument" a une valeur hors de l\'énumération connue, ou "sector" n\'est pas un entier positif'),
         ]
     )]
     public function list(Request $request): JsonResponse

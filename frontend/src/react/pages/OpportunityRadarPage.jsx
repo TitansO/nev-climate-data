@@ -8,10 +8,23 @@ import NevInput from "../components/ui/NevInput";
 import NevSelect from "../components/ui/NevSelect";
 import NevDataState from "../components/ui/NevDataState";
 import { formatUsd } from "../data/analyticsConstants";
-import { SparklesIcon } from "../components/ui/icons";
+import { SparklesIcon, DocumentIcon, MailIcon, LinkIcon } from "../components/ui/icons";
 
 const STATUS_LABELS = { open: "Ouverte", upcoming: "À venir", closed: "Fermée" };
 const STATUS_TONES = { open: "success", upcoming: "info", closed: "neutral" };
+
+// A3.12 : miroir de App\Entity\Enum\FundingInstrument côté backend (mêmes
+// valeurs string) - un seul endroit à mettre à jour si un cas est ajouté
+// côté PHP, cf. le même motif pour FUNDING_TYPE_LABELS (DataPage.jsx).
+const INSTRUMENT_LABELS = {
+  grant: "Subvention",
+  loan_concessional: "Prêt concessionnel",
+  loan_non_concessional: "Prêt non concessionnel",
+  guarantee: "Garantie",
+  equity: "Prise de participation",
+  results_based: "Financement basé sur les résultats",
+  unknown: "Non précisé",
+};
 
 function formatDate(isoDate) {
   if (!isoDate) {
@@ -23,7 +36,7 @@ function formatDate(isoDate) {
 
 function stateFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  return { country: params.get("country") || "", status: params.get("status") || "" };
+  return { country: params.get("country") || "", status: params.get("status") || "", instrument: params.get("instrument") || "" };
 }
 
 /**
@@ -44,6 +57,7 @@ export default function OpportunityRadarPage() {
 
   const [country, setCountry] = useState(initial.country);
   const [status, setStatus] = useState(initial.status);
+  const [instrument, setInstrument] = useState(initial.instrument);
   const [state, setState] = useState("loading");
   const [opportunities, setOpportunities] = useState([]);
   const [message, setMessage] = useState("");
@@ -56,8 +70,11 @@ export default function OpportunityRadarPage() {
     if (status) {
       params.set("status", status);
     }
+    if (instrument) {
+      params.set("instrument", instrument);
+    }
     return params.toString();
-  }, [country, status]);
+  }, [country, status, instrument]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,7 +134,7 @@ export default function OpportunityRadarPage() {
 
       <div className="container mx-auto px-4">
         <NevCard padding="md" className="relative z-20 -mt-10 mb-8">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <NevInput
               id="opportunity-country"
               label={t("opportunityPage.country", "Recherche dans le texte d'éligibilité")}
@@ -130,6 +147,14 @@ export default function OpportunityRadarPage() {
               <option value="open">{t("opportunityPage.statusOpen", "Ouverte")}</option>
               <option value="upcoming">{t("opportunityPage.statusUpcoming", "À venir")}</option>
               <option value="closed">{t("opportunityPage.statusClosed", "Fermée")}</option>
+            </NevSelect>
+            <NevSelect id="opportunity-instrument" label={t("opportunityPage.instrument", "Type d'instrument")} value={instrument} onChange={(event) => setInstrument(event.target.value)}>
+              <option value="">{t("opportunityPage.allInstruments", "Tous les instruments")}</option>
+              {Object.entries(INSTRUMENT_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </NevSelect>
           </div>
           {/* C2.2/C2.3: cette page liste les appels à projets des bailleurs
@@ -152,10 +177,13 @@ export default function OpportunityRadarPage() {
           >
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {opportunities.map((opportunity) => (
-                <NevCard key={opportunity.id} padding="lg" interactive>
+                <NevCard key={opportunity.id} padding="lg" interactive className="flex flex-col">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <h3 className="text-lg font-bold text-dark">{opportunity.title}</h3>
-                    <NevBadge tone={STATUS_TONES[opportunity.status]}>{STATUS_LABELS[opportunity.status]}</NevBadge>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <NevBadge tone={STATUS_TONES[opportunity.status]}>{STATUS_LABELS[opportunity.status]}</NevBadge>
+                      {opportunity.instrument && <NevBadge tone="neutral">{INSTRUMENT_LABELS[opportunity.instrument] || opportunity.instrument}</NevBadge>}
+                    </div>
                   </div>
                   <p className="mb-4 text-sm text-body-color">{opportunity.eligibilityCriteria}</p>
                   <dl className="space-y-2 border-t border-stroke pt-4 text-sm">
@@ -181,7 +209,36 @@ export default function OpportunityRadarPage() {
                         </dd>
                       </div>
                     )}
+                    {opportunity.contactEmail && (
+                      <div className="flex justify-between">
+                        <dt className="text-dark-5">{t("opportunityPage.contact", "Contact")}</dt>
+                        <dd>
+                          <a href={"mailto:" + opportunity.contactEmail} className="inline-flex items-center gap-1 font-semibold text-primary-dark hover:underline">
+                            <MailIcon className="h-3.5 w-3.5" /> {opportunity.contactEmail}
+                          </a>
+                        </dd>
+                      </div>
+                    )}
                   </dl>
+                  {opportunity.requiredDocuments && (
+                    <div className="mt-4 flex gap-2 rounded-md bg-surface-alt px-3 py-2.5 text-xs text-dark-4">
+                      <DocumentIcon className="mt-0.5 h-4 w-4 shrink-0 text-dark-5" />
+                      <p>
+                        <span className="font-semibold text-dark-3">{t("opportunityPage.requiredDocuments", "Documents requis")} : </span>
+                        {opportunity.requiredDocuments}
+                      </p>
+                    </div>
+                  )}
+                  {opportunity.applicationUrl && (
+                    <a
+                      href={opportunity.applicationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-4 inline-flex items-center justify-center gap-1.5 self-start rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-dark"
+                    >
+                      {t("opportunityPage.apply", "Candidater sur le site du bailleur")} <LinkIcon className="h-3.5 w-3.5" />
+                    </a>
+                  )}
                 </NevCard>
               ))}
             </div>

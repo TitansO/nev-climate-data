@@ -31,7 +31,8 @@ final class OpportunityService
      *     id: int, title: string, sourceName: string, sector: ?string,
      *     eligibilityCriteria: string, envelopeAmount: float,
      *     applicationWindowOpensAt: ?string, applicationWindowClosesAt: ?string,
-     *     status: string
+     *     status: string, instrument: ?string, applicationUrl: ?string,
+     *     contactEmail: ?string, requiredDocuments: ?string
      * }>
      */
     public function list(OpportunityCriteria $criteria): array
@@ -77,7 +78,8 @@ final class OpportunityService
      *     id: int, title: string, sourceName: string, sector: ?string,
      *     eligibilityCriteria: string, envelopeAmount: float,
      *     applicationWindowOpensAt: ?string, applicationWindowClosesAt: ?string,
-     *     status: string
+     *     status: string, instrument: ?string, applicationUrl: ?string,
+     *     contactEmail: ?string, requiredDocuments: ?string
      * }
      */
     private static function toArray(Opportunity $opportunity, OpportunityStatus $status): array
@@ -92,6 +94,10 @@ final class OpportunityService
             'applicationWindowOpensAt' => $opportunity->getApplicationWindowOpensAt()?->format('Y-m-d'),
             'applicationWindowClosesAt' => $opportunity->getApplicationWindowClosesAt()?->format('Y-m-d'),
             'status' => $status->value,
+            'instrument' => $opportunity->getInstrument()?->value,
+            'applicationUrl' => $opportunity->getApplicationUrl(),
+            'contactEmail' => $opportunity->getContactEmail(),
+            'requiredDocuments' => $opportunity->getRequiredDocuments(),
         ];
     }
 }

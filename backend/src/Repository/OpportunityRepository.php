@@ -95,6 +95,10 @@ class OpportunityRepository extends ServiceEntityRepository
                 ->setParameter('countryPattern', $criteria->countryLikePattern());
         }
 
+        if (null !== $criteria->instrument) {
+            $qb->andWhere('opportunity.instrument = :instrument')->setParameter('instrument', $criteria->instrument);
+        }
+
         return $qb
             ->orderBy('opportunity.applicationWindowClosesAt', 'ASC')
             ->addOrderBy('opportunity.id', 'ASC')

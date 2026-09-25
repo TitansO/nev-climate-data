@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Entity;
 
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
 use App\Entity\Opportunity;
@@ -35,6 +36,25 @@ final class OpportunityTest extends TestCase
         self::assertSame('50000000.00', $opportunity->getEnvelopeAmount());
         self::assertNull($opportunity->getApplicationWindowOpensAt());
         self::assertNull($opportunity->getApplicationWindowClosesAt());
+        self::assertNull($opportunity->getInstrument());
+        self::assertNull($opportunity->getApplicationUrl());
+        self::assertNull($opportunity->getContactEmail());
+        self::assertNull($opportunity->getRequiredDocuments());
+    }
+
+    public function testEnrichmentFieldsCanBeSet(): void
+    {
+        $opportunity = $this->makeOpportunity();
+
+        $opportunity->setInstrument(FundingInstrument::Grant);
+        $opportunity->setApplicationUrl('https://www.greenclimate.fund/simplified-approval-process');
+        $opportunity->setContactEmail('sap@gcfund.org');
+        $opportunity->setRequiredDocuments('Note conceptuelle, lettre de non-objection.');
+
+        self::assertSame(FundingInstrument::Grant, $opportunity->getInstrument());
+        self::assertSame('https://www.greenclimate.fund/simplified-approval-process', $opportunity->getApplicationUrl());
+        self::assertSame('sap@gcfund.org', $opportunity->getContactEmail());
+        self::assertSame('Note conceptuelle, lettre de non-objection.', $opportunity->getRequiredDocuments());
     }
 
     public function testApplicationWindowCanBeSet(): void

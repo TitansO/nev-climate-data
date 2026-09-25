@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Entity\Country;
+use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
 use App\Entity\Enum\UserRole;
@@ -87,6 +88,13 @@ final class OpportunityControllerTest extends WebTestCase
         $open->setSector($agriculture);
         $open->setApplicationWindowOpensAt($now->modify('-10 days'));
         $open->setApplicationWindowClosesAt($now->modify('+10 days'));
+        // A3.12 : seule cette opportunité porte les champs d'enrichissement
+        // renseignés - les deux autres les laissent à null (comportement
+        // par défaut, testé séparément) pour vérifier les deux cas.
+        $open->setInstrument(FundingInstrument::Guarantee);
+        $open->setApplicationUrl('https://example.org/open-grant/apply');
+        $open->setContactEmail('grants@example.org');
+        $open->setRequiredDocuments('Note conceptuelle, budget prévisionnel.');
         $this->entityManager->persist($open);
 
         $upcoming = new Opportunity('Upcoming Grant', $source, 'Pays éligibles : Sénégal et pays voisins.', '3000000.00');
@@ -216,6 +224,28 @@ final class OpportunityControllerTest extends WebTestCase
         self::assertSame('Open Grant', $data[0]['title']);
     }
 
+    public function testOpportunitiesFiltersByInstrument(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/opportunities?instrument=guarantee', server: $auth);
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertCount(1, $data);
+        self::assertSame('Open Grant', $data[0]['title']);
+    }
+
+    public function testOpportunitiesRejectsAnInvalidInstrumentValue(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/opportunities?instrument=not-a-real-instrument', server: $auth);
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
     public function testOpportunitiesCombinesSectorAndStatusFilters(): void
     {
         $client = static::createClient();
@@ -259,6 +289,30 @@ final class OpportunityControllerTest extends WebTestCase
         self::assertNull($data[0]['sector']);
         self::assertSame('Test Fund', $data[0]['sourceName']);
         self::assertEquals(3000000.0, $data[0]['envelopeAmount']);
+        self::assertNull($data[0]['instrument']);
+        self::assertNull($data[0]['applicationUrl']);
+        self::assertNull($data[0]['contactEmail']);
+        self::assertNull($data[0]['requiredDocuments']);
+    }
+
+    /**
+     * A3.12 : les 4 champs d'enrichissement sortent bien tels que saisis
+     * quand ils sont renseignés ("Open Grant" dans seedDataset()), et
+     * l'instrument sort par sa valeur string (pas l'objet enum PHP).
+     */
+    public function testOpportunitiesResultShapeIncludesEnrichmentFieldsWhenSet(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/opportunities?status=open', server: $auth);
+
+        $data = json_decode($client->getResponse()->getContent(), true)['data'];
+        self::assertCount(1, $data);
+        self::assertSame('guarantee', $data[0]['instrument']);
+        self::assertSame('https://example.org/open-grant/apply', $data[0]['applicationUrl']);
+        self::assertSame('grants@example.org', $data[0]['contactEmail']);
+        self::assertSame('Note conceptuelle, budget prévisionnel.', $data[0]['requiredDocuments']);
     }
 
     public function testOpportunitiesWithNoMatchesReturnsEmptyArrayNotAnError(): void
