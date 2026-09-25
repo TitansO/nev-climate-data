@@ -594,6 +594,12 @@ Demande explicite de l'utilisateur, avant l'interconnexion avec le Volet B : don
 
 **Vérification** : aucun outil de navigateur/capture d'écran n'est disponible dans cet environnement d'exécution - la vérification s'est faite par `npm run build` (aucune suite de tests frontend n'existe dans ce repo, confirmé) répété à chaque étape sur le Codespace (jamais en local, à la demande explicite de l'utilisateur), par un serveur `vite dev` réel servant les 13 pages avec le vrai backend (base de données, Redis) derrière, et par les captures d'écran fournies au fil de l'eau par l'utilisateur - qui ont d'ailleurs révélé les trois bugs listés ci-dessus, invisibles depuis les seules vérifications serveur. **Non fait** : parcours visuel complet et systématique des 13 pages par l'utilisateur - recommandé avant de considérer ce chantier définitivement clos.
 
+### A3.12 - Structuration des accès public/utilisateur/admin (2026-09-24, hors plan officiel)
+
+Décision produit explicite : remplacer une API presque entièrement `PUBLIC_ACCESS` (héritage documenté des phases A2/C1/C3) par un modèle à 3 paliers. **Public** (visiteur anonyme) : page d'accueil et statistiques agrégées uniquement, via une nouvelle couche dédiée `GET /api/public/statistics` (`App\Controller\PublicController`) qui n'expose jamais le jeu de données complet. **Utilisateur** (`ROLE_USER`) : tout le reste de la surface applicative (`/api/analytics`, `/api/funding`, `/api/search`, `/api/reports`, `/api/institutions`, `/api/opportunities`, `/api/countries`, `/api/impact`, `/api/sectors`, `/api/blended`, `/api/recommendations`), avec auto-inscription publique (`POST /api/auth/register`, toujours `ROLE_EXTERNAL_PARTNER`, throttlée par IP - voir `backend/config/packages/security.yaml`). **Admin** (`ROLE_SUPER_ADMIN`) : gestion des comptes (`/api/users`), inchangée. Côté frontend, `RequireAuth.jsx` (nouveau) affiche un écran « Connexion requise » explicite plutôt qu'une redirection silencieuse sur les pages désormais protégées.
+
+**Régression trouvée et corrigée le lendemain (2026-09-24), en testant le parcours réel plutôt qu'en relisant le code** : le basculement d'endpoints vers `ROLE_USER` a laissé **12 appels `fetch()` frontend** en place, sur `useAnalyticsFetch.js` (hook partagé par 8 pages) et des appels ad hoc de `DataPage`, `ReportsPage`, `GlobalSearch`, `DashboardPage`, `BlendedFinancePage`, `ImpactCalculatorPage`, `OpportunityRadarPage`, `InstrumentsPage`, `InstitutionProfilePage`, `SearchResultsPage` et `VisualizationsPage` - tous appelaient `fetch()` brut au lieu de `authorizedFetch()` (le wrapper de `AuthProvider` qui attache le jeton JWT et gère le rafraîchissement automatique). Conséquence vérifiée en production : **même un utilisateur réellement connecté** recevait `401 "JWT Token not found"` sur tout le tableau de bord et les pages associées - un `curl` direct contre le backend avec un jeton fraîchement émis répondait 200, le même appel depuis le vrai frontend répondait 401. Corrigé en deux passes de balayage (la première, trop spécifique à un seul motif d'appel, en a raté trois - voir point d'attention #74, §12). Une deuxième cause, indépendante, a prolongé le diagnostic sur le Codespace : les pages `.html` de ce projet chargent des bundles déjà construits, pas le code source - `npm run build` a dû être relancé après chaque correction pour qu'elle devienne visible (voir point d'attention #75, §12).
+
 ## CI/CD
 
 Pipeline GitLab CI (`.gitlab-ci.yml`), deux étapes :
@@ -639,7 +645,7 @@ Nouveau service `db-backup` (`docker/db-backup/`), pattern boucle `sleep` identi
 
 ## Points d'attention (pièges déjà rencontrés - à ne pas réintroduire)
 
-73 pièges réels rencontrés et corrigés pendant ce projet (A1.3 à aujourd'hui) - accès,
+79 pièges réels rencontrés et corrigés pendant ce projet (A1.3 à aujourd'hui) - accès,
 configuration, tests, données, déploiement. Liste complète et numérotée, déplacée dans le
 runbook d'exploitation pour garder ce README centré sur la prise en main :
 [`docs/exploitation/runbooks.md` → §12](docs/exploitation/runbooks.md#12-points-dattention-à-ne-jamais-oublier).
@@ -709,6 +715,7 @@ runbook d'exploitation pour garder ce README centré sur la prise en main :
 | Bloc | Contenu | Dans le plan ? |
 |---|---|---|
 | A3.11 - Refonte UI/UX institutionnelle | Design system `--nev-*`, 12 nouveaux composants partagés (`components/ui/`), les 13 pages restylées, 3 vrais bugs trouvés et corrigés (voir points d'attention #48-#50) | Non |
+| A3.12 - Structuration des accès public/utilisateur/admin | Modèle à 3 paliers + auto-inscription publique, régression frontend trouvée et corrigée le lendemain (401 systémique pour tout utilisateur connecté) | Non |
 
 **Phase A3 (A3.1 à A3.10) fonctionnellement complète - le Volet A dans son ensemble (Phases A1, A2, A3) est prêt à être clôturé**, sous réserve de la signature du rapport de recette A3.10. Le Volet B (pipeline de données réelles) a démarré en parallèle : voir la section « Pipeline (Volet B) » plus bas. Détail complet, échéances et responsables : `Plan_Implementation_NEV_Climate_Data.xlsx`, onglet « Plan d'implémentation ».
 
