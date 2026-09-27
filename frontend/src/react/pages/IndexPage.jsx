@@ -77,7 +77,9 @@ function useHeroStats() {
   return { state, values, note };
 }
 
-const TRUSTED_SOURCES = ["World Bank Data API", "Green Climate Fund"];
+// Les 5 connecteurs reellement actifs du pipeline (Volet B) - remplace
+// l'ancienne liste qui n'en citait que 2 sur 5, desormais perimee.
+const TRUSTED_SOURCES = ["World Bank Data API", "Green Climate Fund", "Banque Africaine de Développement", "PNUE / IEA", "OPEC Fund"];
 
 export default function IndexPage() {
   const { t } = useI18n();
@@ -149,16 +151,19 @@ export default function IndexPage() {
       </section>
 
       {/* ====== Value banner ====== */}
-      <section className="bg-white pt-10">
+      <section className="bg-white py-14">
         <div className="container mx-auto px-4">
-          <div className="rounded-2xl border border-stroke bg-surface-alt px-6 py-8 text-center sm:px-12">
-            <p className="text-lg font-semibold text-deep-3 sm:text-xl">{t("valueBanner.text", "Des données structurées pour mieux comprendre les enjeux climatiques.")}</p>
+          <div className="mx-auto flex max-w-[820px] gap-5">
+            <span className="mt-1 h-full w-1 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+            <p className="text-xl font-semibold leading-snug text-deep-3 sm:text-2xl">
+              {t("valueBanner.text", "Des données structurées pour mieux comprendre les enjeux climatiques.")}
+            </p>
           </div>
         </div>
       </section>
 
       {/* ====== Domaines ====== */}
-      <section className="bg-white py-10">
+      <section className="bg-white py-16">
         <div className="container mx-auto px-4">
           <div className="mx-auto mb-14 max-w-[600px] text-center">
             <span className="mb-2 block text-sm font-semibold uppercase tracking-wide text-primary">{t("domains.eyebrow", "Domaines couverts")}</span>
@@ -167,11 +172,41 @@ export default function IndexPage() {
           </div>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
             {[
-              { key: "domains.renewableEnergy", fallback: SECTOR_LABELS["Renewable Energy"], image: "assets/images/domains/renewable-energy.jpg" },
-              { key: "domains.sustainableTransport", fallback: SECTOR_LABELS["Sustainable Transport"], image: "assets/images/domains/sustainable-transport.jpg" },
-              { key: "domains.agriculture", fallback: SECTOR_LABELS.Agriculture, image: "assets/images/domains/agriculture.jpg" },
-              { key: "domains.forestry", fallback: SECTOR_LABELS.Forestry, image: "assets/images/domains/forestry.jpg" },
-              { key: "domains.adaptation", fallback: SECTOR_LABELS.Adaptation, image: "assets/images/domains/adaptation.jpg" },
+              {
+                key: "domains.renewableEnergy",
+                fallback: SECTOR_LABELS["Renewable Energy"],
+                image: "assets/images/domains/renewable-energy.jpg",
+                descKey: "domains.renewableEnergy.desc",
+                descFallback: "Solaire, éolien et capacité installée",
+              },
+              {
+                key: "domains.sustainableTransport",
+                fallback: SECTOR_LABELS["Sustainable Transport"],
+                image: "assets/images/domains/sustainable-transport.jpg",
+                descKey: "domains.sustainableTransport.desc",
+                descFallback: "Mobilité bas-carbone et infrastructures propres",
+              },
+              {
+                key: "domains.agriculture",
+                fallback: SECTOR_LABELS.Agriculture,
+                image: "assets/images/domains/agriculture.jpg",
+                descKey: "domains.agriculture.desc",
+                descFallback: "Pratiques climato-intelligentes et résilience",
+              },
+              {
+                key: "domains.forestry",
+                fallback: SECTOR_LABELS.Forestry,
+                image: "assets/images/domains/forestry.jpg",
+                descKey: "domains.forestry.desc",
+                descFallback: "Reboisement, REDD+ et gestion durable",
+              },
+              {
+                key: "domains.adaptation",
+                fallback: SECTOR_LABELS.Adaptation,
+                image: "assets/images/domains/adaptation.jpg",
+                descKey: "domains.adaptation.desc",
+                descFallback: "Résilience climatique et réduction des risques",
+              },
             ].map((domain) => (
               <NevCard key={domain.key} padding="md" interactive className="group text-center">
                 <img
@@ -179,7 +214,8 @@ export default function IndexPage() {
                   alt={t(domain.key, domain.fallback)}
                   className="mb-4 aspect-square w-full rounded-lg object-cover transition group-hover:opacity-90"
                 />
-                <h3 className="text-base font-semibold text-dark">{t(domain.key, domain.fallback)}</h3>
+                <h3 className="mb-1 text-base font-semibold text-dark">{t(domain.key, domain.fallback)}</h3>
+                <p className="text-xs leading-relaxed text-body-color">{t(domain.descKey, domain.descFallback)}</p>
               </NevCard>
             ))}
           </div>
@@ -187,7 +223,7 @@ export default function IndexPage() {
       </section>
 
       {/* ====== Catégories de données ====== */}
-      <section className="bg-white py-10">
+      <section className="bg-surface-alt py-16">
         <div className="container mx-auto px-4">
           <div className="mx-auto mb-14 max-w-[650px] text-center">
             <span className="mb-2 block text-sm font-semibold uppercase tracking-wide text-primary">{t("categories.eyebrow", "Ce que vous pouvez explorer")}</span>
@@ -267,39 +303,48 @@ export default function IndexPage() {
       </section>
 
       {/* ====== Comment ça fonctionne ====== */}
-      <section className="bg-white py-10">
+      <section className="bg-surface-alt py-16">
         <div className="container mx-auto px-4">
           <div className="mx-auto mb-14 max-w-[600px] text-center">
             <span className="mb-2 block text-sm font-semibold uppercase tracking-wide text-primary">{t("howItWorks.eyebrow", "Méthodologie")}</span>
             <h2 className="mb-3 text-3xl font-bold text-dark sm:text-4xl">{t("howItWorks.title", "Comment ça fonctionne ?")}</h2>
           </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { n: 1, titleKey: "howItWorks.step1.title", titleFallback: "Collecte", descKey: "howItWorks.step1.desc", descFallback: "Agrégation depuis les sources officielles et partenaires.", bg: "bg-deep-3" },
-              {
-                n: 2,
-                titleKey: "howItWorks.step2.title",
-                titleFallback: "Structuration",
-                descKey: "howItWorks.step2.desc",
-                descFallback: "Normalisation par pays, secteur, année et type de financement.",
-                bg: "bg-deep-3",
-              },
-              {
-                n: 3,
-                titleKey: "howItWorks.step3.title",
-                titleFallback: "Validation",
-                descKey: "howItWorks.step3.desc",
-                descFallback: "Contrôle qualité et statut de validation par enregistrement.",
-                bg: "bg-deep-3",
-              },
-              { n: 4, titleKey: "howItWorks.step4.title", titleFallback: "Diffusion", descKey: "howItWorks.step4.desc", descFallback: "Accès via l'interface, l'export et l'API documentée.", bg: "bg-primary" },
-            ].map((step) => (
-              <NevCard key={step.n} padding="lg" className="relative text-center">
-                <div className={"mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white " + step.bg}>{step.n}</div>
-                <h3 className="mb-2 text-lg font-semibold text-dark">{t(step.titleKey, step.titleFallback)}</h3>
-                <p className="text-sm text-body-color">{t(step.descKey, step.descFallback)}</p>
-              </NevCard>
-            ))}
+          <div className="relative">
+            {/* Ligne de connexion : uniquement a partir de lg (la grille passe a
+                4 colonnes egales a ce palier, donc les centres des cercles 1 et
+                4 tombent exactement a 12.5%/87.5% de la largeur - voir
+                inset-x-[12.5%] ci-dessous). top-6 (24px) = la moitie de la
+                hauteur du cercle (h-12 = 48px), pour un alignement precis sur
+                son centre vertical sans dependre du contenu texte en dessous. */}
+            <div className="pointer-events-none absolute inset-x-[12.5%] top-6 hidden h-0.5 bg-gradient-to-r from-stroke via-stroke to-primary/50 lg:block" aria-hidden="true" />
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { n: 1, titleKey: "howItWorks.step1.title", titleFallback: "Collecte", descKey: "howItWorks.step1.desc", descFallback: "Agrégation depuis les sources officielles et partenaires.", bg: "bg-deep-3" },
+                {
+                  n: 2,
+                  titleKey: "howItWorks.step2.title",
+                  titleFallback: "Structuration",
+                  descKey: "howItWorks.step2.desc",
+                  descFallback: "Normalisation par pays, secteur, année et type de financement.",
+                  bg: "bg-deep-3",
+                },
+                {
+                  n: 3,
+                  titleKey: "howItWorks.step3.title",
+                  titleFallback: "Validation",
+                  descKey: "howItWorks.step3.desc",
+                  descFallback: "Contrôle qualité et statut de validation par enregistrement.",
+                  bg: "bg-deep-3",
+                },
+                { n: 4, titleKey: "howItWorks.step4.title", titleFallback: "Diffusion", descKey: "howItWorks.step4.desc", descFallback: "Accès via l'interface, l'export et l'API documentée.", bg: "bg-primary" },
+              ].map((step) => (
+                <div key={step.n} className="relative z-10 text-center">
+                  <div className={"mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white ring-4 ring-surface-alt " + step.bg}>{step.n}</div>
+                  <h3 className="mb-2 text-lg font-semibold text-dark">{t(step.titleKey, step.titleFallback)}</h3>
+                  <p className="mx-auto max-w-[220px] text-sm text-body-color">{t(step.descKey, step.descFallback)}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
