@@ -38,7 +38,27 @@ use Symfony\Contracts\Cache\ItemInterface;
  */
 final class RecommendationService
 {
-    private const CACHE_TTL_SECONDS = 900;
+    // A3.15 (2026-09-27) : 21 600s (6h), pas les 900s standard du reste des
+    // agregats analytics - deliberement divergent, pas un oubli. getRecommendations()
+    // appelle scoreFor()/scoreForCountry() de 3 services (Equity/NdcAlignment/
+    // InvestmentRisk) DIRECTEMENT par pays, sans passer par leurs propres
+    // methodes agregees deja cachees (ex. EquityScoreService::getRanking()) -
+    // mesure en direct en production le 2026-09-27 : ~49s sur le pool de 12
+    // pays (contre 383ms mesures localement pour la seule etape equity, voir
+    // EquityScoreService), la latence reseau par requete vers la base de
+    // production etant le facteur dominant sur les dizaines de requetes
+    // sequentielles cumulees des 3 services. Restructurer ces 3 services pour
+    // exposer une methode batch (calculer tous les pays du pool en une seule
+    // passe de requetes) serait le vrai correctif, mais c'est un changement
+    // plus large qui touche aussi leurs endpoints par-pays existants - en
+    // attendant, un TTL long limite drastiquement la frequence a laquelle un
+    // utilisateur reel subit ce calcul complet (les entrees sous-jacentes -
+    // financement, cibles CDN - ne changent de toute facon qu'au rythme
+    // trimestriel du pipeline, jamais minute par minute). Complete par un
+    // prechauffage au demarrage du conteneur (voir docker/backend/entrypoint.sh)
+    // pour que ce calcul ne soit quasiment jamais fait "en direct" devant un
+    // vrai visiteur.
+    private const CACHE_TTL_SECONDS = 21_600;
     private const CACHE_KEY = 'analytics_recommendations';
 
     public function __construct(

@@ -150,18 +150,6 @@ export default function IndexPage() {
         </div>
       </section>
 
-      {/* ====== Value banner ====== */}
-      <section className="bg-white py-14">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto flex max-w-[820px] gap-5">
-            <span className="mt-1 h-full w-1 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-            <p className="text-xl font-semibold leading-snug text-deep-3 sm:text-2xl">
-              {t("valueBanner.text", "Des données structurées pour mieux comprendre les enjeux climatiques.")}
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* ====== Domaines ====== */}
       <section className="bg-white py-16">
         <div className="container mx-auto px-4">

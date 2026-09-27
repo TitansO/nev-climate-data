@@ -64,4 +64,16 @@ mkdir -p var/cache var/log
 php bin/console cache:warmup --no-interaction
 chown -R www-data:www-data var
 
+# A3.15 (2026-09-27) : precalcule GET /api/recommendations en arriere-plan
+# (voir App\Command\WarmRecommendationsCacheCommand et App\Service\
+# RecommendationService pour le "pourquoi" complet) - ~49s mesures en
+# direct en production pour ce calcul, jamais fait au premier plan ici :
+# bloquer le demarrage d'Apache aussi longtemps a chaque deploiement
+# risquerait de faire echouer le healthcheck de demarrage de Render avant
+# meme qu'Apache ne reponde. `|| true` : un echec de ce prechauffage (ex.
+# base momentanement indisponible) ne doit jamais faire echouer le
+# demarrage du service, seulement retarder de quelques minutes le moment
+# ou ce cache precis devient chaud.
+(php bin/console app:warm-recommendations-cache > /dev/null 2>&1 || true) &
+
 exec "$@"
