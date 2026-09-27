@@ -6,7 +6,10 @@ namespace App\Command;
 
 use App\Entity\Enum\FundingInstrument;
 use App\Entity\Enum\TenderCategory;
+use App\Entity\ImpactFactor;
 use App\Entity\Tender;
+use App\Repository\CountryRepository;
+use App\Repository\ImpactFactorRepository;
 use App\Repository\OpportunityRepository;
 use App\Repository\SectorRepository;
 use App\Repository\TenderRepository;
@@ -18,16 +21,23 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * A3.14 (2026-09-25) : seme en production les donnees de demonstration qui
- * n'existaient jusqu'ici que sur le Codespace de developpement - les 4
- * champs d'enrichissement des 9 `Opportunity` existantes (A3.12) et les 8
- * `Tender` de demonstration (A3.13). Deliberement SANS PASSER PAR
- * `doctrine:fixtures:load` : cette commande a ete ecrite en reaction
- * directe a un incident reel du meme jour ou `fixtures:load` a purge
- * ~4000 lignes `funding` reelles en developpement (voir le commentaire de
- * FundingFixtures/OpportunityFixtures/TenderFixtures pour le contexte) -
- * cette commande ne touche jamais que `opportunity`/`tender`, jamais
- * `funding`/`emission`/`user`/etc.
+ * A3.14 (2026-09-25, etendue le 2026-09-27) : seme en production les
+ * donnees de reference qui n'existaient jusqu'ici que sur le Codespace de
+ * developpement. Deliberement SANS PASSER PAR `doctrine:fixtures:load` :
+ * cette commande a ete ecrite en reaction directe a un incident reel ou
+ * `fixtures:load` a purge ~4000 lignes `funding` reelles en developpement
+ * (voir le commentaire de FundingFixtures/OpportunityFixtures/
+ * TenderFixtures pour le contexte) - cette commande ne touche jamais que
+ * `opportunity`/`tender`/`impact_factor`/les 2 colonnes d'equite de
+ * `country`, jamais `funding`/`emission`/`user`/etc.
+ *
+ * Etendue le 2026-09-27 suite a un audit de production ("le calculateur
+ * ne fonctionne pas") : App\Entity\ImpactFactor (Calculateur d'impact,
+ * C2.5) et les colonnes population/vulnerabilityIndex de `Country`
+ * (Score d'equite, C3.3) n'avaient jamais ete chargees en production -
+ * seules `Opportunity`/`Tender` avaient ete identifiees et corrigees le
+ * 2026-09-25. Les deux nouvelles etapes suivent exactement le meme
+ * principe idempotent que les deux premieres, ci-dessous.
  *
  * Idempotente par construction, appelee a chaque demarrage du conteneur
  * (voir docker/backend/entrypoint.sh, meme raisonnement que les
@@ -39,8 +49,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *   correspond a aucune ligne existante (opportunite jamais creee sur
  *   cet environnement) est silencieusement ignore plutot que de creer
  *   une ligne inattendue.
+ * - ImpactFactor : n'insere les 5 lignes (une par secteur) que si la
+ *   table est vide au depart, meme garantie que Tender.
+ * - Country (population/vulnerabilityIndex) : ne backfille que les pays
+ *   dont `population` est encore NULL, identifies par code ISO-3 - meme
+ *   garantie que le backfill Opportunity.
  */
-#[AsCommand(name: 'app:seed-demo-enrichment', description: 'Seme les donnees de demonstration Opportunity/Tender si absentes (idempotent)')]
+#[AsCommand(name: 'app:seed-demo-enrichment', description: 'Seme les donnees de reference manquantes (Opportunity/Tender/ImpactFactor/equite pays) si absentes (idempotent)')]
 final class SeedDemoEnrichmentCommand extends Command
 {
     public function __construct(
@@ -48,6 +63,8 @@ final class SeedDemoEnrichmentCommand extends Command
         private readonly OpportunityRepository $opportunityRepository,
         private readonly TenderRepository $tenderRepository,
         private readonly SectorRepository $sectorRepository,
+        private readonly ImpactFactorRepository $impactFactorRepository,
+        private readonly CountryRepository $countryRepository,
     ) {
         parent::__construct();
     }
@@ -129,12 +146,53 @@ final class SeedDemoEnrichmentCommand extends Command
             '3200000.00', '2025-11-01', '2026-03-31', 'https://greenaccess.org/procurement/archive', null],
     ];
 
+    /**
+     * Copie exacte de ImpactFactorFixtures::FACTORS (C2.5) - voir sa
+     * docblock pour la réserve sur la fiabilité de ces ordres de grandeur.
+     *
+     * [sectorName, usdPerTco2Avoided|null, usdPerMwInstalled|null, usdPerBeneficiary|null, uncertaintyPercent, methodologySource].
+     *
+     * @var list<array{0: string, 1: ?string, 2: ?string, 3: ?string, 4: float, 5: string}>
+     */
+    private const IMPACT_FACTORS = [
+        ['Renewable Energy', '50.00', '1200000.00', null, 30.0, 'IRENA - Renewable Power Generation Costs (ordre de grandeur, non vérifié ligne à ligne)'],
+        ['Sustainable Transport', '80.00', null, '500.00', 35.0, 'GCF Results Handbook - secteur transport (ordre de grandeur, non vérifié ligne à ligne)'],
+        ['Agriculture', '40.00', null, '300.00', 40.0, 'GCF Results Handbook - agriculture climato-intelligente (ordre de grandeur, non vérifié ligne à ligne)'],
+        ['Forestry', '15.00', null, '200.00', 35.0, 'GCF Results Handbook - REDD+/reboisement (ordre de grandeur, non vérifié ligne à ligne)'],
+        ['Adaptation', null, null, '150.00', 45.0, 'GCF Results Handbook - programmes de résilience (ordre de grandeur, non vérifié ligne à ligne)'],
+    ];
+
+    /**
+     * Copie exacte de CountryEquityDataFixtures::EQUITY_DATA (C3.3) - voir
+     * sa docblock pour la réserve sur la fiabilité de ces chiffres.
+     *
+     * [isoCode, population, vulnerabilityIndex].
+     *
+     * @var list<array{0: string, 1: int, 2: float}>
+     */
+    private const COUNTRY_EQUITY_DATA = [
+        ['NGA', 223_800_000, 0.47],
+        ['KEN', 55_100_000, 0.46],
+        ['MAR', 37_840_000, 0.36],
+        ['GHA', 33_470_000, 0.41],
+        ['ETH', 126_500_000, 0.53],
+        ['SEN', 17_760_000, 0.44],
+        ['RWA', 13_780_000, 0.45],
+        ['TZA', 67_440_000, 0.44],
+        ['CIV', 28_870_000, 0.42],
+        ['ZMB', 20_570_000, 0.47],
+        ['UGA', 48_580_000, 0.44],
+        ['CMR', 28_650_000, 0.45],
+    ];
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
 
         $this->seedTenders($io);
         $this->backfillOpportunities($io);
+        $this->seedImpactFactors($io);
+        $this->backfillCountryEquityData($io);
 
         return Command::SUCCESS;
     }
@@ -194,5 +252,53 @@ final class SeedDemoEnrichmentCommand extends Command
         }
 
         $io->writeln(\sprintf('Opportunity : %d ligne(s) enrichie(s) (sur %d candidates).', $updated, \count(self::OPPORTUNITY_ENRICHMENT)));
+    }
+
+    private function seedImpactFactors(SymfonyStyle $io): void
+    {
+        if (0 !== $this->impactFactorRepository->count([])) {
+            $io->writeln('ImpactFactor : deja peuple, rien a faire.');
+
+            return;
+        }
+
+        foreach (self::IMPACT_FACTORS as [$sectorName, $usdPerTco2Avoided, $usdPerMwInstalled, $usdPerBeneficiary, $uncertaintyPercent, $methodologySource]) {
+            $sector = $this->sectorRepository->findOneBy(['name' => $sectorName]);
+            if (null === $sector) {
+                continue;
+            }
+
+            $impactFactor = new ImpactFactor($sector, $uncertaintyPercent, $methodologySource);
+            $impactFactor->setUsdPerTco2Avoided($usdPerTco2Avoided);
+            $impactFactor->setUsdPerMwInstalled($usdPerMwInstalled);
+            $impactFactor->setUsdPerBeneficiary($usdPerBeneficiary);
+
+            $this->entityManager->persist($impactFactor);
+        }
+
+        $this->entityManager->flush();
+        $io->writeln(\sprintf('ImpactFactor : %d lignes de demonstration inserees.', \count(self::IMPACT_FACTORS)));
+    }
+
+    private function backfillCountryEquityData(SymfonyStyle $io): void
+    {
+        $updated = 0;
+
+        foreach (self::COUNTRY_EQUITY_DATA as [$isoCode, $population, $vulnerabilityIndex]) {
+            $country = $this->countryRepository->findOneBy(['isoCode' => $isoCode]);
+            if (null === $country || null !== $country->getPopulation()) {
+                continue;
+            }
+
+            $country->setPopulation($population);
+            $country->setVulnerabilityIndex($vulnerabilityIndex);
+            ++$updated;
+        }
+
+        if ($updated > 0) {
+            $this->entityManager->flush();
+        }
+
+        $io->writeln(\sprintf('Country (equite) : %d ligne(s) enrichie(s) (sur %d candidates).', $updated, \count(self::COUNTRY_EQUITY_DATA)));
     }
 }
