@@ -261,6 +261,24 @@ export default function ProjectPipelinePage() {
                         {project.country} · {project.sector}
                       </p>
                       <p className="mt-1 text-xs font-semibold text-primary-dark">{formatUsd(project.amountSought)}</p>
+                      {/* Solution de repli au glisser-déposer HTML5 (non
+                          disponible au clavier, sur écran tactile ou
+                          certains trackpads) - toujours utilisable, quel
+                          que soit l'appareil. */}
+                      <select
+                        value={project.pipelineStage}
+                        onClick={(event) => event.stopPropagation()}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onChange={(event) => moveProject(project.id, event.target.value)}
+                        aria-label={t("projectPipeline.moveTo", "Déplacer vers…")}
+                        className="mt-2 w-full rounded-md border border-stroke bg-white px-2 py-1.5 text-xs font-medium text-dark-4 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {STAGES.map((candidateStage) => (
+                          <option key={candidateStage.value} value={candidateStage.value}>
+                            {t("projectPipeline.stage." + candidateStage.value, candidateStage.label)}
+                          </option>
+                        ))}
+                      </select>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {project.taxonomyClass && <NevBadge tone="info">{TAXONOMY_LABELS[project.taxonomyClass] || project.taxonomyClass}</NevBadge>}
                         {"decision" === project.pipelineStage && (

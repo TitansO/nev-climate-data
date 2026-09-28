@@ -419,6 +419,7 @@
   "projectPipeline.executionStatus.in_progress": "In progress",
   "projectPipeline.executionStatus.closed": "Closed",
   "projectPipeline.stageTotal": "Total",
+  "projectPipeline.moveTo": "Move to…",
   "projectPipeline.relevantFunding": "Relevant funding",
   "projectPipeline.noMatches": "No opportunity is currently available for this project.",
   "projectPipeline.matchesError": "Unable to load matches.",

@@ -419,6 +419,7 @@
   "projectPipeline.executionStatus.in_progress": "En cours",
   "projectPipeline.executionStatus.closed": "Clôturé",
   "projectPipeline.stageTotal": "Total",
+  "projectPipeline.moveTo": "Déplacer vers…",
   "projectPipeline.relevantFunding": "Financements pertinents",
   "projectPipeline.noMatches": "Aucune opportunité disponible pour ce projet actuellement.",
   "projectPipeline.matchesError": "Impossible de charger les correspondances.",
