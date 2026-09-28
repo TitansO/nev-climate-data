@@ -12,8 +12,9 @@ const SELECT_CLASS =
  * C1.2: "layer selector" for the country map - narrows the per-country
  * funding breakdown by financing type / instrument / year, using
  * GET /api/analytics/country-distribution's own C1.2 filters. Shared by
- * VisualizationsPage and DashboardPage (both showed a plain CountryMap
- * before C1.2) so the two can never drift apart on filter behavior.
+ * DashboardPage (used a plain CountryMap before C1.2; 2026-09-28: also
+ * absorbed VisualizationsPage's own copy of this same map when the two
+ * pages were merged, since both showed it identically).
  *
  * Sector is deliberately left out of this UI: unlike fundingType/instrument
  * (a handful of known enum values, see analyticsConstants.js) and year

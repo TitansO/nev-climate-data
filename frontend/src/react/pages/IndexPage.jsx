@@ -245,7 +245,7 @@ export default function IndexPage() {
               </div>
               <h3 className="mb-2 text-[0.95rem] font-bold text-dark">{t("categories.viz.title", "Visualisations et tendances")}</h3>
               <p className="mb-[14px] text-[0.82rem] leading-[1.55] text-body-color">{t("categories.viz.desc", "Évolution du financement, répartition sectorielle et indicateurs par région.")}</p>
-              <NevButton as="a" href="visualizations.html" size="sm" className="px-[13px] py-[6px] text-[0.78rem]">
+              <NevButton as="a" href="dashboard.html" size="sm" className="px-[13px] py-[6px] text-[0.78rem]">
                 {t("categories.viz.cta", "Visualiser")}
               </NevButton>
             </NevCard>

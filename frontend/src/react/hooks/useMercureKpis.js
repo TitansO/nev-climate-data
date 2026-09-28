@@ -14,8 +14,9 @@ import { useEffect, useState } from "react";
  * and this hook keeps returning {connected: false, snapshot: null}
  * forever - every value it feeds the page already has a non-Mercure
  * fallback (the financing-trends grand total, the hero-stats country
- * count), so visualizations.html works identically whether or not the hub
- * is reachable, exactly like every other chart on this page degrades on
+ * count), so dashboard.html (2026-09-28: absorbed visualizations.html, now
+ * retired) works identically whether or not the hub is reachable, exactly
+ * like every other chart on this page degrades on
  * its own fetch failure.
  */
 function resolveMercureHubUrl() {

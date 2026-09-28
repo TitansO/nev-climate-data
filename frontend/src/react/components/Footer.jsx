@@ -37,8 +37,8 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="visualizations.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
-                  {t("nav.visualizations", "Visualisations")}
+                <a href="dashboard.html" className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:rounded-sm">
+                  {t("nav.dashboard", "Tableau de bord")}
                 </a>
               </li>
               <li>

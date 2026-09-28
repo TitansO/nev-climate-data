@@ -177,3 +177,11 @@ export function MailIcon(props) {
     </svg>
   );
 }
+
+export function ChevronDownIcon(props) {
+  return (
+    <svg className={base} {...strokeProps} {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}

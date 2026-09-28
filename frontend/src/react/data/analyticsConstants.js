@@ -1,5 +1,6 @@
 /**
- * Shared constants for visualizations.html's charts - ported verbatim from
+ * Shared constants for dashboard.html's charts (2026-09-28: absorbed
+ * visualizations.html, now retired) - ported verbatim from
  * assets/js/analytics.js (same values, same comments where the reasoning
  * still applies) so every chart keeps meaning the same thing by the same
  * color it always has.

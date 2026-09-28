@@ -27,7 +27,11 @@ import { resolve } from "path";
  * before. Lot 0: 404.html, login.html. Lot 1: about.html, sources.html,
  * api-docs.html. Lot 2: account-profile.html, account-api-keys.html,
  * account-users.html, notifications.html. Lot 3: data.html, reports.html.
- * Lot 4: index.html. Lot 5: visualizations.html.
+ * Lot 4: index.html. Lot 5: visualizations.html (2026-09-28: merged into
+ * dashboard.html - the two pages repeated the same KPI band, sector
+ * donut, financing chart and country map; visualizations.html itself is
+ * retired, its remaining content lives in dashboard.html's collapsible
+ * "analyses avancées" section).
  * C1.1: dashboard.html - new consolidated Dashboard view, not a migration
  * of an existing static page. C1.3: search.html - new full-page,
  * facetable search results view (GlobalSearch.jsx's navbar dropdown stays
@@ -35,15 +39,17 @@ import { resolve } from "path";
  * C1.4: institution-profile.html - per-source profile page, not in the
  * main nav (reached via a search result's own destination, like
  * account-profile.html is reached from the account menu, not the navbar).
- * C1.7: instruments.html, C1.8: opportunities.html - not in the main nav
- * (kept short on purpose), reached instead via a contextual link from the
- * page closest to their role: VisualizationsPage's "type de financement"
- * card links to instruments.html, SourcesPage links to opportunities.html.
- * C2.3: project-pipeline.html - same "not in the main nav" reasoning,
+ * C1.7: instruments.html - not in the main nav (kept short on purpose),
+ * reached instead via a contextual link from the page closest to its
+ * role: DashboardPage's "type de financement" card (2026-09-28: was
+ * VisualizationsPage's before the merge). C1.8: opportunities.html - in
+ * the main nav (Appels à projets, added 2026-09-28), also linked
+ * contextually from SourcesPage.
+ * C2.3: project-pipeline.html - "not in the main nav" reasoning,
  * reached via a contextual link from opportunities.html.
  * C2.5/C2.6/C2.8: impact-calculator.html, country-profile.html - same
  * "not in the main nav" reasoning, reached via contextual links (the
- * project detail modal's "Estimer l'impact" link, visualizations.html's
+ * project detail modal's "Estimer l'impact" link, dashboard.html's
  * country map section).
  * C3.1/C3.3/C3.6/C3.7: gaps.html, equity.html, transparency.html,
  * recommendations.html - frontend built after the fact (the backend
@@ -75,7 +81,6 @@ export default defineConfig({
         data: resolve(__dirname, "data.html"),
         reports: resolve(__dirname, "reports.html"),
         index: resolve(__dirname, "index.html"),
-        visualizations: resolve(__dirname, "visualizations.html"),
         dashboard: resolve(__dirname, "dashboard.html"),
         search: resolve(__dirname, "search.html"),
         "institution-profile": resolve(__dirname, "institution-profile.html"),

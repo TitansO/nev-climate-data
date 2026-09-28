@@ -3,7 +3,8 @@ import { useAuth } from "../providers/AuthProvider";
 
 /**
  * Generic fetch hook for the /api/analytics/* aggregates (A2.5/A2.6), used
- * by every chart on visualizations.html. Mirrors assets/js/analytics.js's
+ * by every chart on dashboard.html (2026-09-28: absorbed visualizations.html,
+ * now retired). Mirrors assets/js/analytics.js's
  * fetchAnalytics() + the shared loading/success/empty/error state machine
  * (setChartState()) as one hook instead of duplicating that logic per
  * chart: {state: "loading"|"success"|"empty"|"error", data, message, reload}.
