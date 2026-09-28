@@ -125,7 +125,7 @@ export default function OpportunityRadarPage() {
           <span className="mb-[18px] inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
             <SparklesIcon className="h-3 w-3" /> {t("opportunityPage.pill", "Radar des opportunités")}
           </span>
-          <h1 className="mb-[14px] text-[clamp(1.7rem,4vw,2.6rem)] font-bold leading-[1.2]">{t("opportunityPage.title", "Appels à projets ouverts")}</h1>
+          <h1 className="mb-[14px] text-[clamp(1.7rem,4vw,2.6rem)] font-bold leading-[1.2]">{t("opportunityPage.title", "Appels à projets")}</h1>
           <p className="max-w-[560px] text-base text-white/80">
             {t("opportunityPage.subtitle", "Les fenêtres de financement ouvertes par les bailleurs, saisies manuellement (F4) - triées par échéance la plus proche.")}
           </p>

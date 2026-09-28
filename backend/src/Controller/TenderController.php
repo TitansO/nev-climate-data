@@ -13,7 +13,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * A3.13 : "Tender Radar" - liste des appels d'offres (`Tender`) émis par
+ * A3.13 : "Tender Radar" - liste des appels à consultance (`Tender`,
+ * libelle "Appel d'offres" renomme le 2026-09-28) émis par
  * des organismes liés au financement climatique. Distinct de
  * OpportunityController (C1.8, "appels à projets") - voir la docblock de
  * App\Entity\Tender pour la différence de fond. Réservé à ROLE_USER,
@@ -29,7 +30,7 @@ final class TenderController extends AbstractController
 
     #[Route('/api/tenders', name: 'api_tenders', methods: ['GET'])]
     #[OA\Get(
-        summary: 'Appels d\'offres (marchés de prestation), filtrables par secteur/catégorie/échéance',
+        summary: 'Appels à consultance (marchés de prestation), filtrables par secteur/catégorie/échéance',
         description: 'Triés par échéance de dépôt des offres croissante (les plus urgents d\'abord). `status` (open/upcoming/closed) est calculé par rapport à maintenant, jamais stocké. `search` cherche dans le titre et l\'organisme émetteur, insensible à la casse et aux accents.',
         tags: ['Tenders'],
         security: [['bearerAuth' => []]],
@@ -42,7 +43,7 @@ final class TenderController extends AbstractController
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Liste des appels d\'offres',
+                description: 'Liste des appels à consultance',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'data', type: 'array', items: new OA\Items(

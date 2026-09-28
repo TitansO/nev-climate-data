@@ -36,7 +36,8 @@ function stateFromUrl() {
 
 /**
  * A3.13 : "Tender Radar" - GET /api/tenders. Jumeau de OpportunityRadarPage
- * (C1.8) pour les appels d'offres (marchés de prestation) plutôt que les
+ * (C1.8) pour les appels à consultance (marchés de prestation, libelle
+ * "Appel d'offres" renomme le 2026-09-28) plutôt que les
  * appels à projets (financement) - voir App\Entity\Tender pour la
  * différence de fond entre les deux concepts.
  */
@@ -113,7 +114,7 @@ export default function TendersPage() {
       <section className="bg-gradient-to-br from-deep via-deep-2 to-deep-3 pb-[60px] pt-[48px] text-left text-white">
         <div className="container mx-auto px-4">
           <span className="mb-[18px] inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
-            <BuildingIcon className="h-3 w-3" /> {t("tenderPage.pill", "Radar des appels d'offres")}
+            <BuildingIcon className="h-3 w-3" /> {t("tenderPage.pill", "Radar des appels à consultance")}
           </span>
           <h1 className="mb-[14px] text-[clamp(1.7rem,4vw,2.6rem)] font-bold leading-[1.2]">{t("tenderPage.title", "Marchés de prestation ouverts")}</h1>
           <p className="max-w-[620px] text-base text-white/80">
@@ -158,9 +159,9 @@ export default function TendersPage() {
         <section className="pb-16">
           <NevDataState
             state={state}
-            loadingText={t("tenderPage.loading", "Chargement des appels d'offres…")}
+            loadingText={t("tenderPage.loading", "Chargement des appels à consultance…")}
             errorText={message}
-            emptyText={t("tenderPage.empty", "Aucun appel d'offres ne correspond à ces critères.")}
+            emptyText={t("tenderPage.empty", "Aucun appel à consultance ne correspond à ces critères.")}
           >
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {tenders.map((tender) => (
