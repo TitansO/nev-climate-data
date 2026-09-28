@@ -28,10 +28,16 @@ nelmio_cors:
         origin_regex: true
         allow_headers: ['Content-Type', 'Authorization', 'X-API-Key']
         # GET (funding, api-keys list, auth/me), POST (auth login/refresh/
-        # logout, api-keys create), DELETE (api-keys revoke) - every method
-        # actually used by an existing endpoint the frontend calls (A2.2 +
-        # the frontend auth integration block). Nothing wider than that.
-        allow_methods: ['GET', 'POST', 'DELETE']
+        # logout, api-keys create), DELETE (api-keys revoke), PATCH (project
+        # pipeline stage/classify, notifications mark-as-read, account
+        # profile/users - added 2026-09-28 after PATCH requests were found
+        # silently failing cross-origin: the browser's preflight rejected
+        # PATCH since it wasn't in this list, so every PATCH-based feature
+        # never worked from a different origin than the backend, e.g. the
+        # Kanban's drag-and-drop and its "move to stage" fallback, both of
+        # which call PATCH /api/projects/{id}) - every method actually used
+        # by an existing endpoint the frontend calls. Nothing wider than that.
+        allow_methods: ['GET', 'POST', 'PATCH', 'DELETE']
         max_age: 3600
     paths:
         '^/api/': ~
