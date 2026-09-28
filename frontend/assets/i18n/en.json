@@ -410,7 +410,7 @@
   "projectPipeline.stage.idea": "Idea",
   "projectPipeline.stage.scoping": "Scoping",
   "projectPipeline.stage.structuring": "Structuring",
-  "projectPipeline.stage.fundraising": "Fundraising",
+  "projectPipeline.stage.fundraising": "Submission",
   "projectPipeline.stage.financed": "Financed",
   "projectPipeline.stage.rejected": "Rejected",
   "projectPipeline.relevantFunding": "Relevant funding",

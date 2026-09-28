@@ -27,7 +27,7 @@ const STAGES = [
   { value: "idea", label: "Idée" },
   { value: "scoping", label: "Cadrage" },
   { value: "structuring", label: "Structuration" },
-  { value: "fundraising", label: "Levée de fonds" },
+  { value: "fundraising", label: "Soumission" },
   { value: "financed", label: "Financé" },
   { value: "rejected", label: "Rejeté" },
 ];
