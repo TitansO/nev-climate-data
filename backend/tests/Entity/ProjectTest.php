@@ -6,6 +6,8 @@ namespace App\Tests\Entity;
 
 use App\Entity\Country;
 use App\Entity\Enum\FundingInstrument;
+use App\Entity\Enum\ProjectDecisionOutcome;
+use App\Entity\Enum\ProjectExecutionStatus;
 use App\Entity\Enum\ProjectPipelineStage;
 use App\Entity\Project;
 use App\Entity\Sector;
@@ -37,6 +39,8 @@ final class ProjectTest extends TestCase
         self::assertSame('4500000.00', $project->getAmountSought());
         self::assertSame(ProjectPipelineStage::Idea, $project->getPipelineStage());
         self::assertSame("Agence Sénégalaise d'Électrification Rurale", $project->getPromoter());
+        self::assertNull($project->getDecisionOutcome());
+        self::assertNull($project->getExecutionStatus());
     }
 
     public function testSetPipelineStageAdvancesTheStageAndTouchesUpdatedAt(): void
@@ -58,5 +62,35 @@ final class ProjectTest extends TestCase
         $project->setInstrumentSought(FundingInstrument::LoanConcessional);
 
         self::assertSame(FundingInstrument::LoanConcessional, $project->getInstrumentSought());
+    }
+
+    public function testSetDecisionOutcomeAndExecutionStatusTouchUpdatedAt(): void
+    {
+        $project = $this->makeProject();
+        $firstUpdatedAt = $project->getUpdatedAt();
+        usleep(1000);
+
+        $project->setDecisionOutcome(ProjectDecisionOutcome::Financed);
+
+        self::assertSame(ProjectDecisionOutcome::Financed, $project->getDecisionOutcome());
+        self::assertGreaterThan($firstUpdatedAt, $project->getUpdatedAt());
+
+        $secondUpdatedAt = $project->getUpdatedAt();
+        usleep(1000);
+
+        $project->setExecutionStatus(ProjectExecutionStatus::InProgress);
+
+        self::assertSame(ProjectExecutionStatus::InProgress, $project->getExecutionStatus());
+        self::assertGreaterThan($secondUpdatedAt, $project->getUpdatedAt());
+    }
+
+    public function testDecisionOutcomeCanBeClearedBackToNull(): void
+    {
+        $project = $this->makeProject();
+        $project->setDecisionOutcome(ProjectDecisionOutcome::Rejected);
+
+        $project->setDecisionOutcome(null);
+
+        self::assertNull($project->getDecisionOutcome());
     }
 }

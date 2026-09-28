@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Entity\Enum\ProjectDecisionOutcome;
+use App\Entity\Enum\ProjectExecutionStatus;
 use App\Entity\Enum\ProjectPipelineStage;
 use App\Entity\Project;
 use App\Repository\ProjectRepository;
@@ -23,7 +25,7 @@ final class ProjectService
     }
 
     /**
-     * @return list<array{id: int, title: string, country: string, countryIsoCode: string, sector: string, instrumentSought: ?string, amountSought: float, pipelineStage: string, promoter: string, updatedAt: string}>
+     * @return list<array{id: int, title: string, country: string, countryIsoCode: string, sector: string, instrumentSought: ?string, amountSought: float, pipelineStage: string, decisionOutcome: ?string, executionStatus: ?string, promoter: string, updatedAt: string}>
      */
     public function list(?ProjectPipelineStage $stage): array
     {
@@ -39,9 +41,27 @@ final class ProjectService
         return $this->projectRepository->find($id);
     }
 
-    public function updateStage(Project $project, ProjectPipelineStage $stage): void
-    {
+    /**
+     * $decisionOutcomeProvided/$executionStatusProvided distinguent "champ
+     * absent du corps JSON" (ne pas toucher) de "champ envoyé avec la
+     * valeur null" (effacer explicitement) - PATCH /api/projects/{id} ne
+     * modifie que ce que l'appelant a réellement fourni.
+     */
+    public function updateStage(
+        Project $project,
+        ProjectPipelineStage $stage,
+        bool $decisionOutcomeProvided,
+        ?ProjectDecisionOutcome $decisionOutcome,
+        bool $executionStatusProvided,
+        ?ProjectExecutionStatus $executionStatus,
+    ): void {
         $project->setPipelineStage($stage);
+        if ($decisionOutcomeProvided) {
+            $project->setDecisionOutcome($decisionOutcome);
+        }
+        if ($executionStatusProvided) {
+            $project->setExecutionStatus($executionStatus);
+        }
         $this->entityManager->flush();
     }
 
@@ -52,7 +72,7 @@ final class ProjectService
     }
 
     /**
-     * @return array{id: int, title: string, description: string, country: string, countryIsoCode: string, sector: string, instrumentSought: ?string, amountSought: float, pipelineStage: string, taxonomyClass: ?string, promoter: string, updatedAt: string}
+     * @return array{id: int, title: string, description: string, country: string, countryIsoCode: string, sector: string, instrumentSought: ?string, amountSought: float, pipelineStage: string, decisionOutcome: ?string, executionStatus: ?string, taxonomyClass: ?string, promoter: string, updatedAt: string}
      */
     public static function toArray(Project $project): array
     {
@@ -69,6 +89,8 @@ final class ProjectService
             'instrumentSought' => $project->getInstrumentSought()?->value,
             'amountSought' => (float) $project->getAmountSought(),
             'pipelineStage' => $project->getPipelineStage()->value,
+            'decisionOutcome' => $project->getDecisionOutcome()?->value,
+            'executionStatus' => $project->getExecutionStatus()?->value,
             'taxonomyClass' => $project->getTaxonomyClass(),
             'promoter' => $project->getPromoter(),
             'updatedAt' => $project->getUpdatedAt()->format(\DATE_ATOM),

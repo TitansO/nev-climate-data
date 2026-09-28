@@ -127,8 +127,11 @@ function useCo2Reduction() {
  * "Projets actifs" - GET /api/projects exige un JWT (Project est une donnée
  * de travail interne, jamais PUBLIC_ACCESS, voir ProjectController), donc
  * cet indicateur reste "-" pour un visiteur non connecté plutôt que
- * d'échouer silencieusement en 401. "Actif" = tout stade sauf "rejected"
- * (un projet "financed" reste un succès du pipeline, pas un stade mort).
+ * d'échouer silencieusement en 401. "Actif" = tout projet sauf ceux dont
+ * l'issue est "rejected" (voir Project::$decisionOutcome, 2026-09-28 -
+ * fusion des anciens stades "financed"/"rejected" en un seul stade
+ * "decision" : un projet financé, en "decision" ou "execution", reste un
+ * succès du pipeline, pas un stade mort).
  */
 function useActiveProjectsCount() {
   const { API_BASE_URL, authorizedFetch, isAuthenticated } = useAuth();
@@ -149,7 +152,7 @@ function useActiveProjectsCount() {
         }
         const body = await response.json();
         if (!cancelled) {
-          setCount(body.data.filter((project) => "rejected" !== project.pipelineStage).length);
+          setCount(body.data.filter((project) => "rejected" !== project.decisionOutcome).length);
           setState("success");
         }
       } catch (error) {

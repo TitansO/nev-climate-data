@@ -126,7 +126,7 @@ final class ProjectControllerTest extends WebTestCase
         $this->createUser('project-filter@example.com');
         $tokens = $this->loginAndGetTokens($client, 'project-filter@example.com');
 
-        $client->request('GET', '/api/projects?stage=financed', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+        $client->request('GET', '/api/projects?stage=decision', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
 
         self::assertResponseIsSuccessful();
         self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
@@ -156,6 +156,68 @@ final class ProjectControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame('fundraising', json_decode($client->getResponse()->getContent(), true)['pipelineStage']);
+    }
+
+    public function testUpdateStageSetsDecisionOutcomeAndExecutionStatusWhenProvided(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $seed = $this->seedProject();
+        $this->createUser('project-decision@example.com');
+        $tokens = $this->loginAndGetTokens($client, 'project-decision@example.com');
+
+        $client->request('PATCH', '/api/projects/'.$seed['project']->getId(), server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['stage' => 'execution', 'decisionOutcome' => 'financed', 'executionStatus' => 'in_progress']));
+
+        self::assertResponseIsSuccessful();
+        $body = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame('execution', $body['pipelineStage']);
+        self::assertSame('financed', $body['decisionOutcome']);
+        self::assertSame('in_progress', $body['executionStatus']);
+    }
+
+    public function testUpdateStageLeavesDecisionOutcomeUnchangedWhenAbsentFromTheBody(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $seed = $this->seedProject();
+        $seed['project']->setDecisionOutcome(\App\Entity\Enum\ProjectDecisionOutcome::Rejected);
+        $this->entityManager->flush();
+        $this->createUser('project-decision-keep@example.com');
+        $tokens = $this->loginAndGetTokens($client, 'project-decision-keep@example.com');
+
+        $client->request('PATCH', '/api/projects/'.$seed['project']->getId(), server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['stage' => 'decision']));
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('rejected', json_decode($client->getResponse()->getContent(), true)['decisionOutcome']);
+    }
+
+    public function testUpdateStageClearsDecisionOutcomeWhenExplicitlySentAsNull(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $seed = $this->seedProject();
+        $seed['project']->setDecisionOutcome(\App\Entity\Enum\ProjectDecisionOutcome::Rejected);
+        $this->entityManager->flush();
+        $this->createUser('project-decision-clear@example.com');
+        $tokens = $this->loginAndGetTokens($client, 'project-decision-clear@example.com');
+
+        $client->request('PATCH', '/api/projects/'.$seed['project']->getId(), server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['stage' => 'decision', 'decisionOutcome' => null]));
+
+        self::assertResponseIsSuccessful();
+        self::assertNull(json_decode($client->getResponse()->getContent(), true)['decisionOutcome']);
+    }
+
+    public function testUpdateStageRejectsAnInvalidDecisionOutcomeValue(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $seed = $this->seedProject();
+        $this->createUser('project-decision-invalid@example.com');
+        $tokens = $this->loginAndGetTokens($client, 'project-decision-invalid@example.com');
+
+        $client->request('PATCH', '/api/projects/'.$seed['project']->getId(), server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['stage' => 'decision', 'decisionOutcome' => 'bogus']));
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
     }
 
     public function testUpdateStageReturns404ForAnUnknownProject(): void

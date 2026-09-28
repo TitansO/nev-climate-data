@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\Enum\ProjectDecisionOutcome;
+use App\Entity\Enum\ProjectExecutionStatus;
 use App\Entity\Enum\ProjectPipelineStage;
 use App\Entity\Project;
 use App\Entity\User;
@@ -47,7 +49,7 @@ final class ProjectController extends AbstractController
         tags: ['Projects'],
         security: [['bearerAuth' => []]],
         parameters: [
-            new OA\Parameter(name: 'stage', in: 'query', required: false, description: 'Stade du pipeline', schema: new OA\Schema(type: 'string', enum: ['idea', 'scoping', 'structuring', 'fundraising', 'financed', 'rejected'])),
+            new OA\Parameter(name: 'stage', in: 'query', required: false, description: 'Stade du pipeline', schema: new OA\Schema(type: 'string', enum: ['idea', 'scoping', 'structuring', 'fundraising', 'decision', 'execution'])),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Liste des projets, plus récemment mis à jour en premier'),
@@ -63,16 +65,21 @@ final class ProjectController extends AbstractController
     #[Route('/api/projects/{id}', name: 'api_projects_update_stage', methods: ['PATCH'], requirements: ['id' => '\d+'])]
     #[OA\Patch(
         summary: 'Déplace un projet vers un autre stade du pipeline (Kanban)',
+        description: '"decisionOutcome" (financed/rejected) et "executionStatus" (in_progress/closed) sont des étiquettes affichées sur la carte, pas des colonnes séparées - voir App\\Entity\\Enum\\ProjectPipelineStage (fusion 2026-09-28 des anciens stades "financed"/"rejected" en un seul stade "decision"). Absents du corps, ils restent inchangés ; envoyés à `null`, ils sont explicitement effacés.',
         tags: ['Projects'],
         security: [['bearerAuth' => []]],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\JsonContent(required: ['stage'], properties: [new OA\Property(property: 'stage', type: 'string', enum: ['idea', 'scoping', 'structuring', 'fundraising', 'financed', 'rejected'])])
+            content: new OA\JsonContent(required: ['stage'], properties: [
+                new OA\Property(property: 'stage', type: 'string', enum: ['idea', 'scoping', 'structuring', 'fundraising', 'decision', 'execution']),
+                new OA\Property(property: 'decisionOutcome', type: 'string', nullable: true, enum: ['financed', 'rejected']),
+                new OA\Property(property: 'executionStatus', type: 'string', nullable: true, enum: ['in_progress', 'closed']),
+            ])
         ),
         responses: [
             new OA\Response(response: 200, description: 'Projet mis à jour'),
-            new OA\Response(response: 400, description: 'Corps invalide, ou "stage" hors énumération'),
+            new OA\Response(response: 400, description: 'Corps invalide, ou une valeur hors énumération'),
             new OA\Response(response: 401, description: 'Authentification JWT requise'),
             new OA\Response(response: 404, description: 'Projet introuvable'),
         ]
@@ -91,7 +98,13 @@ final class ProjectController extends AbstractController
             throw new BadRequestHttpException('Le champ "stage" est requis.');
         }
 
-        $this->projectService->updateStage($project, $stage);
+        $decisionOutcomeProvided = \array_key_exists('decisionOutcome', $decoded);
+        $decisionOutcome = $decisionOutcomeProvided ? self::parseDecisionOutcome($decoded['decisionOutcome']) : null;
+
+        $executionStatusProvided = \array_key_exists('executionStatus', $decoded);
+        $executionStatus = $executionStatusProvided ? self::parseExecutionStatus($decoded['executionStatus']) : null;
+
+        $this->projectService->updateStage($project, $stage, $decisionOutcomeProvided, $decisionOutcome, $executionStatusProvided, $executionStatus);
 
         return $this->json(ProjectService::toArray($project));
     }
@@ -256,6 +269,42 @@ final class ProjectController extends AbstractController
         }
 
         return $stage;
+    }
+
+    private static function parseDecisionOutcome(mixed $raw): ?ProjectDecisionOutcome
+    {
+        if (null === $raw) {
+            return null;
+        }
+        if (!\is_string($raw)) {
+            throw new BadRequestHttpException('Invalid value for parameter "decisionOutcome": must be a string.');
+        }
+
+        $outcome = ProjectDecisionOutcome::tryFrom($raw);
+        if (null === $outcome) {
+            $allowed = implode(', ', array_map(static fn (ProjectDecisionOutcome $case) => $case->value, ProjectDecisionOutcome::cases()));
+            throw new BadRequestHttpException(\sprintf('Invalid value for parameter "decisionOutcome": must be one of %s.', $allowed));
+        }
+
+        return $outcome;
+    }
+
+    private static function parseExecutionStatus(mixed $raw): ?ProjectExecutionStatus
+    {
+        if (null === $raw) {
+            return null;
+        }
+        if (!\is_string($raw)) {
+            throw new BadRequestHttpException('Invalid value for parameter "executionStatus": must be a string.');
+        }
+
+        $status = ProjectExecutionStatus::tryFrom($raw);
+        if (null === $status) {
+            $allowed = implode(', ', array_map(static fn (ProjectExecutionStatus $case) => $case->value, ProjectExecutionStatus::cases()));
+            throw new BadRequestHttpException(\sprintf('Invalid value for parameter "executionStatus": must be one of %s.', $allowed));
+        }
+
+        return $status;
     }
 
     private static function parseLimit(?string $raw): int

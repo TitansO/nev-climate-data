@@ -20,17 +20,22 @@ const TAXONOMY_LABELS = {
 };
 
 // C2.3: ProjectPipelineStage's own 6 cases, in the cycle-of-life order the
-// entity's docblock describes - "Rejected" can be reached from any earlier
-// column, not just "Fundraising", but is still drawn last (a dead end, not
-// a step forward).
+// entity's docblock describes. Depuis le 2026-09-28, "Financed"/"Rejected"
+// sont fusionnés en un seul stade "Decision" (l'issue réelle devient une
+// étiquette sur la carte, pas une colonne à part - voir decisionOutcome
+// ci-dessous), suivi d'un nouveau stade "Execution" pour le suivi
+// post-financement (voir executionStatus).
 const STAGES = [
   { value: "idea", label: "Idée" },
   { value: "scoping", label: "Cadrage" },
   { value: "structuring", label: "Structuration" },
   { value: "fundraising", label: "Soumission" },
-  { value: "financed", label: "Financé" },
-  { value: "rejected", label: "Rejeté" },
+  { value: "decision", label: "Décision" },
+  { value: "execution", label: "État d'exécution" },
 ];
+
+const DECISION_OUTCOME_LABELS = { financed: "Financé", rejected: "Rejeté" };
+const EXECUTION_STATUS_LABELS = { in_progress: "En cours", closed: "Clôturé" };
 
 function distinctSorted(values) {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "fr"));
@@ -92,29 +97,89 @@ export default function ProjectPipelinePage() {
     [projects, countryFilter, sectorFilter, taxonomyFilter]
   );
 
-  async function moveProject(id, newStage) {
+  /**
+   * PATCH /api/projects/{id} - mise à jour optimiste (merge de `patch` sur
+   * la carte affichée), remplacée par la réponse serveur si elle réussit,
+   * annulée intégralement sinon. Partagé par le glisser-déposer (stage
+   * seul) et les menus déroulants "issue"/"état d'exécution" (stage +
+   * decisionOutcome ou executionStatus).
+   */
+  async function patchProject(id, patch) {
     const project = projects.find((candidate) => candidate.id === id);
-    if (!project || project.pipelineStage === newStage) {
+    if (!project) {
       return;
     }
 
-    const previousStage = project.pipelineStage;
-    setProjects((prev) => prev.map((candidate) => (candidate.id === id ? { ...candidate, pipelineStage: newStage } : candidate)));
+    const optimistic = { ...project };
+    if ("stage" in patch) {
+      optimistic.pipelineStage = patch.stage;
+    }
+    if ("decisionOutcome" in patch) {
+      optimistic.decisionOutcome = patch.decisionOutcome;
+    }
+    if ("executionStatus" in patch) {
+      optimistic.executionStatus = patch.executionStatus;
+    }
+    setProjects((prev) => prev.map((candidate) => (candidate.id === id ? optimistic : candidate)));
 
     try {
       const response = await authorizedFetch(API_BASE_URL + "/api/projects/" + id, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ stage: newStage }),
+        body: JSON.stringify(patch),
       });
       if (!response.ok) {
         throw new Error("http " + response.status);
       }
+      const updated = await response.json();
+      setProjects((prev) => prev.map((candidate) => (candidate.id === id ? updated : candidate)));
     } catch (error) {
-      // Rollback : l'affichage ne doit jamais prétendre qu'un déplacement a
-      // réussi si le backend l'a refusé.
-      setProjects((prev) => prev.map((candidate) => (candidate.id === id ? { ...candidate, pipelineStage: previousStage } : candidate)));
+      // Rollback : l'affichage ne doit jamais prétendre qu'une mise à jour a
+      // réussi si le backend l'a refusée.
+      setProjects((prev) => prev.map((candidate) => (candidate.id === id ? project : candidate)));
     }
+  }
+
+  function moveProject(id, newStage) {
+    const project = projects.find((candidate) => candidate.id === id);
+    if (!project || project.pipelineStage === newStage) {
+      return;
+    }
+
+    const patch = { stage: newStage };
+    // Glisser une carte directement dans "Exécution" (sans passer par le
+    // menu "issue" de "Décision") n'a de sens que pour un projet financé -
+    // c'est la seule façon d'atteindre ce stade, donc l'issue est déduite.
+    if ("execution" === newStage) {
+      patch.decisionOutcome = "financed";
+      if (!project.executionStatus) {
+        patch.executionStatus = "in_progress";
+      }
+    }
+    // En quittant "Exécution" pour un autre stade, l'état d'exécution
+    // n'a plus de sens tant que le projet n'y est pas revenu.
+    if ("execution" === project.pipelineStage && "execution" !== newStage) {
+      patch.executionStatus = null;
+    }
+
+    patchProject(id, patch);
+  }
+
+  function chooseDecisionOutcome(id, outcome) {
+    const project = projects.find((candidate) => candidate.id === id);
+    if (!project) {
+      return;
+    }
+    if ("financed" === outcome) {
+      // Un projet financé quitte la colonne "Décision" pour "État d'exécution".
+      patchProject(id, { stage: "execution", decisionOutcome: "financed", executionStatus: project.executionStatus || "in_progress" });
+    } else {
+      patchProject(id, { stage: "decision", decisionOutcome: outcome });
+    }
+  }
+
+  function chooseExecutionStatus(id, status) {
+    patchProject(id, { stage: "execution", executionStatus: status });
   }
 
   return (
@@ -196,13 +261,48 @@ export default function ProjectPipelinePage() {
                         {project.country} · {project.sector}
                       </p>
                       <p className="mt-1 text-xs font-semibold text-primary-dark">{formatUsd(project.amountSought)}</p>
-                      {project.taxonomyClass && (
-                        <NevBadge tone="info" className="mt-2">
-                          {TAXONOMY_LABELS[project.taxonomyClass] || project.taxonomyClass}
-                        </NevBadge>
-                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {project.taxonomyClass && <NevBadge tone="info">{TAXONOMY_LABELS[project.taxonomyClass] || project.taxonomyClass}</NevBadge>}
+                        {"decision" === project.pipelineStage && (
+                          <select
+                            value={project.decisionOutcome || ""}
+                            onClick={(event) => event.stopPropagation()}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onChange={(event) => chooseDecisionOutcome(project.id, event.target.value)}
+                            className={
+                              "rounded-md border-0 px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary " +
+                              ("rejected" === project.decisionOutcome ? "bg-danger-bg text-danger" : "bg-status-demo-bg text-status-demo")
+                            }
+                          >
+                            <option value="" disabled>
+                              {t("projectPipeline.chooseOutcome", "Choisir l'issue…")}
+                            </option>
+                            <option value="financed">{t("projectPipeline.decisionOutcome.financed", DECISION_OUTCOME_LABELS.financed)}</option>
+                            <option value="rejected">{t("projectPipeline.decisionOutcome.rejected", DECISION_OUTCOME_LABELS.rejected)}</option>
+                          </select>
+                        )}
+                        {"execution" === project.pipelineStage && (
+                          <select
+                            value={project.executionStatus || "in_progress"}
+                            onClick={(event) => event.stopPropagation()}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onChange={(event) => chooseExecutionStatus(project.id, event.target.value)}
+                            className={
+                              "rounded-md border-0 px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary " +
+                              ("closed" === project.executionStatus ? "bg-gray-2 text-dark-4" : "bg-status-review-bg text-status-review")
+                            }
+                          >
+                            <option value="in_progress">{t("projectPipeline.executionStatus.in_progress", EXECUTION_STATUS_LABELS.in_progress)}</option>
+                            <option value="closed">{t("projectPipeline.executionStatus.closed", EXECUTION_STATUS_LABELS.closed)}</option>
+                          </select>
+                        )}
+                      </div>
                     </div>
                   ))}
+                  <div className="mt-auto flex items-center justify-between border-t border-stroke pt-2 text-xs font-semibold text-dark-4">
+                    <span>{t("projectPipeline.stageTotal", "Total")}</span>
+                    <span className="text-primary-dark">{formatUsd(projectsInStage.reduce((sum, project) => sum + project.amountSought, 0))}</span>
+                  </div>
                 </div>
               );
             })}

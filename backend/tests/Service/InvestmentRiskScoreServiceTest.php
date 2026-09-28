@@ -6,6 +6,8 @@ namespace App\Tests\Service;
 
 use App\Entity\Country;
 use App\Entity\Enum\FundingType;
+use App\Entity\Enum\ProjectDecisionOutcome;
+use App\Entity\Enum\ProjectPipelineStage;
 use App\Entity\Enum\SourceReliability;
 use App\Entity\Enum\SourceType;
 use App\Entity\Enum\ValidationStatus;
@@ -105,6 +107,66 @@ final class InvestmentRiskScoreServiceTest extends KernelTestCase
         self::assertSame(33.33, $score->getValue());
         self::assertSame('D', $score->getGrade());
         self::assertCount(3, $score->getBreakdown());
+    }
+
+    public function testScoreForProjectAtDecisionWithoutAnOutcomeYetUsesTheNeutralRisk(): void
+    {
+        $country = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $sector = new Sector('Agriculture');
+        $this->entityManager->persist($country);
+        $this->entityManager->persist($sector);
+        $project = new Project('Test', $country, $sector, '100000.00', 'x', 'x');
+        $project->setPipelineStage(ProjectPipelineStage::Decision);
+        $this->entityManager->persist($project);
+        $this->entityManager->flush();
+
+        $service = static::getContainer()->get(InvestmentRiskScoreService::class);
+        $score = $service->scoreForProject($project);
+
+        // STAGE_RISK['decision']=0.5 tant qu'aucune issue n'est connue ->
+        // (0.5+0.5+0.5)/3 = 0.5 -> 50.0, grade C.
+        self::assertSame(50.0, $score->getValue());
+        self::assertSame('C', $score->getGrade());
+    }
+
+    public function testScoreForProjectAtDecisionWithARejectedOutcomeUsesMaximumRisk(): void
+    {
+        $country = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $sector = new Sector('Agriculture');
+        $this->entityManager->persist($country);
+        $this->entityManager->persist($sector);
+        $project = new Project('Test', $country, $sector, '100000.00', 'x', 'x');
+        $project->setPipelineStage(ProjectPipelineStage::Decision);
+        $project->setDecisionOutcome(ProjectDecisionOutcome::Rejected);
+        $this->entityManager->persist($project);
+        $this->entityManager->flush();
+
+        $service = static::getContainer()->get(InvestmentRiskScoreService::class);
+        $score = $service->scoreForProject($project);
+
+        // DECISION_OUTCOME_RISK['rejected']=1.0 -> (0.5+0.5+0)/3 = 0.3333... -> 33.33, grade D.
+        self::assertSame(33.33, $score->getValue());
+        self::assertSame('D', $score->getGrade());
+    }
+
+    public function testScoreForProjectAtExecutionUsesTheMinimumRisk(): void
+    {
+        $country = new Country('Kenya', 'KEN', "Afrique de l'Est");
+        $sector = new Sector('Agriculture');
+        $this->entityManager->persist($country);
+        $this->entityManager->persist($sector);
+        $project = new Project('Test', $country, $sector, '100000.00', 'x', 'x');
+        $project->setPipelineStage(ProjectPipelineStage::Execution);
+        $project->setDecisionOutcome(ProjectDecisionOutcome::Financed);
+        $this->entityManager->persist($project);
+        $this->entityManager->flush();
+
+        $service = static::getContainer()->get(InvestmentRiskScoreService::class);
+        $score = $service->scoreForProject($project);
+
+        // STAGE_RISK['execution']=0.1 -> (0.5+0.5+0.9)/3 = 0.6333... -> 63.33, grade B.
+        self::assertSame(63.33, $score->getValue());
+        self::assertSame('B', $score->getGrade());
     }
 
     public function testScoreValueIsAlwaysWithinZeroToOneHundred(): void

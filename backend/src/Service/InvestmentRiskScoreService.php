@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Entity\Country;
+use App\Entity\Enum\ProjectPipelineStage;
 use App\Entity\Enum\ScoreSubjectType;
 use App\Entity\Project;
 use App\Entity\Score;
@@ -37,8 +38,14 @@ final class InvestmentRiskScoreService
     /**
      * "Risque projet" : proxy par stade du pipeline (plus un projet est
      * avancé, moins il est risqué) - aucune autre donnée de risque projet
-     * n'existe dans ce schéma. "Rejected" reste au risque maximal : un
-     * projet rejeté n'est, par définition, pas un investissement viable.
+     * n'existe dans ce schéma. Depuis la fusion 2026-09-28 de "Financed"/
+     * "Rejected" en un seul stade "Decision" (voir ProjectPipelineStage),
+     * ce stade seul ne suffit plus à distinguer les deux issues : le calcul
+     * ci-dessous (scoreForProject()) affine "decision" via
+     * Project::$decisionOutcome quand il est renseigné, cette valeur par
+     * défaut ne servant que tant qu'aucune issue n'a encore été choisie.
+     * "Execution" (financé, en cours ou clôturé) reprend le risque minimal
+     * qu'avait l'ancien "Financed".
      *
      * @var array<string, float>
      */
@@ -47,6 +54,19 @@ final class InvestmentRiskScoreService
         'scoping' => 0.8,
         'structuring' => 0.6,
         'fundraising' => 0.4,
+        'decision' => 0.5,
+        'execution' => 0.1,
+    ];
+
+    /**
+     * Affine STAGE_RISK['decision'] une fois l'issue connue : un projet
+     * rejeté reste au risque maximal (par définition pas un investissement
+     * viable), un projet financé (mais pas encore déplacé en Execution)
+     * hérite du même risque minimal que "execution".
+     *
+     * @var array<string, float>
+     */
+    private const DECISION_OUTCOME_RISK = [
         'financed' => 0.1,
         'rejected' => 1.0,
     ];
@@ -76,6 +96,9 @@ final class InvestmentRiskScoreService
         $countryResult = $this->countryRiskCalculator->calculate($project->getCountry());
         $sectorResult = $this->sectorRiskCalculator->calculate($project->getSector());
         $stageRisk = self::STAGE_RISK[$project->getPipelineStage()->value] ?? 0.5;
+        if (ProjectPipelineStage::Decision === $project->getPipelineStage() && null !== $project->getDecisionOutcome()) {
+            $stageRisk = self::DECISION_OUTCOME_RISK[$project->getDecisionOutcome()->value];
+        }
 
         $indicators = [
             new PrecomputedIndicator(
@@ -94,7 +117,9 @@ final class InvestmentRiskScoreService
                 'project_stage_risk',
                 1 / 3,
                 1.0 - $stageRisk,
-                \sprintf('Stade du pipeline : "%s".', $project->getPipelineStage()->value)
+                null !== $project->getDecisionOutcome()
+                    ? \sprintf('Stade du pipeline : "%s" (issue : "%s").', $project->getPipelineStage()->value, $project->getDecisionOutcome()->value)
+                    : \sprintf('Stade du pipeline : "%s".', $project->getPipelineStage()->value)
             ),
         ];
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Entity\Enum\FundingInstrument;
+use App\Entity\Enum\ProjectDecisionOutcome;
+use App\Entity\Enum\ProjectExecutionStatus;
 use App\Entity\Enum\ProjectPipelineStage;
 use App\Repository\ProjectRepository;
 use Doctrine\DBAL\Types\Types;
@@ -51,6 +53,18 @@ class Project
 
     #[ORM\Column(type: Types::STRING, enumType: ProjectPipelineStage::class, length: 20, options: ['default' => 'idea'])]
     private ProjectPipelineStage $pipelineStage = ProjectPipelineStage::Idea;
+
+    // Étiquette affichée sur la carte quand pipelineStage vaut Decision (ou
+    // Execution, où elle reste "financed" par construction) - null tant que
+    // le stade Decision n'a pas encore reçu d'issue (voir 2026-09-28,
+    // fusion des anciens stades Financed/Rejected).
+    #[ORM\Column(type: Types::STRING, enumType: ProjectDecisionOutcome::class, length: 20, nullable: true)]
+    private ?ProjectDecisionOutcome $decisionOutcome = null;
+
+    // Étiquette affichée sur la carte quand pipelineStage vaut Execution -
+    // null tant que le projet n'a pas atteint ce stade (voir 2026-09-28).
+    #[ORM\Column(type: Types::STRING, enumType: ProjectExecutionStatus::class, length: 20, nullable: true)]
+    private ?ProjectExecutionStatus $executionStatus = null;
 
     // C2.7 : classe de taxonomie verte simplifiée ('mitigation'/
     // 'adaptation'/'both'/'not_relevant', voir ai/gemini_client.py::
@@ -167,6 +181,32 @@ class Project
     public function setPipelineStage(ProjectPipelineStage $pipelineStage): static
     {
         $this->pipelineStage = $pipelineStage;
+        $this->touch();
+
+        return $this;
+    }
+
+    public function getDecisionOutcome(): ?ProjectDecisionOutcome
+    {
+        return $this->decisionOutcome;
+    }
+
+    public function setDecisionOutcome(?ProjectDecisionOutcome $decisionOutcome): static
+    {
+        $this->decisionOutcome = $decisionOutcome;
+        $this->touch();
+
+        return $this;
+    }
+
+    public function getExecutionStatus(): ?ProjectExecutionStatus
+    {
+        return $this->executionStatus;
+    }
+
+    public function setExecutionStatus(?ProjectExecutionStatus $executionStatus): static
+    {
+        $this->executionStatus = $executionStatus;
         $this->touch();
 
         return $this;
