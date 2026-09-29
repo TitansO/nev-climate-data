@@ -106,6 +106,7 @@
   "dataPage.loadError": "Impossible de charger les données",
   "dataPage.tryAgain": "Une erreur est survenue. Veuillez réessayer.",
   "dataPage.noData": "Aucune donnée trouvée",
+  "dataPage.totalAmount": "Montant total filtré",
   "dataPage.widenFilters": "Essayez d'élargir vos critères de filtrage.",
   "dataPage.type": "Type",
   "dataPage.amount": "Montant",

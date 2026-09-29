@@ -106,6 +106,7 @@
   "dataPage.loadError": "Unable to load the data",
   "dataPage.tryAgain": "Something went wrong. Please try again.",
   "dataPage.noData": "No data found",
+  "dataPage.totalAmount": "Total filtered amount",
   "dataPage.widenFilters": "Try widening your filter criteria.",
   "dataPage.type": "Type",
   "dataPage.amount": "Amount",

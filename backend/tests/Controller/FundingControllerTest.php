@@ -190,6 +190,8 @@ final class FundingControllerTest extends WebTestCase
         self::assertSame(20, $data['meta']['limit']);
         self::assertSame(25, $data['meta']['total']);
         self::assertSame(2, $data['meta']['totalPages']);
+        // 10*1,000,000 + 5*500,000 + 10*250,000 - every group, unfiltered.
+        self::assertEquals(15000000.0, (float) $data['meta']['totalAmount']);
     }
 
     public function testCustomPagination(): void
@@ -205,6 +207,8 @@ final class FundingControllerTest extends WebTestCase
         self::assertSame(10, $data['meta']['limit']);
         self::assertSame(25, $data['meta']['total']);
         self::assertSame(3, $data['meta']['totalPages']);
+        // Unaffected by pagination - the sum always covers every filtered row, not just this page.
+        self::assertEquals(15000000.0, (float) $data['meta']['totalAmount']);
     }
 
     public function testLimitAboveMaximumIsClampedNotRejected(): void
@@ -229,6 +233,8 @@ final class FundingControllerTest extends WebTestCase
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(15, $data['meta']['total']);
+        // Group A + Group B only: 10*1,000,000 + 5*500,000.
+        self::assertEquals(12500000.0, (float) $data['meta']['totalAmount']);
         foreach ($data['data'] as $item) {
             self::assertSame('SEN', $item['country']['isoCode']);
         }
@@ -243,6 +249,8 @@ final class FundingControllerTest extends WebTestCase
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(10, $data['meta']['total']);
+        // Group C only: 10*250,000.
+        self::assertEquals(2500000.0, (float) $data['meta']['totalAmount']);
         foreach ($data['data'] as $item) {
             self::assertSame('Agriculture', $item['sector']['name']);
         }
@@ -271,6 +279,8 @@ final class FundingControllerTest extends WebTestCase
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(15, $data['meta']['total']);
+        // Group B + Group C: 5*500,000 + 10*250,000.
+        self::assertEquals(5000000.0, (float) $data['meta']['totalAmount']);
         foreach ($data['data'] as $item) {
             self::assertSame('private', $item['fundingType']);
         }
@@ -307,6 +317,8 @@ final class FundingControllerTest extends WebTestCase
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(5, $data['meta']['total']);
+        // Group B only: 5*500,000 - narrower than either filter's own totalAmount alone.
+        self::assertEquals(2500000.0, (float) $data['meta']['totalAmount']);
         foreach ($data['data'] as $item) {
             self::assertSame('SEN', $item['country']['isoCode']);
             self::assertSame('private', $item['fundingType']);
@@ -325,6 +337,8 @@ final class FundingControllerTest extends WebTestCase
         self::assertSame([], $data['data']);
         self::assertSame(0, $data['meta']['total']);
         self::assertSame(0, $data['meta']['totalPages']);
+        // COALESCE(SUM(...), 0): a "0" total, never absent/null, for an empty result.
+        self::assertEquals(0.0, (float) $data['meta']['totalAmount']);
     }
 
     public function testInvalidFundingTypeReturns400Json(): void
@@ -433,7 +447,7 @@ final class FundingControllerTest extends WebTestCase
             self::assertArrayNotHasKey($internalField, $item);
         }
 
-        self::assertSame(['page', 'limit', 'total', 'totalPages'], array_keys($data['meta']));
+        self::assertSame(['page', 'limit', 'total', 'totalPages', 'totalAmount'], array_keys($data['meta']));
     }
 
     public function testHistorizedRowsAreExcludedFromListingsAndCounts(): void
@@ -466,6 +480,8 @@ final class FundingControllerTest extends WebTestCase
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(10, $data['meta']['total']); // unchanged - the historized row never counts
+        // Unchanged too - 9,999,999.00 must never be added into the sum.
+        self::assertEquals(2500000.0, (float) $data['meta']['totalAmount']);
         foreach ($data['data'] as $item) {
             self::assertNotSame('9999999.00', $item['amount']);
         }
@@ -499,6 +515,8 @@ final class FundingControllerTest extends WebTestCase
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertSame(10, $data['meta']['total']); // unchanged - the demo row never counts
+        // Unchanged too - 8,888,888.00 must never be added into the sum.
+        self::assertEquals(2500000.0, (float) $data['meta']['totalAmount']);
         foreach ($data['data'] as $item) {
             self::assertNotSame('8888888.00', $item['amount']);
         }

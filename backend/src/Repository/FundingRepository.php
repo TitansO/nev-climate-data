@@ -67,6 +67,25 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * Sum of `amount` (the USD pivot column, DECIMAL(15,2)) across every row
+     * matching the same filters as findByCriteria()/countByCriteria() - not
+     * just the current page (2026-09-29, DataPage's "total filtré"). Shares
+     * criteriaQueryBuilder() with those two so the sum can never drift from
+     * what the paginated list/count actually cover. COALESCE(..., 0):
+     * SUM() over zero matching rows is SQL NULL, and this total is always
+     * meaningful as "0.00" for an empty result, never absent. Returned as
+     * a string, like Funding::$amount itself - PHP float would risk
+     * precision loss on a DECIMAL(15,2) column summed across many rows.
+     */
+    public function sumAmountByCriteria(FundingSearchCriteria $criteria): string
+    {
+        return (string) $this->criteriaQueryBuilder($criteria)
+            ->select('COALESCE(SUM(funding.amount), 0) AS totalAmount')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
      * Every row matching the same filters as findByCriteria(), ignoring
      * $criteria->page/limit (A2.3 exports the whole filtered result set, not
      * one page of it) - everything else is shared with findByCriteria() via

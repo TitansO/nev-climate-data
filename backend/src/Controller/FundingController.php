@@ -106,6 +106,7 @@ final class FundingController extends AbstractController
                             new OA\Property(property: 'limit', type: 'integer', example: 20),
                             new OA\Property(property: 'total', type: 'integer', example: 1080),
                             new OA\Property(property: 'totalPages', type: 'integer', example: 54),
+                            new OA\Property(property: 'totalAmount', type: 'string', example: '15000000.00', description: "Somme de `amount` (pivot USD) sur TOUTES les lignes correspondant aux filtres, pas seulement la page courante - mêmes filtres exacts que `total`, jamais recalculée avec un critère différent."),
                         ], type: 'object'),
                     ]
                 )
@@ -129,6 +130,7 @@ final class FundingController extends AbstractController
 
         $items = $this->fundingRepository->findByCriteria($criteria);
         $total = $this->fundingRepository->countByCriteria($criteria);
+        $totalAmount = $this->fundingRepository->sumAmountByCriteria($criteria);
 
         return $this->json([
             'data' => array_map(self::toListItem(...), $items),
@@ -137,6 +139,7 @@ final class FundingController extends AbstractController
                 'limit' => $criteria->limit,
                 'total' => $total,
                 'totalPages' => $total > 0 ? (int) ceil($total / $criteria->limit) : 0,
+                'totalAmount' => $totalAmount,
             ],
         ]);
     }

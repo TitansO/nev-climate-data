@@ -94,7 +94,7 @@ export default function DataPage() {
   const [status, setStatus] = useState("loading"); // loading | error | empty | data
   const [errorMessage, setErrorMessage] = useState("");
   const [items, setItems] = useState([]);
-  const [meta, setMeta] = useState({ page: 1, totalPages: 1, total: 0 });
+  const [meta, setMeta] = useState({ page: 1, totalPages: 1, total: 0, totalAmount: "0.00" });
 
   const [exportFormat, setExportFormat] = useState("csv");
   const [exporting, setExporting] = useState(false);
@@ -172,7 +172,12 @@ export default function DataPage() {
 
       learnSectorsFrom(body.data);
       learnYearsFrom(body.data);
-      setMeta({ page: body.meta.page, totalPages: body.meta.totalPages, total: body.meta.total });
+      // totalAmount (2026-09-29) : somme de `amount` sur TOUTES les lignes
+      // correspondant aux filtres actifs, pas seulement la page affichée -
+      // calculée côté serveur (voir FundingRepository::sumAmountByCriteria())
+      // avec exactement les mêmes filtres que `total`, jamais recalculée en
+      // sommant `items` ici (qui ne contient qu'une page de 10 lignes).
+      setMeta({ page: body.meta.page, totalPages: body.meta.totalPages, total: body.meta.total, totalAmount: body.meta.totalAmount });
       setItems(body.data);
       setStatus(0 === body.data.length ? "empty" : "data");
     } catch (error) {
@@ -482,6 +487,14 @@ export default function DataPage() {
                 "loading" === status && "Chargement…"
               )}
             </p>
+            {("data" === status || "empty" === status) && (
+              <p className="text-sm font-semibold text-dark" aria-live="polite">
+                {t("dataPage.totalAmount", "Montant total filtré")} :{" "}
+                <span className="tabular-nums text-primary-dark">
+                  {formatAmount(meta.totalAmount)} {DISPLAY_CURRENCY}
+                </span>
+              </p>
+            )}
           </div>
 
           <NevDataState
