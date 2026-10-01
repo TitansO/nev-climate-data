@@ -14,6 +14,7 @@ import MovingAverageChart from "../components/charts/MovingAverageChart";
 import SankeyFlow from "../components/charts/SankeyFlow";
 import FilterableCountryMap from "../components/charts/FilterableCountryMap";
 import { formatCompactUsd, formatUsd, formatCount } from "../data/analyticsConstants";
+import NevCard from "../components/ui/NevCard";
 import NevKpi from "../components/ui/NevKpi";
 import NevChartCard from "../components/ui/NevChartCard";
 import NevSelect from "../components/ui/NevSelect";
@@ -519,22 +520,22 @@ export default function DashboardPage() {
         <section className="mb-16">
           <h2 className="mb-4 text-lg font-semibold text-dark">{t("dashboardPage.targetingTitle", "L'argent atteint-il la bonne cible ?")}</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <a href="gaps.html" className="block rounded-lg border border-stroke bg-white p-5 shadow-xs transition hover:-translate-y-0.5 hover:shadow-card">
+            <NevCard as="a" href="gaps.html" interactive padding="sm">
               <p className="text-sm font-bold text-dark">{t("dashboardPage.linkGaps", "Détecteur d'écarts")}</p>
               <p className="mt-1 text-xs text-body-color">{t("dashboardPage.linkGapsDesc", "Le besoin CDN déclaré dépasse-t-il ce qui a été reçu ?")}</p>
-            </a>
-            <a href="equity.html" className="block rounded-lg border border-stroke bg-white p-5 shadow-xs transition hover:-translate-y-0.5 hover:shadow-card">
+            </NevCard>
+            <NevCard as="a" href="equity.html" interactive padding="sm">
               <p className="text-sm font-bold text-dark">{t("dashboardPage.linkEquity", "Score d'équité")}</p>
               <p className="mt-1 text-xs text-body-color">{t("dashboardPage.linkEquityDesc", "Classement des pays et indice de concentration (Gini).")}</p>
-            </a>
-            <a href="transparency.html" className="block rounded-lg border border-stroke bg-white p-5 shadow-xs transition hover:-translate-y-0.5 hover:shadow-card">
+            </NevCard>
+            <NevCard as="a" href="transparency.html" interactive padding="sm">
               <p className="text-sm font-bold text-dark">{t("dashboardPage.linkTransparency", "Transparence des bailleurs")}</p>
               <p className="mt-1 text-xs text-body-color">{t("dashboardPage.linkTransparencyDesc", "Complétude, publication IATI et fraîcheur, par bailleur.")}</p>
-            </a>
-            <a href="recommendations.html" className="block rounded-lg border border-stroke bg-white p-5 shadow-xs transition hover:-translate-y-0.5 hover:shadow-card">
+            </NevCard>
+            <NevCard as="a" href="recommendations.html" interactive padding="sm">
               <p className="text-sm font-bold text-dark">{t("dashboardPage.linkRecommendations", "Recommandations")}</p>
               <p className="mt-1 text-xs text-body-color">{t("dashboardPage.linkRecommendationsDesc", "Classement priorisé de où allouer le prochain financement.")}</p>
-            </a>
+            </NevCard>
           </div>
           <p className="mt-6 text-xs text-dark-5">
             {t(

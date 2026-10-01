@@ -107,6 +107,13 @@ def collect_and_publish(country_isos: list[str], producer) -> int:
     via `producer` (a `kafka.KafkaProducer`, e.g. from
     `pipeline.common.kafka_client.make_producer()`). Returns the number of
     messages actually published.
+
+    Audit 2026-10-01 : jamais appele par le DAG de production
+    (collecte_worldbank.py, qui a ete refactore en taches extraire/
+    transformer/publier separees via un staging MinIO bronze/silver) - garde
+    volontairement comme point d'entree unique fetch->parse->publier pour
+    les tests (voir test_world_bank_collector.py) et un usage manuel
+    ponctuel depuis un shell Python, pas du code mort oublie.
     """
     published = 0
     for country_iso in country_isos:
@@ -114,7 +121,7 @@ def collect_and_publish(country_isos: list[str], producer) -> int:
             payload = parse_project(raw_project)
             if payload is None:
                 continue
-            producer.send("nev.funding.raw", payload)
+            producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
             published += 1
     producer.flush()
     return published

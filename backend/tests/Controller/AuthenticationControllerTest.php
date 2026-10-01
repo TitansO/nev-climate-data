@@ -19,12 +19,17 @@ final class AuthenticationControllerTest extends WebTestCase
         self::ensureKernelShutdown();
     }
 
-    private function createTestUser(
-        KernelBrowser $client,
-        string $email = 'amina@example.com',
-        string $plainPassword = 'correct-horse-battery-staple',
-        UserRole $role = UserRole::InternalAnalyst,
-    ): User {
+    /**
+     * Audit post-C3 2026-10-01 : extrait de createTestUser() ci-dessous pour
+     * etre aussi utilisable par les tests de /api/auth/register qui ne
+     * passent pas par createTestUser - le endpoint persiste lui-meme un
+     * utilisateur reel, qui restait auparavant commit de facon definitive
+     * en base de test (tearDown() ne pouvait rien annuler sans transaction
+     * ouverte), polluant le nombre d'utilisateurs vu par les tests suivants
+     * (constate via UserControllerTest::testListAsSuperAdminReturnsEveryUser).
+     */
+    private function beginIsolationTransaction(KernelBrowser $client): void
+    {
         // KernelBrowser reboots the kernel (fresh container, fresh DB
         // connection) before every request after the first. That would make
         // the transaction opened below invisible to a second request in the
@@ -36,6 +41,15 @@ final class AuthenticationControllerTest extends WebTestCase
         $container = static::getContainer();
         $this->entityManager = $container->get(EntityManagerInterface::class);
         $this->entityManager->getConnection()->beginTransaction();
+    }
+
+    private function createTestUser(
+        KernelBrowser $client,
+        string $email = 'amina@example.com',
+        string $plainPassword = 'correct-horse-battery-staple',
+        UserRole $role = UserRole::InternalAnalyst,
+    ): User {
+        $this->beginIsolationTransaction($client);
 
         // Hashed directly via PHP's native password_hash() rather than fetched
         // from the container: Symfony's "auto" hasher resolves to a hasher
@@ -253,11 +267,15 @@ final class AuthenticationControllerTest extends WebTestCase
      * endpoint public restant hors auth/login-refresh/doc/health/public/*.
      * Pas de créateur d'utilisateur ici (contrairement aux autres tests de
      * ce fichier) - l'inscription crée elle-même le compte, c'est ce qui
-     * est testé.
+     * est testé. beginIsolationTransaction() seul (sans createTestUser) :
+     * on isole quand meme le compte reellement persiste par l'endpoint, pour
+     * ne pas polluer le nombre d'utilisateurs vu par les tests suivants
+     * (audit post-C3 2026-10-01, voir le docblock de la methode).
      */
     public function testRegisterWithValidPayloadCreatesAnExternalPartnerAccount(): void
     {
         $client = static::createClient();
+        $this->beginIsolationTransaction($client);
         $email = sprintf('nouveau-%s@example.com', bin2hex(random_bytes(4)));
 
         $client->request(
@@ -303,6 +321,7 @@ final class AuthenticationControllerTest extends WebTestCase
     public function testRegisterWithWeakPasswordFails(): void
     {
         $client = static::createClient();
+        $this->beginIsolationTransaction($client);
 
         $client->request(
             'POST',
@@ -319,6 +338,7 @@ final class AuthenticationControllerTest extends WebTestCase
     public function testRegisterNeverGrantsAdminAccess(): void
     {
         $client = static::createClient();
+        $this->beginIsolationTransaction($client);
         $email = sprintf('visiteur-%s@example.com', bin2hex(random_bytes(4)));
 
         $client->request(

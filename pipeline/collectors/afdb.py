@@ -213,6 +213,13 @@ def collect_and_publish(producer) -> int:
     `producer` (a `kafka.KafkaProducer`, e.g. from
     `pipeline.common.kafka_client.make_producer()`). Returns the number of
     messages actually published.
+
+    Audit 2026-10-01 : jamais appele par le DAG de production
+    (collecte_afdb.py, refactore en taches extraire/transformer/publier
+    separees via un staging MinIO bronze/silver) - garde volontairement
+    comme point d'entree unique fetch->parse->publier pour les tests (voir
+    test_afdb_collector.py) et un usage manuel ponctuel, pas du code mort
+    oublie.
     """
     xdr_to_usd_rate = fetch_xdr_to_usd_rate()
     published = 0
@@ -220,7 +227,7 @@ def collect_and_publish(producer) -> int:
         payload = parse_activity(raw_activity, xdr_to_usd_rate)
         if payload is None:
             continue
-        producer.send("nev.funding.raw", payload)
+        producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
         published += 1
     producer.flush()
     return published

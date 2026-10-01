@@ -12,6 +12,10 @@ import { formatUsd } from "../data/analyticsConstants";
 import { BoltIcon } from "../components/ui/icons";
 
 const SEVERITY_TONE = { critical: "danger", moderate: "warning", low: "success" };
+// Audit post-C3 2026-10-01 : ces 3 libellés restaient codés en dur en
+// français (jamais passés par t()) - fallback conservé, clé dynamique
+// "gaps.severity." + severity, même motif que METRIC_LABELS sur
+// ImpactCalculatorPage.jsx.
 const SEVERITY_LABEL = { critical: "Critique", moderate: "Modéré", low: "Faible" };
 
 /**
@@ -93,7 +97,7 @@ export default function GapDetectorPage() {
                   </div>
                 ),
               },
-              { key: "severity", label: t("gaps.severity", "Sévérité"), render: (row) => <NevBadge tone={SEVERITY_TONE[row.severity] || "neutral"}>{SEVERITY_LABEL[row.severity] || row.severity}</NevBadge> },
+              { key: "severity", label: t("gaps.severity", "Sévérité"), render: (row) => <NevBadge tone={SEVERITY_TONE[row.severity] || "neutral"}>{t("gaps.severity." + row.severity, SEVERITY_LABEL[row.severity] || row.severity)}</NevBadge> },
             ]}
             rows={rows}
           />

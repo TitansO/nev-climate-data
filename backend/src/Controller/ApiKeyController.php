@@ -25,9 +25,12 @@ use Symfony\Component\Routing\Attribute\Route;
  * doesn't have (it always starts from a real login).
  *
  * The `bearerAuth` / `apiKeyAuth` security schemes referenced below are
- * declared in App\OpenApi\SecuritySchemes, not here: swagger-php rejects a
- * class that mixes a root SecurityScheme attribute with per-method root
- * Operation attributes (Get/Post/Delete) in the same class.
+ * declared in config/packages/nelmio_api_doc.yaml's own `security:` block,
+ * not in a PHP class (audit 2026-10-01: the route-less App\OpenApi\
+ * SecuritySchemes class this used to come from was dead code - Nelmio's
+ * describer only scans classes reachable from a real Symfony route, so it
+ * was never actually read; deleted, this YAML block is the one mechanism
+ * that genuinely registers these schemes, see that file's own comment).
  */
 final class ApiKeyController extends AbstractController
 {

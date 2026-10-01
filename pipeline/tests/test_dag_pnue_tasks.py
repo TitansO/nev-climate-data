@@ -67,12 +67,16 @@ def test_transformer_parses_every_raw_row_with_its_own_country_iso():
 def test_publier_sends_every_payload_to_the_emissions_topic():
     context = _make_context(pulls={"payloads_path": "silver/pnue/2026-08-31/payloads.json"})
     mock_producer = MagicMock()
+    # source/country_iso/year: every real payload carries them - _publier()
+    # uses them to build the Kafka partitioning key (audit post-C3 2026-10-01,
+    # see kafka_client.py's make_producer() docstring).
+    payload = {"source": "pnue", "country_iso": "SEN", "year": 2026}
 
     with patch("pipeline.dags.collecte_pnue.make_minio_client"), \
-         patch("pipeline.dags.collecte_pnue.download_json", return_value=[{"a": 1}]), \
+         patch("pipeline.dags.collecte_pnue.download_json", return_value=[payload]), \
          patch("pipeline.dags.collecte_pnue.make_producer", return_value=mock_producer):
         _publier(**context)
 
-    mock_producer.send.assert_called_once_with("nev.emissions.raw", {"a": 1})
+    mock_producer.send.assert_called_once_with("nev.emissions.raw", payload, key="pnue:SEN:2026")
     mock_producer.flush.assert_called_once()
     assert _pushed(context, "published_count") == 1

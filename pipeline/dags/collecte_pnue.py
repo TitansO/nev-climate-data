@@ -67,7 +67,7 @@ def _publier(**context) -> None:
 
     producer = make_producer()
     for payload in payloads:
-        producer.send("nev.emissions.raw", payload)
+        producer.send("nev.emissions.raw", payload, key=f"{payload['source']}:{payload['country_iso']}:{payload['year']}")
     producer.flush()
     context["ti"].xcom_push(key="published_count", value=len(payloads))
 

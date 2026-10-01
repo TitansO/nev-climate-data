@@ -125,9 +125,16 @@ def test_publier_sends_payloads_and_records_the_cache_entry_on_a_cache_miss():
         "rows_extracted": 1,
     })
     mock_producer = MagicMock()
+    # source/project_id/country_iso: every real payload carries them - _publier()
+    # uses them to build the Kafka partitioning key (audit post-C3 2026-10-01,
+    # see kafka_client.py's make_producer() docstring).
+    payloads = [
+        {"source": "opec_fund_pdf", "project_id": "P1", "country_iso": "SEN"},
+        {"source": "opec_fund_pdf", "project_id": "P2", "country_iso": "SEN"},
+    ]
 
     with patch("pipeline.dags.extraction_pdf.make_minio_client"), \
-         patch("pipeline.dags.extraction_pdf.download_json", return_value=[{"a": 1}, {"a": 2}]), \
+         patch("pipeline.dags.extraction_pdf.download_json", return_value=payloads), \
          patch("pipeline.dags.extraction_pdf.make_producer", return_value=mock_producer), \
          patch("pipeline.dags.extraction_pdf.get_connection", return_value=MagicMock()), \
          patch("pipeline.dags.extraction_pdf.record_processed") as mock_record:

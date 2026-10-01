@@ -54,12 +54,16 @@ def test_transformer_flattens_every_activity_s_country_splits():
 def test_publier_sends_every_payload_and_reports_the_published_count():
     context = _make_context(pulls={"payloads_path": "silver/gcf/2026-08-31/payloads.json"})
     mock_producer = MagicMock()
+    # source/project_id/country_iso: every real payload carries them - _publier()
+    # uses them to build the Kafka partitioning key (audit post-C3 2026-10-01,
+    # see kafka_client.py's make_producer() docstring).
+    payload = {"source": "gcf", "project_id": "P1", "country_iso": "SEN"}
 
     with patch("pipeline.dags.collecte_gcf.make_minio_client"), \
-         patch("pipeline.dags.collecte_gcf.download_json", return_value=[{"a": 1}]), \
+         patch("pipeline.dags.collecte_gcf.download_json", return_value=[payload]), \
          patch("pipeline.dags.collecte_gcf.make_producer", return_value=mock_producer):
         _publier(**context)
 
-    mock_producer.send.assert_called_once_with("nev.funding.raw", {"a": 1})
+    mock_producer.send.assert_called_once_with("nev.funding.raw", payload, key="gcf:P1:SEN")
     mock_producer.flush.assert_called_once()
     assert _pushed(context, "published_count") == 1

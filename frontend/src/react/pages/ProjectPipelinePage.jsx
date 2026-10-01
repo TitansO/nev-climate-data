@@ -284,6 +284,7 @@ export default function ProjectPipelinePage() {
                         {"decision" === project.pipelineStage && (
                           <select
                             value={project.decisionOutcome || ""}
+                            aria-label={t("projectPipeline.chooseOutcome", "Choisir l'issue…")}
                             onClick={(event) => event.stopPropagation()}
                             onMouseDown={(event) => event.stopPropagation()}
                             onChange={(event) => chooseDecisionOutcome(project.id, event.target.value)}
@@ -302,6 +303,7 @@ export default function ProjectPipelinePage() {
                         {"execution" === project.pipelineStage && (
                           <select
                             value={project.executionStatus || "in_progress"}
+                            aria-label={t("projectPipeline.stage.execution", "État d'exécution")}
                             onClick={(event) => event.stopPropagation()}
                             onMouseDown={(event) => event.stopPropagation()}
                             onChange={(event) => chooseExecutionStatus(project.id, event.target.value)}

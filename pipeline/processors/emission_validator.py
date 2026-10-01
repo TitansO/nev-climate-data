@@ -135,10 +135,16 @@ def run() -> None:
         finally:
             connection.close()
 
+        # Audit post-C3 2026-10-01 : voir le meme commit explicite dans
+        # funding_validator.py::run() - commit() seulement apres l'ecriture
+        # DB reellement actee, jamais avant (kafka_client.py).
+        consumer.commit()
+
+        dedup_key = f"{message['source']}:{message['country_iso']}:{message['year']}"
         if accepted:
-            producer.send("nev.emissions.valides", message)
+            producer.send("nev.emissions.valides", message, key=dedup_key)
         else:
-            producer.send("nev.emissions.rejets", {**message, "rejection_reason": reason})
+            producer.send("nev.emissions.rejets", {**message, "rejection_reason": reason}, key=dedup_key)
 
     producer.flush()
 

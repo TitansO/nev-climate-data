@@ -11,11 +11,13 @@ from unittest.mock import MagicMock, patch
 from pypdf import PdfWriter
 
 from pipeline.collectors.opec_fund_climate_finance import (
+    MAX_PLAUSIBLE_AMOUNT_USD_MN,
     SOURCE_NAME,
     SOURCE_URL,
     build_payloads,
     collect_and_publish,
     country_name_to_iso3,
+    validate_amount,
     validate_invariant,
 )
 
@@ -82,6 +84,26 @@ def test_validate_invariant_tolerates_real_rounding_noise():
     assert validate_invariant(row) is True
 
 
+def test_validate_amount_accepts_a_real_plausible_amount():
+    assert validate_amount({"amount_usd_mn": 20.0}) is True
+
+
+def test_validate_amount_rejects_zero_or_negative():
+    # Audit 2026-10-01 : regression test - a Gemini extraction error (bad
+    # OCR, shifted column) could previously produce 0/negative and still
+    # reach funding.amount unchecked.
+    assert validate_amount({"amount_usd_mn": 0.0}) is False
+    assert validate_amount({"amount_usd_mn": -5.0}) is False
+
+
+def test_validate_amount_rejects_an_implausibly_large_amount():
+    assert validate_amount({"amount_usd_mn": MAX_PLAUSIBLE_AMOUNT_USD_MN + 0.01}) is False
+
+
+def test_validate_amount_rejects_a_missing_amount():
+    assert validate_amount({}) is False
+
+
 _SENEGAL_ROW = {
     "year": 2020,
     "country": "Senegal",
@@ -132,6 +154,12 @@ def test_build_payloads_returns_nothing_for_an_unresolvable_country():
 
 def test_build_payloads_returns_nothing_for_an_invariant_violation():
     row = {**_SENEGAL_ROW, "total_climate_pct": 99.0}  # 20 + 20 != 99
+
+    assert build_payloads(row, document_hash="abc123") == []
+
+
+def test_build_payloads_returns_nothing_for_an_implausible_amount():
+    row = {**_SENEGAL_ROW, "amount_usd_mn": MAX_PLAUSIBLE_AMOUNT_USD_MN + 1}
 
     assert build_payloads(row, document_hash="abc123") == []
 

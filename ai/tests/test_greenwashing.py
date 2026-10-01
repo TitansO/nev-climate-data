@@ -76,5 +76,17 @@ def test_check_classifies_the_activity_first_when_taxonomy_class_is_missing():
 def test_hash_distinguishes_different_triplets():
     # Same title, different description/amount -> a different hash - the
     # cache must never conflate two genuinely different check requests.
-    assert greenwashing._hash("Title", "Description A", 1000.0) != greenwashing._hash("Title", "Description B", 1000.0)
-    assert greenwashing._hash("Title", "Description A", 1000.0) != greenwashing._hash("Title", "Description A", 2000.0)
+    assert greenwashing._hash("Title", "Description A", 1000.0, "Renewable Energy") != greenwashing._hash("Title", "Description B", 1000.0, "Renewable Energy")
+    assert greenwashing._hash("Title", "Description A", 1000.0, "Renewable Energy") != greenwashing._hash("Title", "Description A", 2000.0, "Renewable Energy")
+
+
+def test_hash_distinguishes_different_sectors():
+    # Audit 2026-10-01 : regression test for the cache-key collision found
+    # during the full-project audit - two records sharing title/description/
+    # amount but with a different sector (hence a potentially different
+    # taxonomy_class, and therefore a different Gemini verdict) must never
+    # hash identically, or one would silently serve the other's cached
+    # risk_level/red_flags.
+    assert greenwashing._hash("Solar Farm", "Ferme solaire.", 500_000.0, "Renewable Energy") != greenwashing._hash(
+        "Solar Farm", "Ferme solaire.", 500_000.0, "Adaptation"
+    )

@@ -985,6 +985,88 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertSame([], $instrumentBody['data']);
         self::assertSame([], $instrumentBody['bySector']);
         self::assertSame([], $instrumentBody['byCountry']);
+
+        // Audit post-C3 2026-10-01 : gaps/local-finance/equity/transparency
+        // n'avaient aucun test HTTP (ni ici, ni ailleurs) - seule leur
+        // couche service l'etait deja (GapDetectionServiceTest,
+        // LocalFinanceServiceTest, EquityScoreServiceTest,
+        // TransparencyScoreServiceTest).
+        $client->request('GET', '/api/analytics/gaps', server: $auth);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
+
+        $client->request('GET', '/api/analytics/local-finance', server: $auth);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], json_decode($client->getResponse()->getContent(), true)['data']);
+
+        $client->request('GET', '/api/analytics/equity', server: $auth);
+        self::assertResponseIsSuccessful();
+        $equityBody = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame([], $equityBody['ranking']);
+        // assertEquals, not assertSame: json_encode() drops the trailing
+        // ".0" from a whole-number float, so 0.0 round-trips as the PHP
+        // int 0 - same gotcha documented elsewhere in this file.
+        self::assertEquals(0.0, $equityBody['giniIndex']);
+
+        $client->request('GET', '/api/analytics/transparency', server: $auth);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], json_decode($client->getResponse()->getContent(), true));
+    }
+
+    public function testGapsRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/api/analytics/gaps');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testGapsRejectsAnInvalidByValue(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/gaps?by=bogus', server: $auth);
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
+    }
+
+    public function testLocalFinanceRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/api/analytics/local-finance');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testLocalFinanceRejectsAnUnknownCountryCode(): void
+    {
+        $client = static::createClient();
+        $auth = $this->seedDataset($client);
+
+        $client->request('GET', '/api/analytics/local-finance?country=ZZZ', server: $auth);
+
+        self::assertSame(400, $client->getResponse()->getStatusCode());
+    }
+
+    public function testEquityRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/api/analytics/equity');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testTransparencyRequiresAuthentication(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/api/analytics/transparency');
+
+        self::assertSame(401, $client->getResponse()->getStatusCode());
     }
 
     public function testAnalyticsEndpointsAreDocumentedInSwagger(): void
@@ -995,7 +1077,7 @@ final class AnalyticsControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $spec = json_decode($client->getResponse()->getContent(), true);
-        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/country-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats', '/api/analytics/data-freshness', '/api/analytics/instrument-distribution'] as $path) {
+        foreach (['/api/analytics/financing-trends', '/api/analytics/sector-distribution', '/api/analytics/country-distribution', '/api/analytics/co2-reduction', '/api/analytics/hero-stats', '/api/analytics/data-freshness', '/api/analytics/instrument-distribution', '/api/analytics/gaps', '/api/analytics/local-finance', '/api/analytics/equity', '/api/analytics/transparency'] as $path) {
             self::assertArrayHasKey($path, $spec['paths']);
             self::assertArrayHasKey('get', $spec['paths'][$path]);
         }

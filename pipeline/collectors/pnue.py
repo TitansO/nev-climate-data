@@ -108,6 +108,13 @@ def collect_and_publish(country_isos: list[str], producer) -> int:
     `nev.emissions.raw` via `producer` (a `kafka.KafkaProducer`, e.g. from
     `pipeline.common.kafka_client.make_producer()`). Returns the number of
     messages actually published.
+
+    Audit 2026-10-01 : jamais appele par le DAG de production
+    (collecte_pnue.py, refactore en taches extraire/transformer/publier
+    separees via un staging MinIO bronze/silver) - garde volontairement
+    comme point d'entree unique fetch->parse->publier pour les tests (voir
+    test_pnue_collector.py) et un usage manuel ponctuel, pas du code mort
+    oublie.
     """
     published = 0
     for country_iso in country_isos:
@@ -118,7 +125,7 @@ def collect_and_publish(country_isos: list[str], producer) -> int:
             payload = parse_emission(row, country_iso)
             if payload is None:
                 continue
-            producer.send("nev.emissions.raw", payload)
+            producer.send("nev.emissions.raw", payload, key=f"{payload['source']}:{payload['country_iso']}:{payload['year']}")
             published += 1
     producer.flush()
     return published

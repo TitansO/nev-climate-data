@@ -149,11 +149,18 @@ def collect_and_publish(producer) -> int:
     `producer` (a `kafka.KafkaProducer`, e.g. from
     `pipeline.common.kafka_client.make_producer()`). Returns the number of
     messages actually published.
+
+    Audit 2026-10-01 : jamais appele par le DAG de production
+    (collecte_gcf.py, refactore en taches extraire/transformer/publier
+    separees via un staging MinIO bronze/silver) - garde volontairement
+    comme point d'entree unique fetch->parse->publier pour les tests (voir
+    test_gcf_collector.py) et un usage manuel ponctuel, pas du code mort
+    oublie.
     """
     published = 0
     for raw_activity in fetch_gcf_activities():
         for payload in parse_activity(raw_activity):
-            producer.send("nev.funding.raw", payload)
+            producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
             published += 1
     producer.flush()
     return published

@@ -91,6 +91,16 @@ def ask(question: str, context_chunks: list[str]) -> str:
     guardrail asked for by F5/C2.1 ("garde-fou 'contexte uniquement'").
     Returns the raw model text; the caller (ai/rag.py) pairs it with the
     chunks' source_ref for citation.
+
+    Audit 2026-10-01 (post-C3) : cette fonction est la seule des trois de ce
+    module dont l'entree non fiable est du texte brut saisi par un visiteur
+    anonyme (`question`, via /ai/ask) - classify()/check_greenwashing() ne
+    recoivent que des champs de financement deja en base (pipeline Volet B
+    ou saisie admin). `context_chunks` vient du corpus RAG indexe (sources
+    documentaires externes, moins fiables qu'un champ structure). Les deux
+    recoivent donc la meme mitigation _UNTRUSTED_DATA_WARNING + balises
+    <donnee> que classify()/check_greenwashing() deja - absente ici jusqu'a
+    cet audit, alors que c'est le point d'entree le moins fiable des trois.
     """
     context = "\n\n---\n\n".join(context_chunks)
     prompt = (
@@ -98,8 +108,11 @@ def ask(question: str, context_chunks: list[str]) -> str:
         "UNIQUEMENT a partir du contexte fourni ci-dessous. Si le contexte "
         "ne permet pas de repondre, dis-le explicitement plutot que de "
         "deviner ou d'utiliser des connaissances externes.\n\n"
+        f"{_UNTRUSTED_DATA_WARNING}\n\n"
+        "<donnee>\n"
         f"Contexte :\n{context}\n\n"
-        f"Question : {question}"
+        f"Question : {question}\n"
+        "</donnee>"
     )
 
     def call() -> str:

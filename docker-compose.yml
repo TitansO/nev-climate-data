@@ -388,7 +388,12 @@ services:
       # 8082 is taken on this machine by an unrelated, already-running
       # Observatoire CIMA container (cima_flink_jobmanager) - confirmed via
       # `docker ps` during B1.1 Task 1. Using 8083 instead.
-      - "8083:8080"
+      # Audit post-C3 2026-10-01 : lie a 127.0.0.1, comme database/kafka/
+      # airflow/minio deja l'etaient depuis l'audit pre-production P1
+      # (2026-09-23) - cet outil d'observabilite interne n'a aucune
+      # authentification propre dans ce bloc environment, il n'avait aucune
+      # raison de rester accessible depuis l'exterieur de la machine hote.
+      - "127.0.0.1:8083:8080"
     networks:
       - nev-network
 

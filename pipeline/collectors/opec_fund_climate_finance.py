@@ -78,14 +78,42 @@ def validate_invariant(row: dict[str, Any], tolerance: float = 0.5) -> bool:
     return abs(expected - actual) <= tolerance
 
 
+# Audit 2026-10-01 (post-C3) : amount_usd_mn est le seul champ extrait par
+# Gemini qui n'avait aucun garde-fou de plausibilite avant ce correctif
+# (country/pourcentages en ont un), alors que c'est le champ le plus
+# consequent financierement - une hallucination ou une erreur de lecture de
+# tableau (colonne decalee, OCR d'un chiffre) se serait propagee telle
+# quelle jusqu'a `funding.amount` en production. Plafond tres genereux
+# (5 Md$ par ligne de projet unique) : le plus gros projet reel observe
+# dans Annex 2 reste a deux ordres de grandeur en dessous - ce garde-fou
+# n'existe que pour attraper une vraie erreur d'extraction, jamais pour
+# rejeter un financement multilateral reel, aussi important soit-il.
+MAX_PLAUSIBLE_AMOUNT_USD_MN = 5_000.0
+
+
+def validate_amount(row: dict[str, Any]) -> bool:
+    """False si `amount_usd_mn` est absent, nul/negatif, ou depasse le
+    plafond de plausibilite ci-dessus - les trois signatures d'une erreur
+    d'extraction PDF plutot que d'un vrai montant multilateral.
+    """
+    amount = row.get("amount_usd_mn")
+    if amount is None:
+        return False
+    return 0 < amount <= MAX_PLAUSIBLE_AMOUNT_USD_MN
+
+
 def build_payloads(row: dict[str, Any], document_hash: str) -> list[dict[str, Any]]:
     """Converts one real Annex 2 table row into zero, one, or two
     `nev.funding.raw` payloads - one for its adaptation share, one for its
     mitigation share (spec decision 7). Returns an empty list if the
-    country can't be resolved (decision 5) or the row fails the invariant
-    guard (decision 4).
+    country can't be resolved (decision 5), the row fails the invariant
+    guard (decision 4), or `amount_usd_mn` fails the plausibility guard
+    (audit 2026-10-01).
     """
     if not validate_invariant(row):
+        return []
+
+    if not validate_amount(row):
         return []
 
     country_iso = country_name_to_iso3(row["country"])
@@ -122,6 +150,13 @@ def collect_and_publish(producer) -> int:
     row's payloads to `nev.funding.raw`, stores the raw PDF in MinIO, and
     records the cache entry. Returns the number of messages published (0
     on a cache hit, by design - see spec decision 9).
+
+    Audit 2026-10-01 : jamais appele par le DAG de production
+    (extraction_pdf.py, refactore en taches extraire/transformer/publier
+    separees via un staging MinIO bronze/silver) - garde volontairement
+    comme point d'entree unique fetch->parse->publier pour les tests (voir
+    test_opec_fund_collector.py) et un usage manuel ponctuel, pas du code
+    mort oublie.
     """
     response = requests.get(SOURCE_URL, timeout=REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
@@ -142,7 +177,7 @@ def collect_and_publish(producer) -> int:
                 published = 0
                 for row in rows:
                     for payload in build_payloads(row, document_hash):
-                        producer.send("nev.funding.raw", payload)
+                        producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
                         published += 1
                 producer.flush()
 

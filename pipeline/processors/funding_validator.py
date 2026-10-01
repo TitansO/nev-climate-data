@@ -383,7 +383,16 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         if local_currency:
             try:
                 rates = get_current_usd_rates()
-            except Exception:
+            except Exception as exc:
+                # Audit post-C3 2026-10-01 : echec silencieux auparavant -
+                # une panne prolongee de l'API de taux de change degradait
+                # silencieusement original_amount/original_currency/
+                # exchange_rate (laisses a None, indiscernables d'un pays
+                # "sans devise connue") pendant des mois sans aucun signal.
+                # print() plutot que `logging` : meme convention que le
+                # catch-all de run() plus bas dans ce fichier (capture par
+                # les logs de tache Airflow).
+                print(f"[funding-validator] failed to fetch USD exchange rates: {exc!r}")
                 rates = {}
             rate = rates.get(local_currency)
             if rate:
@@ -417,6 +426,16 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
     return True, None
 
 
+def _message_key(message: dict[str, Any]) -> str:
+    """Partitioning key matching funding_project_contribution's own unique
+    constraint (source_id, project_id, country_id) - see kafka_client.py's
+    make_producer() docstring for why this matters (audit post-C3
+    2026-10-01). Every funding message carries these three raw fields
+    regardless of source (see process_message() above).
+    """
+    return f"{message['source']}:{message['project_id']}:{message['country_iso']}"
+
+
 def run() -> None:
     consumer = make_consumer("nev.funding.raw", group_id="funding-validator")
     producer = make_producer()
@@ -438,10 +457,19 @@ def run() -> None:
         finally:
             connection.close()
 
+        # Audit post-C3 2026-10-01 : commit explicite une fois la donnee
+        # reellement actee en base (jamais avant, voir kafka_client.py) -
+        # si le processus crashe apres ce point, Kafka ne re-livrera plus
+        # ce message ; s'il crashe avant, il sera re-livre et retraite
+        # (sans danger, apply_project_contribution() est idempotent : une
+        # meme contribution rejouee produit un delta nul).
+        consumer.commit()
+
+        dedup_key = _message_key(message)
         if accepted:
-            producer.send("nev.funding.valides", message)
+            producer.send("nev.funding.valides", message, key=dedup_key)
         else:
-            producer.send("nev.funding.rejets", {**message, "rejection_reason": reason})
+            producer.send("nev.funding.rejets", {**message, "rejection_reason": reason}, key=dedup_key)
 
     producer.flush()
 

@@ -9,14 +9,15 @@ nelmio_api_doc:
             path_patterns:
                 - ^/api(?!/doc$)
             # A3.9: registers components.securitySchemes (bearerAuth/apiKeyAuth) -
-            # referenced by every controller's own `security: [...]` attribute but,
-            # until now, never actually defined anywhere Nelmio could find (the
-            # route-less App\OpenApi\SecuritySchemes class this was meant to come
-            # from is never read - NelmioApiDocBundle 5.x's describers only scan
-            # classes reachable from a real Symfony route, confirmed by reading
+            # referenced by every controller's own `security: [...]` attribute.
+            # A route-less App\OpenApi\SecuritySchemes class used to be the
+            # intended source for this (per an OA\SecurityScheme attribute),
+            # but NelmioApiDocBundle 5.x's describers only scan classes
+            # reachable from a real Symfony route, confirmed by reading
             # vendor/nelmio/api-doc-bundle/src/Describer/OpenApiPhpDescriber.php's
-            # own getRoutesToParse()). This SecurityDescriber config path is the
-            # one mechanism that both registers the schemes *and* fills in a
+            # own getRoutesToParse() - that class was never actually read and
+            # was deleted as dead code (audit 2026-10-01). This SecurityDescriber
+            # config path is the one mechanism that both registers the schemes *and* fills in a
             # default `security` for any route that doesn't declare one itself -
             # which is exactly why every one of this app's genuinely public
             # endpoints now declares `security: []` explicitly (see each

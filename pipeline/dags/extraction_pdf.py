@@ -125,7 +125,7 @@ def _publier(**context) -> None:
 
     producer = make_producer()
     for payload in payloads:
-        producer.send("nev.funding.raw", payload)
+        producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
     producer.flush()
 
     connection = get_connection()

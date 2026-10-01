@@ -12,8 +12,10 @@ use Symfony\Component\Routing\Attribute\Route;
 
 /**
  * C3.7 : "Recommendation Engine" - GET /api/recommendations. Lecture seule,
- * pur calcul dérivé de scores déjà publics (C2.6/C2.8/C3.1/C3.3) -
- * PUBLIC_ACCESS, même ouverture que le reste des outils d'analyse.
+ * pur calcul dérivé de scores déjà publics (C2.6/C2.8/C3.1/C3.3). Audit
+ * 2026-10-01 : ce docblock affirmait PUBLIC_ACCESS, resté faux depuis la
+ * structuration des accès du 2026-09-24 - security.yaml déclare
+ * explicitement `^/api/recommendations` en ROLE_USER.
  */
 final class RecommendationController extends AbstractController
 {

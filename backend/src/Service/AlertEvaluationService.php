@@ -185,9 +185,18 @@ final class AlertEvaluationService
             return 0;
         }
 
+        // Audit post-C3 2026-10-01 : une seule requete groupee par pays
+        // plutot qu'une requete findYearlyTotalsForCountry() par pays dans
+        // la boucle ci-dessous (~54 requetes par execution quotidienne) -
+        // voir le docblock de FundingRepository::findYearlyTotalsGroupedByCountry().
+        $totalsByCountryId = [];
+        foreach ($this->fundingRepository->findYearlyTotalsGroupedByCountry() as $row) {
+            $totalsByCountryId[$row['countryId']][] = ['year' => $row['year'], 'total' => $row['total']];
+        }
+
         $created = 0;
         foreach ($this->countryRepository->findAll() as $country) {
-            $yearlyTotals = $this->fundingRepository->findYearlyTotalsForCountry((int) $country->getId());
+            $yearlyTotals = $totalsByCountryId[$country->getId()] ?? [];
             // Il faut au moins 2 années d'historique en plus de l'année
             // courante pour qu'une moyenne/écart-type ait un sens - sinon
             // rien à comparer, jamais un flux "anormal" déduit de 1-2 points.

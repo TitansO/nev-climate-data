@@ -7,6 +7,7 @@ loaded (Senegal + the 5 sectors must exist).
 """
 import os
 from decimal import Decimal
+from unittest.mock import patch
 
 import psycopg2
 import pytest
@@ -327,13 +328,36 @@ def test_afdb_message_inserts_a_new_funding_row_with_currency_provenance(db_curs
 def test_world_bank_and_gcf_rows_still_have_null_currency_provenance(db_cursor):
     # Regression check: extending upsert_funding with new optional
     # parameters must not affect the two existing connectors, which never
-    # pass them.
-    process_message(db_cursor, _sample_message(1_000_000))
+    # pass them natively - they only get a derived value when a live USD
+    # rate is actually available (see process_message's own comment on
+    # SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT). get_current_usd_rates() is
+    # mocked out here (audit post-C3 2026-10-01: this test previously made
+    # a real, unmocked call to the live open.er-api.com API - it happened
+    # to pass only because that call failed in whatever environment first
+    # ran it, and started failing for real as soon as it ran somewhere with
+    # outbound network access, since Senegal does have a known currency and
+    # the live rate conversion is a genuine, intended feature, not a bug)
+    # so the "no provenance without a usable rate" case stays deterministic.
+    with patch("pipeline.processors.funding_validator.get_current_usd_rates", return_value={}):
+        process_message(db_cursor, _sample_message(1_000_000))
 
     db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
     source_id = db_cursor.fetchone()[0]
+    # Scoped to this exact dedup key (country/year/funding_type), not just
+    # source_id: the dev database this runs against also carries thousands
+    # of real rows from earlier B1.1/B1.2 end-to-end DAG runs, including
+    # other current World Bank rows for other dedup keys under the same
+    # source_id (same reasoning as
+    # test_all_three_sources_stay_separate_for_the_same_dedup_key above) -
+    # an unscoped fetchone() could silently return one of those instead of
+    # the row this test's own process_message() call just wrote, since
+    # "is_current = true" alone is not unique per source_id.
     db_cursor.execute(
-        "SELECT original_amount, original_currency, exchange_rate FROM funding WHERE source_id = %s AND is_current = true",
+        """
+        SELECT original_amount, original_currency, exchange_rate FROM funding
+        WHERE source_id = %s AND is_current = true AND year = 2026 AND funding_type = 'multilateral'
+          AND country_id = (SELECT id FROM country WHERE iso_code = 'SEN')
+        """,
         (source_id,),
     )
     original_amount, original_currency, exchange_rate = db_cursor.fetchone()

@@ -5,6 +5,14 @@ import CountryMap from "./CountryMap";
 import { TYPE_LABELS, INSTRUMENT_LABELS } from "../../data/analyticsConstants";
 
 const BASE_PATH = "/api/analytics/country-distribution";
+// Audit post-C3 2026-10-01 : volontairement un <select> brut plutot que le
+// NevSelect partage - NevSelect force `w-full` (non surchargeable, sa
+// classe de base est concatenee avec celle fournie, jamais remplacee) et
+// une rangee de label visible au-dessus du champ, pensés pour un champ de
+// formulaire pleine largeur. Cette barre de filtres est une rangee
+// horizontale compacte (3 selects + un bouton, flex-wrap, aria-label seul
+// sans label visible) - y forcer NevSelect casserait la mise en page sans
+// benefice reel, pour une simple coherence de composant.
 const SELECT_CLASS =
   "rounded-md border border-stroke bg-white px-2.5 py-1.5 text-xs font-medium text-dark-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 

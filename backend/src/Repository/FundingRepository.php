@@ -658,6 +658,34 @@ class FundingRepository extends ServiceEntityRepository
     }
 
     /**
+     * Audit post-C3 2026-10-01 : meme resultat que findYearlyTotalsForCountry()
+     * applique a tous les pays a la fois (une seule requete groupee par pays
+     * ET annee), pour App\Service\AlertEvaluationService::evaluateAbnormalFlow()
+     * - c'etait le seul endroit du code qui appelait findYearlyTotalsForCountry()
+     * en boucle (une requete par pays, ~54 requetes par execution quotidienne
+     * de app:alerts:evaluate), toutes les autres suites de requetes par-sujet
+     * de la plateforme (EquityScoreService, RecommendationService) ayant deja
+     * ete identifiees et mitigees par cache lors de l'audit pre-production du
+     * 2026-09-22. Pas de cache ici : ce chemin ne tourne qu'une fois par jour
+     * (cron Airflow), une requete groupee suffit, inutile d'ajouter une
+     * couche de cache pour un appel aussi rare.
+     *
+     * @return list<array{countryId: int, year: int, total: string}>
+     */
+    public function findYearlyTotalsGroupedByCountry(): array
+    {
+        return $this->onlyValidated($this->createQueryBuilder('funding')
+            ->select('IDENTITY(funding.country) AS countryId', 'funding.year AS year', 'SUM(funding.amount) AS total')
+            ->where('funding.isCurrent = true'))
+            ->groupBy('funding.country')
+            ->addGroupBy('funding.year')
+            ->orderBy('funding.country', 'ASC')
+            ->addOrderBy('funding.year', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * C2.4/C2.8 (risque pays - concentration des bailleurs) : total réel
      * par bailleur pour un pays donné - le calcul de l'indice de
      * concentration (HHI) se fait dans CountryRiskCalculator, pas ici.

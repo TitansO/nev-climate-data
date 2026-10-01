@@ -11,8 +11,18 @@ from ai import classify as classify_module
 from ai import db, gemini_client
 
 
-def _hash(title: str, description: str, amount_usd: float) -> str:
-    return hashlib.sha256(f"{title}:{description}:{amount_usd}".encode("utf-8")).hexdigest()
+def _hash(title: str, description: str, amount_usd: float, sector: str) -> str:
+    # Audit 2026-10-01 : `sector` manquait de cette cle, alors que
+    # check_greenwashing() recoit `taxonomy_class` (derive de (title,
+    # description, sector) par classify.py) et que son verdict en depend
+    # (risk_level/red_flags varient avec la classe). Deux financements au
+    # meme titre/description/montant mais secteur different pouvaient
+    # partager un hash identique et se voler mutuellement leur verdict en
+    # cache. `sector` plutot que `taxonomy_class` : la meme discrimination
+    # (taxonomy_class est une fonction deterministe de (title, description,
+    # sector), voir classify.py::_hash) sans devoir resoudre taxonomy_class
+    # avant meme de savoir si le cache contient deja la reponse.
+    return hashlib.sha256(f"{title}:{description}:{amount_usd}:{sector}".encode("utf-8")).hexdigest()
 
 
 def _cached(cursor, content_hash: str) -> dict | None:
@@ -33,7 +43,7 @@ def check(title: str, description: str, amount_usd: float, sector: str, taxonomy
     `taxonomy_class` n'est pas deja connu (ai/classify.py, avec son propre
     cache), puis appelle Gemini pour le red-flag check proprement dit.
     """
-    content_hash = _hash(title, description, amount_usd)
+    content_hash = _hash(title, description, amount_usd, sector)
 
     connection = db.get_connection()
     try:

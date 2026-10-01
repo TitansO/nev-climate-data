@@ -18,8 +18,11 @@ use Symfony\Component\Routing\Attribute\Route;
  * C2.5 : "Impact Calculator" - estime l'impact d'un montant (tCO2
  * évitées/an, MW installés, bénéficiaires) selon le secteur, à partir de
  * facteurs statiques documentés (App\Entity\ImpactFactor, F4-style
- * "aucun modèle entraîné"). PUBLIC_ACCESS : un pur calcul, sans écriture,
- * même ouverture que le reste des outils d'exploration de la plateforme.
+ * "aucun modèle entraîné"). Audit 2026-10-01 : ce docblock affirmait
+ * PUBLIC_ACCESS, resté faux depuis la structuration des accès du
+ * 2026-09-24 - /api/sectors est explicitement ROLE_USER et
+ * /api/impact/estimate hérite du catch-all IS_AUTHENTICATED_FULLY
+ * (security.yaml), ni l'un ni l'autre n'a de règle PUBLIC_ACCESS dédiée.
  */
 final class ImpactController extends AbstractController
 {

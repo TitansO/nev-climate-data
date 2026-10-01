@@ -16,9 +16,17 @@ def _fake_kafka_message(value):
 
 
 def test_run_quarantines_a_message_that_raises_an_unexpected_exception_and_keeps_consuming():
-    message_1 = {"source": "pnue", "country_iso": "SEN"}  # deliberately incomplete
-    message_2 = {"source": "pnue", "country_iso": "SEN"}
-    fake_consumer = [_fake_kafka_message(message_1), _fake_kafka_message(message_2)]
+    # "year" is required by run()'s own dedup_key computation (partitioning
+    # key, audit post-C3 2026-10-01) even for a message that process_message()
+    # will reject - every real message carries it, so these otherwise-
+    # deliberately-incomplete test messages keep it too.
+    message_1 = {"source": "pnue", "country_iso": "SEN", "year": 2026}  # deliberately incomplete
+    message_2 = {"source": "pnue", "country_iso": "SEN", "year": 2026}
+    # MagicMock, not a plain list: run() calls consumer.commit() after each
+    # message (audit post-C3 2026-10-01, manual-offset-commit fix) - a plain
+    # list has no .commit() and would raise AttributeError.
+    fake_consumer = MagicMock()
+    fake_consumer.__iter__.return_value = iter([_fake_kafka_message(message_1), _fake_kafka_message(message_2)])
     mock_producer = MagicMock()
     mock_connection = MagicMock()
 
@@ -36,3 +44,4 @@ def test_run_quarantines_a_message_that_raises_an_unexpected_exception_and_keeps
     second_call = mock_producer.send.call_args_list[1]
     assert second_call[0][0] == "nev.emissions.valides"
     mock_producer.flush.assert_called_once()
+    assert fake_consumer.commit.call_count == 2

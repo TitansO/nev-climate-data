@@ -10,6 +10,10 @@ import { COUNTRY_GROUPS } from "../data/africaCountries";
 import { formatCount } from "../data/analyticsConstants";
 import { ChartBarIcon } from "../components/ui/icons";
 
+// Audit post-C3 2026-10-01 : ces 3 libellés restaient codés en dur en
+// français (jamais passés par t()), donc jamais traduits en anglais -
+// fallback conservé ici pour le motif deja etabli ailleurs (clé dynamique
+// "impactCalculator.metric." + key, voir son usage plus bas).
 const METRIC_LABELS = {
   co2AvoidedTonsPerYear: "tCO2 évitées / an",
   mwInstalled: "MW installés",
@@ -198,7 +202,7 @@ export default function ImpactCalculatorPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {Object.entries(result.estimates).map(([key, estimate]) => (
                   <div key={key} className="rounded-lg border border-stroke p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-body-color">{METRIC_LABELS[key] || key}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-body-color">{t("impactCalculator.metric." + key, METRIC_LABELS[key] || key)}</p>
                     <p className="mt-1 text-2xl font-extrabold tabular-nums text-dark">{formatCount(estimate.central)}</p>
                     <p className="mt-1 text-xs text-body-color">
                       {t("impactCalculator.range", "entre {low} et {high}").replace("{low}", formatCount(estimate.low)).replace("{high}", formatCount(estimate.high))}

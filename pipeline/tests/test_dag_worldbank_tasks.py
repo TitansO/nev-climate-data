@@ -63,13 +63,18 @@ def test_transformer_parses_every_raw_project_and_skips_unparseable_ones():
 def test_publier_sends_every_payload_and_reports_the_published_count():
     context = _make_context(pulls={"payloads_path": "silver/worldbank/2026-08-31/payloads.json"})
     mock_producer = MagicMock()
+    # source/project_id/country_iso: every real payload carries them - _publier()
+    # uses them to build the Kafka partitioning key (audit post-C3 2026-10-01,
+    # see kafka_client.py's make_producer() docstring).
+    payload_1 = {"source": "world_bank", "project_id": "P1", "country_iso": "SEN"}
+    payload_2 = {"source": "world_bank", "project_id": "P2", "country_iso": "SEN"}
 
     with patch("pipeline.dags.collecte_worldbank.make_minio_client"), \
-         patch("pipeline.dags.collecte_worldbank.download_json", return_value=[{"a": 1}, {"a": 2}]), \
+         patch("pipeline.dags.collecte_worldbank.download_json", return_value=[payload_1, payload_2]), \
          patch("pipeline.dags.collecte_worldbank.make_producer", return_value=mock_producer):
         _publier(**context)
 
     assert mock_producer.send.call_count == 2
-    mock_producer.send.assert_any_call("nev.funding.raw", {"a": 1})
+    mock_producer.send.assert_any_call("nev.funding.raw", payload_1, key="world_bank:P1:SEN")
     mock_producer.flush.assert_called_once()
     assert _pushed(context, "published_count") == 2

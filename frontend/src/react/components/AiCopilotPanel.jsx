@@ -146,6 +146,7 @@ export default function AiCopilotPanel() {
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               placeholder={t("aiCopilot.placeholder", "Votre question…")}
+              aria-label={t("aiCopilot.placeholder", "Votre question…")}
               disabled={sending}
               className="flex-1 rounded-md border border-stroke px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
