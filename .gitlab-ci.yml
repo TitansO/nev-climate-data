@@ -38,6 +38,25 @@ pip_audit_pipeline:
   script:
     - pip-audit --strict
 
+# Audit post-C3 2026-10-02 (P-03) : le frontend n'avait aucun job CI -
+# contrairement a composer_audit/pip_audit_*/phpunit/ai_tests/pipeline_tests
+# ci-dessus, un commit qui cassait `npm run build` ou introduisait une
+# dependance vulnerable n'etait jamais bloque avant Netlify (qui se
+# deploie depuis le code source, independamment de ce pipeline - voir le
+# commentaire de build_and_push_image plus bas). Deja arrive une fois en
+# pratique (README section A3.8 : Netlify a servi un HTML perime
+# pendant un moment sans qu'aucune alerte CI ne le signale). image node:20,
+# meme version que frontend/.nvmrc.
+frontend_build:
+  stage: test
+  image: node:20
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm audit
+    - npm run build
+
 phpunit:
   stage: test
   image: php:8.4-cli

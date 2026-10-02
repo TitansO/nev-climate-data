@@ -8,6 +8,7 @@ use App\Entity\AlertRule;
 use App\Entity\Enum\AlertRuleType;
 use App\Entity\User;
 use App\Repository\AlertRuleRepository;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Authenticator\Token\JWTPostAuthenticationToken;
 use OpenApi\Attributes as OA;
@@ -106,7 +107,30 @@ final class AlertRuleController extends AbstractController
 
         $alertRule = new AlertRule($user, $ruleType);
         $this->entityManager->persist($alertRule);
-        $this->entityManager->flush();
+
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            // Audit post-C3 2026-10-02 (P-09) : la vérification ci-dessus
+            // n'empêche pas une vraie concurrence - deux requêtes
+            // simultanées peuvent toutes les deux la franchir avant que
+            // l'une ou l'autre n'ait inséré sa ligne (confirmé en direct
+            // pendant l'audit : 15 créations concurrentes du même
+            // ruleType ont produit 2 lignes actives). L'index unique
+            // partiel sur (user_id, rule_type) WHERE active = true
+            // (migration Version20261002140000, voir AlertRule.php) fait
+            // désormais échouer l'INSERT perdant plutôt que de laisser le
+            // doublon s'écrire - ce catch transforme cet échec attendu en
+            // la même réponse 200 "règle déjà active" que le chemin
+            // normal ci-dessus, au lieu d'un 500.
+            $this->entityManager->detach($alertRule);
+            foreach ($this->alertRuleRepository->findByUser($user) as $existing) {
+                if ($existing->getRuleType() === $ruleType && $existing->isActive()) {
+                    return $this->json(self::toListItem($existing));
+                }
+            }
+            throw new BadRequestHttpException('Impossible de créer la règle : conflit de concurrence non résolu.');
+        }
 
         return $this->json(self::toListItem($alertRule), Response::HTTP_CREATED);
     }

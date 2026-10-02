@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Entity\AlertRule;
+use App\Entity\Enum\AlertRuleType;
 use App\Entity\Enum\UserRole;
 use App\Entity\User;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -131,6 +134,36 @@ final class AlertRuleControllerTest extends WebTestCase
 
         $client->request('GET', '/api/alert-rules', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
         self::assertCount(1, json_decode($client->getResponse()->getContent(), true));
+    }
+
+    /**
+     * Audit post-C3 2026-10-02 (P-09) : regression test pour l'index
+     * unique partiel (migration Version20261002140000). Une vraie
+     * concurrence de 15 requêtes HTTP simultanées a produit 2 lignes
+     * actives dupliquées pendant l'audit (le check PHP de
+     * AlertRuleController::create() n'empêche pas deux requêtes de le
+     * franchir toutes les deux avant qu'aucune n'ait encore inséré) - pas
+     * reproductible de façon fiable dans un test PHPUnit séquentiel, donc
+     * ce test vérifie directement ce que la contrainte doit garantir : en
+     * contournant le contrôleur pour persister une 2e ligne active du même
+     * (utilisateur, type) directement via l'EntityManager, exactement
+     * l'état final que la course aurait produit sans cette contrainte.
+     */
+    public function testDatabaseRejectsASecondActiveRuleOfTheSameTypeForTheSameUser(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $user = $this->createUser();
+
+        $first = new AlertRule($user, AlertRuleType::GapCritical);
+        $this->entityManager->persist($first);
+        $this->entityManager->flush();
+
+        $second = new AlertRule($user, AlertRuleType::GapCritical);
+        $this->entityManager->persist($second);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        $this->entityManager->flush();
     }
 
     public function testListOnlyReturnsTheCallersOwnRules(): void

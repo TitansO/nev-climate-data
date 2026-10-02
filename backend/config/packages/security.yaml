@@ -47,8 +47,15 @@ security:
             # X-API-Key header authentication (A1.5), alongside JWT. Its
             # supports() only claims requests carrying that header, so JWT
             # bearer-token requests are unaffected.
+            #
+            # Audit post-C3 2026-10-02 (P-01) : X-Internal-Token authentifie
+            # les appels service-a-service de ai/ingest.py vers ^/api/reports
+            # et ^/api/analytics (ROLE_USER) - voir
+            # App\Security\InternalServiceAuthenticator. Meme principe de
+            # supports() exclusif que ApiKeyAuthenticator ci-dessus.
             custom_authenticators:
                 - App\Security\ApiKeyAuthenticator
+                - App\Security\InternalServiceAuthenticator
 
     # Note: Only the *first* matching rule is applied
     #

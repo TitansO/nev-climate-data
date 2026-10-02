@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Entity\AlertRule;
+use App\Entity\ApiKey;
+use App\Entity\Enum\AlertRuleType;
 use App\Entity\Enum\UserRole;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
@@ -264,6 +267,37 @@ final class UserControllerTest extends WebTestCase
         $client->request('GET', '/api/users', server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertCount(1, $data);
+    }
+
+    /**
+     * Audit post-C3 2026-10-02 (P-07) : regression test - supprimer un
+     * compte ayant une clé API (même révoquée, qui reste physiquement en
+     * base) ou une règle d'alerte plantait en 500
+     * (ForeignKeyConstraintViolationException non interceptée), confirmé
+     * en direct pendant l'audit.
+     */
+    public function testDeleteSucceedsWhenTheUserHasAnAlertRuleAndARevokedApiKey(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $this->createUser('users-deleter-2@example.com', UserRole::SuperAdmin);
+        $target = $this->createUser('users-doomed-with-resources@example.com');
+
+        $alertRule = new AlertRule($target, AlertRuleType::GapCritical);
+        $apiKey = new ApiKey($target, 'irrelevant-hash-for-this-test', 5000);
+        $apiKey->revoke();
+        $this->entityManager->persist($alertRule);
+        $this->entityManager->persist($apiKey);
+        $this->entityManager->flush();
+
+        $tokens = $this->loginAndGetTokens($client, 'users-deleter-2@example.com');
+
+        $client->request('DELETE', '/api/users/'.$target->getId(), server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']]);
+
+        self::assertSame(204, $client->getResponse()->getStatusCode());
+        self::assertNull($this->entityManager->getRepository(User::class)->find($target->getId()));
+        self::assertSame([], $this->entityManager->getRepository(AlertRule::class)->findBy(['user' => $target]));
+        self::assertSame([], $this->entityManager->getRepository(ApiKey::class)->findBy(['user' => $target]));
     }
 
     public function testCannotDeleteOwnAccount(): void

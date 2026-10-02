@@ -91,3 +91,22 @@ def test_run_aggregates_all_three_sources():
         "report_chunks_inserted": 1,
         "aggregate_chunks_inserted": 3,
     }
+
+
+def test_run_isolates_a_failing_source_from_the_others(capsys):
+    # Audit post-C3 2026-10-01 : regression test - run() used to call its
+    # three sources unguarded, so a single failure (e.g. the real 401 that
+    # motivated this fix, see ai/ingest.py's module docstring) crashed the
+    # whole reindex and discarded the other two sources' results. Each
+    # source must now be isolated: a failing one reports its own error
+    # without preventing its siblings from running and returning their
+    # real counts.
+    with patch("ai.ingest.ingest_markdown_files", return_value=2), \
+         patch("ai.ingest.ingest_reports", side_effect=RuntimeError("401 Unauthorized")), \
+         patch("ai.ingest.ingest_funding_aggregates", return_value=3):
+        summary = ingest.run()
+
+    assert summary["markdown_chunks_inserted"] == 2
+    assert summary["aggregate_chunks_inserted"] == 3
+    assert "401 Unauthorized" in summary["report_chunks_inserted"]
+    assert "report_chunks_inserted failed" in capsys.readouterr().out

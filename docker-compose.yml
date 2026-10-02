@@ -481,6 +481,13 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       AI_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@ai-db:5432/nev_ai
       BACKEND_BASE_URL: http://backend
+      # Audit post-C3 2026-10-02 (P-01) : meme secret que backend/airflow
+      # (voir leurs propres blocs environment) - authentifie ai/ingest.py
+      # auprès de ^/api/reports et ^/api/analytics (ROLE_USER depuis le
+      # 24/09/2026) via App\Security\InternalServiceAuthenticator, sans
+      # quoi le reindex F6 plante en 401 (confirme en direct lors de
+      # l'audit du 02/10/2026).
+      INTERNAL_TRIGGER_TOKEN: ${INTERNAL_TRIGGER_TOKEN}
     volumes:
       - ./docs:/app/docs:ro
       - ./README.md:/app/README.md:ro

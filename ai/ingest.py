@@ -4,13 +4,23 @@ sources, exactly as scoped by the C1-C3 plan's F6 item:
 - the project's own design docs (docs/**/*.md) and README.md - read
   straight off the filesystem (bind-mounted read-only, see
   docker-compose.yml's `ai` service);
-- the report catalogue - via the backend's own public GET /api/reports
-  (PUBLIC_ACCESS, no auth needed), not a direct database read: this
-  service has no Doctrine/database credentials for the app database at
-  all, deliberately (see ai/db.py's docblock on keeping this service's
-  own database separate) - going through the same public API the
-  frontend uses keeps that boundary real rather than nominal;
+- the report catalogue - via the backend's GET /api/reports, not a direct
+  database read: this service has no Doctrine/database credentials for
+  the app database at all, deliberately (see ai/db.py's docblock on
+  keeping this service's own database separate) - going through the same
+  API the frontend uses keeps that boundary real rather than nominal;
 - the funding aggregates - same reasoning, via GET /api/analytics/*.
+
+Audit post-C3 2026-10-02 (P-01) : the two routes above were PUBLIC_ACCESS
+when this module was first written, but became ROLE_USER in the 2026-09-24
+access restructuring (security.yaml) - this module kept calling them
+unauthenticated, which made the whole reindex crash on a 401 as soon as it
+reached either one (confirmed live during the audit). _AUTH_HEADERS below
+carries the shared `X-Internal-Token` secret that
+App\\Security\\InternalServiceAuthenticator now accepts on the backend,
+same token and same hash_equals comparison already used by
+App\\Controller\\InternalAlertsController for the equivalent problem on the
+write side (C3.8).
 
 Idempotent by design (ai/rag.py's upsert_chunk() dedupes on a hash of
 source_ref+content) - safe to re-run on every trigger of the
@@ -30,6 +40,13 @@ DOCS_ROOT = Path(os.environ.get("AI_DOCS_ROOT", "/app/docs"))
 README_PATH = Path(os.environ.get("AI_README_PATH", "/app/README.md"))
 BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "http://backend")
 REQUEST_TIMEOUT_SECONDS = 30
+
+# Audit post-C3 2026-10-02 (P-01) : same shared secret as backend/airflow's
+# INTERNAL_TRIGGER_TOKEN (see docker-compose.yml's `ai` service environment)
+# - sent on every backend call this module makes, authenticating as
+# App\Security\InternalServiceUser (ROLE_USER) without needing a real
+# account.
+_AUTH_HEADERS = {"X-Internal-Token": os.environ.get("INTERNAL_TRIGGER_TOKEN", "")}
 
 
 def ingest_markdown_files() -> int:
@@ -56,7 +73,7 @@ def ingest_reports() -> int:
     the backend's public report catalogue.
     """
     inserted = 0
-    response = httpx.get(f"{BACKEND_BASE_URL}/api/reports", timeout=REQUEST_TIMEOUT_SECONDS)
+    response = httpx.get(f"{BACKEND_BASE_URL}/api/reports", timeout=REQUEST_TIMEOUT_SECONDS, headers=_AUTH_HEADERS)
     response.raise_for_status()
     for report in response.json().get("data", []):
         blurb = (
@@ -79,7 +96,7 @@ def ingest_funding_aggregates() -> int:
     """
     inserted = 0
 
-    hero = httpx.get(f"{BACKEND_BASE_URL}/api/analytics/hero-stats", timeout=REQUEST_TIMEOUT_SECONDS)
+    hero = httpx.get(f"{BACKEND_BASE_URL}/api/analytics/hero-stats", timeout=REQUEST_TIMEOUT_SECONDS, headers=_AUTH_HEADERS)
     hero.raise_for_status()
     hero_data = hero.json()
     blurb = (
@@ -90,7 +107,7 @@ def ingest_funding_aggregates() -> int:
     if rag.upsert_chunk(blurb, "api:/api/analytics/hero-stats"):
         inserted += 1
 
-    sectors = httpx.get(f"{BACKEND_BASE_URL}/api/analytics/sector-distribution", timeout=REQUEST_TIMEOUT_SECONDS)
+    sectors = httpx.get(f"{BACKEND_BASE_URL}/api/analytics/sector-distribution", timeout=REQUEST_TIMEOUT_SECONDS, headers=_AUTH_HEADERS)
     sectors.raise_for_status()
     for row in sectors.json().get("data", []):
         blurb = (
@@ -101,7 +118,7 @@ def ingest_funding_aggregates() -> int:
         if rag.upsert_chunk(blurb, source_ref):
             inserted += 1
 
-    countries = httpx.get(f"{BACKEND_BASE_URL}/api/analytics/country-distribution", timeout=REQUEST_TIMEOUT_SECONDS)
+    countries = httpx.get(f"{BACKEND_BASE_URL}/api/analytics/country-distribution", timeout=REQUEST_TIMEOUT_SECONDS, headers=_AUTH_HEADERS)
     countries.raise_for_status()
     for row in countries.json().get("data", []):
         blurb = (
@@ -118,12 +135,30 @@ def ingest_funding_aggregates() -> int:
 def run() -> dict:
     """Runs all three ingestion sources and returns a summary - called by
     the `indexer_rag` Airflow DAG and by the standalone smoke test.
+
+    Audit post-C3 2026-10-02 (P-01) : each source used to run unguarded -
+    one source failing (e.g. a transient backend error) crashed the whole
+    reindex, discarding chunks already inserted by sources that ran before
+    it and silently skipping every source that would have run after it.
+    Each source is now isolated in its own try/except: idempotent upserts
+    already committed stay committed, a failing source reports its error
+    inline instead of aborting its siblings, and the DAG/caller can see at
+    a glance which source(s) need attention.
     """
-    return {
-        "markdown_chunks_inserted": ingest_markdown_files(),
-        "report_chunks_inserted": ingest_reports(),
-        "aggregate_chunks_inserted": ingest_funding_aggregates(),
-    }
+    summary: dict[str, int | str] = {}
+
+    for key, ingest in (
+        ("markdown_chunks_inserted", ingest_markdown_files),
+        ("report_chunks_inserted", ingest_reports),
+        ("aggregate_chunks_inserted", ingest_funding_aggregates),
+    ):
+        try:
+            summary[key] = ingest()
+        except Exception as exc:
+            print(f"[ai-ingest] {key} failed: {exc!r}")
+            summary[key] = f"error: {exc!r}"
+
+    return summary
 
 
 if __name__ == "__main__":
