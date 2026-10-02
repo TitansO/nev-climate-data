@@ -158,6 +158,29 @@ final class ProjectControllerTest extends WebTestCase
         self::assertSame('fundraising', json_decode($client->getResponse()->getContent(), true)['pipelineStage']);
     }
 
+    /**
+     * Audit post-C3 2026-10-02 (P-02) : décision produit explicite, pas un
+     * oubli - verrouillée par ce test. Le pipeline de projets est un espace
+     * de travail partagé entre tous les rôles authentifiés (voir le
+     * docblock de ProjectController) : même le rôle le moins privilégié
+     * (ExternalPartner) doit pouvoir faire avancer un projet.
+     */
+    public function testUpdateStageSucceedsForTheLeastPrivilegedRole(): void
+    {
+        $client = static::createClient();
+        $this->beginTransaction($client);
+        $seed = $this->seedProject();
+        $user = new User('Partenaire Externe', 'project-update-partner@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::ExternalPartner);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
+        $tokens = $this->loginAndGetTokens($client, 'project-update-partner@example.com');
+
+        $client->request('PATCH', '/api/projects/'.$seed['project']->getId(), server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$tokens['token']], content: json_encode(['stage' => 'fundraising']));
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('fundraising', json_decode($client->getResponse()->getContent(), true)['pipelineStage']);
+    }
+
     public function testUpdateStageSetsDecisionOutcomeAndExecutionStatusWhenProvided(): void
     {
         $client = static::createClient();

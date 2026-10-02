@@ -30,6 +30,20 @@ use Symfony\Component\Routing\Attribute\Route;
  * règle access_control dédiée) - contrairement à `Opportunity`, un
  * `Project` est une donnée de travail interne (porteur, montant recherché,
  * stade), pas une information publique comme un appel à projets ouvert.
+ *
+ * Décision produit (audit post-C3 2026-10-02, P-02) : PATCH /{id} et
+ * PATCH /{id}/classify n'imposent aucun rôle au-delà de IS_AUTHENTICATED_FULLY
+ * - n'importe quel compte authentifié, quel que soit son rôle, peut faire
+ * avancer le pipeline ou reclasser n'importe quel projet. Confirmé
+ * volontaire, pas un oubli : `Project` (voir son entité) ne porte aucune
+ * notion de propriétaire (pas de champ user/createdBy/submittedBy), et
+ * aucun endpoint POST /api/projects n'existe - seul le pipeline de collecte
+ * (Volet B) crée des projets, jamais un utilisateur final. Le pipeline est
+ * donc un espace de travail partagé entre toute l'équipe par conception,
+ * pas une ressource personnelle comme AlertRule/ApiKey/Notification
+ * (celles-ci sont bien scopées par propriétaire, voir findOneForUser()
+ * dans leurs repositories respectifs) - une restriction par rôle serait un
+ * changement de comportement produit, pas une correction de sécurité.
  */
 final class ProjectController extends AbstractController
 {

@@ -109,6 +109,14 @@ security:
         # is reserved to SuperAdmin - must come before the catch-all below,
         # same reasoning as /api/funding/export above it in this file.
         - { path: ^/api/users, roles: ROLE_SUPER_ADMIN }
+        # Audit post-C3 2026-10-02 (P-02) : /api/projects n'a volontairement
+        # aucune regle dediee et retombe donc ici, en IS_AUTHENTICATED_FULLY
+        # - n'importe quel role authentifie peut faire avancer le pipeline
+        # ou reclasser un projet. Decision produit confirmee, pas un oubli :
+        # voir le docblock d'App\Controller\ProjectController pour le
+        # raisonnement complet (pas de notion de proprietaire sur Project,
+        # aucun endpoint POST /api/projects - espace de travail partage par
+        # conception).
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
