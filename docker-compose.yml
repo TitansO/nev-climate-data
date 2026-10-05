@@ -205,14 +205,23 @@ services:
       - nev-network
 
   # A3.6: periodic pg_dump of the application database, uploaded to a
-  # dedicated MinIO bucket "nev-climate-data-backups" (separate from
+  # dedicated Garage bucket "nev-climate-data-backups" (separate from
   # "nev-climate-data", the Volet B data lake bucket - see
   # docker/db-backup/backup.sh's docblock for why), with automatic
-  # retention via MinIO's own ILM (no hand-rolled cleanup). Depends on
-  # "minio" (defined further below, under Volet B) - Docker Compose
-  # resolves the dependency graph regardless of declaration order in this
-  # file. Restoration is manual/on-demand (docker/db-backup/restore.sh),
-  # deliberately never automatic.
+  # retention via rclone's own client-side sweep (no hand-rolled cleanup
+  # beyond what backup.sh already did for MinIO). Depends on "garage-init"
+  # (defined further below, under Volet B) for the generated credentials
+  # file - Docker Compose resolves the dependency graph regardless of
+  # declaration order in this file. Restoration is manual/on-demand
+  # (docker/db-backup/restore.sh), deliberately never automatic.
+  #
+  # P-10 (audit post-C3, 2026-10-05) : MINIO_ROOT_USER/MINIO_ROOT_PASSWORD
+  # ne sont plus fournis ici - Garage derive cryptographiquement l'ID de
+  # chaque cle (impossible de la fixer a l'avance comme avec MinIO), donc
+  # "entrypoint" ci-dessous charge les identifiants generes par
+  # "garage-init" depuis le volume partage "garage_credentials" et les
+  # exporte sous ces memes noms avant de lancer la vraie commande -
+  # backup.sh/restore.sh n'ont ainsi besoin d'aucune modification.
   db-backup:
     build:
       context: .
@@ -224,17 +233,19 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-garage:3900}
       BACKUP_BUCKET: ${BACKUP_BUCKET:-nev-climate-data-backups}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    entrypoint: ["/bin/bash", "-c", "set -a; . /credentials/garage.env 2>/dev/null || true; export MINIO_ROOT_USER=\"$${GARAGE_ACCESS_KEY:-}\"; export MINIO_ROOT_PASSWORD=\"$${GARAGE_SECRET_KEY:-}\"; exec \"$@\"", "--"]
+    command: ["/usr/local/bin/backup.sh"]
+    volumes:
+      - garage_credentials:/credentials:ro
     depends_on:
       database:
         condition: service_healthy
-      minio:
-        condition: service_started
+      garage-init:
+        condition: service_completed_successfully
     networks:
       - nev-network
 
@@ -284,9 +295,6 @@ services:
     image: apache/airflow:2.9.0
     container_name: nev-climate-data-airflow
     restart: unless-stopped
-    depends_on:
-      - postgres-airflow
-      - kafka
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
@@ -308,9 +316,10 @@ services:
       PYTHONPATH: /opt/airflow
       IATI_API_KEY: ${IATI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # P-10 (audit post-C3, 2026-10-05) : MINIO_ROOT_USER/MINIO_ROOT_PASSWORD
+      # retires - voir le commentaire de "entrypoint" ci-dessous (meme
+      # raisonnement que "db-backup").
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-garage:3900}
       # C3.8: same shared secret as "backend" above - lets
       # pipeline/dags/evaluation_alertes_dag.py authenticate its daily call
       # to POST /api/internal/alerts/evaluate.
@@ -328,47 +337,89 @@ services:
     volumes:
       - ./pipeline:/opt/airflow/pipeline
       - airflow_logs:/opt/airflow/logs
+      - garage_credentials:/credentials:ro
     ports:
       # Audit pre-production 2026-09-23 (P1) : lie a 127.0.0.1 - meme
       # raisonnement que "database" ci-dessus ; le port-forwarding Codespace
       # continue de fonctionner (opere depuis la meme machine hote).
       - "127.0.0.1:8081:8080"
-    command: standalone
+    # P-10 (audit post-C3, 2026-10-05) : charge les identifiants Garage
+    # generes par "garage-init" avant de rendre la main a l'entrypoint
+    # officiel de l'image Airflow (jamais remplace, seulement precede) -
+    # meme mecanisme que "db-backup" ci-dessus.
+    entrypoint: ["/bin/bash", "-c", "set -a; . /credentials/garage.env 2>/dev/null || true; export MINIO_ROOT_USER=\"$${GARAGE_ACCESS_KEY:-}\"; export MINIO_ROOT_PASSWORD=\"$${GARAGE_SECRET_KEY:-}\"; exec /entrypoint \"$@\"", "--"]
+    command: ["standalone"]
+    # Forme longue requise ici (plutot que la liste simple precedente) :
+    # "garage-init" doit avoir *termine* (pas seulement demarre) pour que
+    # /credentials/garage.env existe deja quand cet entrypoint le lit -
+    # postgres-airflow/kafka gardent le meme comportement qu'avant
+    # (service_started) pour ne rien resserrer d'autre.
+    depends_on:
+      postgres-airflow:
+        condition: service_started
+      kafka:
+        condition: service_started
+      garage-init:
+        condition: service_completed_successfully
     networks:
       - nev-network
 
-  minio:
-    # quay.io, not Docker Hub's "minio/minio": found live (2026-09-15)
-    # spinning up a brand-new Codespace from scratch - "docker pull
-    # minio/minio" now fails outright ("pull access denied... may
-    # require 'docker login'") on a fresh Docker daemon that has never
-    # cached it before, while quay.io/minio/minio (MinIO's own current
-    # official distribution channel) pulls cleanly. The prior Codespace
-    # never hit this because its local Docker cache already had
-    # minio/minio from before Docker Hub access to it changed - this
-    # only surfaces on a genuinely fresh pull.
-    image: quay.io/minio/minio
-    container_name: nev-climate-data-minio
+  # P-10 (audit post-C3, 2026-10-05) : remplace MinIO comme stockage objet
+  # S3-compatible - l'image MinIO (toutes sources essayees : docker.io,
+  # quay.io, bitnami) n'est plus telechargeable anonymement (confirme en
+  # direct a plusieurs reprises - changement de politique de distribution
+  # de MinIO Inc., pas un incident reseau : une image Docker Hub quelconque
+  # se telecharge normalement au meme instant). Garage
+  # (https://garagehq.deuxfleurs.fr) est verifie pullable et, apres un
+  # round-trip put_object/get_object reel via pipeline/common/
+  # minio_staging.py (non modifie) et un test rclone complet
+  # (mkdir/copyto/cat/delete, meme config que docker/db-backup/backup.sh),
+  # compatible sans aucune modification du code applicatif - voir
+  # docker/garage/garage.toml pour le seul reglage (s3_region) qu'il a
+  # fallu fixer cote serveur pour cette compatibilite.
+  garage:
+    build:
+      context: .
+      dockerfile: docker/garage/Dockerfile
+    container_name: nev-climate-data-garage
     restart: unless-stopped
-    command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      # Audit pre-production 2026-09-23 (P1) : le fallback faible
-      # "minioadmin_change_me" a ete retire - c'etait le seul des 4 points
-      # d'injection de MINIO_ROOT_PASSWORD dans ce fichier a en avoir un
-      # (les 3 autres exigeaient deja la vraie valeur sans filet), une
-      # vraie incoherence : sans .env correctement rempli, MinIO acceptait
-      # silencieusement ce mot de passe faible pendant que les clients
-      # (backend/ai/pipeline) recevaient une chaine vide. Meme
-      # comportement que POSTGRES_PASSWORD ci-dessus desormais : requis,
-      # pas de valeur par defaut.
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
     ports:
-      # Lie a 127.0.0.1 - meme raisonnement que "database" ci-dessus.
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      # Lie a 127.0.0.1, meme port hote (9000) que l'ancien "minio" ci-
+      # dessus pour ne rien casser cote outillage/habitudes locales - meme
+      # raisonnement P1 que "database" (audit pre-production 2026-09-23).
+      - "127.0.0.1:9000:3900"
     volumes:
-      - minio_data:/data
+      - garage_data:/var/lib/garage
+    networks:
+      - nev-network
+
+  # Bootstrap unique (layout/cle/bucket) de "garage" ci-dessus, execute a
+  # chaque "docker compose up" mais idempotent - verifie en direct : un
+  # second lancement sur un cluster deja configure ne recree rien et le
+  # confirme explicitement ("deja attribue"/"deja existante"/"deja
+  # existant"). Ecrit les identifiants generes par Garage dans le volume
+  # partage "garage_credentials" pour que db-backup/funding-validator/
+  # airflow puissent les lire au demarrage - contrairement a MinIO, Garage
+  # derive cryptographiquement l'ID de chaque cle (confirme en direct :
+  # une tentative d'import avec un ID choisi a l'avance est rejetee comme
+  # invalide), impossible de la fixer a l'avance comme
+  # MINIO_ROOT_USER/MINIO_ROOT_PASSWORD l'etaient.
+  garage-init:
+    build:
+      context: .
+      dockerfile: docker/garage/init.Dockerfile
+    container_name: nev-climate-data-garage-init
+    environment:
+      GARAGE_HOST: garage
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+    depends_on:
+      - garage
+    volumes:
+      - garage_credentials:/credentials
     networks:
       - nev-network
 
@@ -412,13 +463,23 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       IATI_API_KEY: ${IATI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    command: python -m pipeline.processors.funding_validator
+      # P-10 (audit post-C3, 2026-10-05) : MINIO_ROOT_USER/MINIO_ROOT_PASSWORD
+      # retires - voir le commentaire de "entrypoint" ci-dessous (meme
+      # raisonnement que "db-backup").
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-garage:3900}
+    entrypoint: ["/bin/sh", "-c", "set -a; . /credentials/garage.env 2>/dev/null || true; export MINIO_ROOT_USER=\"$${GARAGE_ACCESS_KEY:-}\"; export MINIO_ROOT_PASSWORD=\"$${GARAGE_SECRET_KEY:-}\"; exec \"$@\"", "--"]
+    command: ["python", "-m", "pipeline.processors.funding_validator"]
+    volumes:
+      - garage_credentials:/credentials:ro
+    # Forme longue requise ici - meme raisonnement que "airflow" ci-dessus
+    # (garage-init doit avoir termine, pas seulement demarre).
     depends_on:
-      - database
-      - kafka
+      database:
+        condition: service_started
+      kafka:
+        condition: service_started
+      garage-init:
+        condition: service_completed_successfully
     networks:
       - nev-network
 
@@ -518,5 +579,6 @@ volumes:
   redis_data:
   airflow_postgres_data:
   airflow_logs:
-  minio_data:
+  garage_data:
+  garage_credentials:
   ai_db_data:

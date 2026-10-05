@@ -1,0 +1,42 @@
+# Audit post-C3 2026-10-02/05 (P-10) : remplace MinIO, dont l'image Docker
+# (toutes sources essayees - docker.io, quay.io, bitnami) n'est plus
+# telechargeable anonymement (confirme en direct a plusieurs reprises -
+# changement de politique de distribution de MinIO Inc., pas un incident
+# reseau : une image Docker Hub quelconque se telecharge normalement au
+# meme instant). Garage (https://garagehq.deuxfleurs.fr) est un serveur
+# S3-compatible leger concu specifiquement pour l'auto-hebergement a petite
+# echelle - usage identique ici (sauvegardes, data lake du pipeline,
+# ingestion de documents du Copilot IA), toutes via des operations S3
+# generiques (put_object/get_object/bucket_exists) deja utilisees par le
+# code existant (pipeline/common/minio_staging.py), compatibles sans
+# modification - verifie en conditions reelles avec un round-trip
+# put_object/get_object via le client Python minio non modifie (voir
+# s3_region ci-dessous pour la seule contrainte de compatibilite trouvee).
+#
+# rpc_secret et admin_token ne sont volontairement PAS ici - fournis via
+# les variables d'environnement GARAGE_RPC_SECRET/GARAGE_ADMIN_TOKEN (voir
+# docker-compose.yml), meme convention que le reste du projet (secrets
+# jamais codes en dur dans un fichier commite).
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+# Un seul noeud, pas de replication - meme echelle que MinIO en mode
+# standalone qu'il remplace.
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "garage:3901"
+
+[s3_api]
+# "us-east-1" (et non "garage") : c'est la region par defaut du client
+# Python minio (et de rclone) quand aucune region n'est precisee - confirme
+# en direct, "garage" produit une erreur AuthorizationHeaderMalformed cote
+# client sans ce reglage. Choisi pour eviter toute modification du code
+# applicatif existant plutot que de faire porter la contrainte au client.
+s3_region = "us-east-1"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
