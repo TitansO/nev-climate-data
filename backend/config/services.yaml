@@ -7,6 +7,22 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    # Audit post-C3 2026-10-05 (incident production) : INTERNAL_TRIGGER_TOKEN
+    # n'a jamais ete configuree sur Render - invisible tant que seule
+    # App\Controller\InternalAlertsController en dependait (une route dediee,
+    # quasiment jamais appelee en pratique), mais App\Security\
+    # InternalServiceAuthenticator (P-01, 2026-10-02) est instancie par le
+    # firewall `api` a CHAQUE requete (Symfony doit evaluer supports() de
+    # chaque authenticator enregistre sur chaque requete), ce qui force la
+    # resolution de ce parametre a chaque fois - une env var manquante a
+    # fait planter l'integralite de l'API en production
+    # (EnvNotFoundException non interceptee, bien avant d'atteindre un
+    # controleur). Ce defaut vide rend la variable optionnelle au niveau du
+    # conteneur : les deux consommateurs traitent deja explicitement une
+    # chaine vide comme "jeton toujours invalide" ('' === $token), donc une
+    # variable manquante desactive silencieusement la fonctionnalite
+    # plutot que de faire planter toute l'application.
+    env(INTERNAL_TRIGGER_TOKEN): ''
     # A2.3 async export: where generated CSV/XLSX files land once the worker
     # finishes (App\Service\ExportService), read back by
     # FundingController::downloadExport() after an ownership check. Not
