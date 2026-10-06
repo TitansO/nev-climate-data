@@ -150,6 +150,22 @@ def parse_government_cofinancing(project: dict[str, Any]) -> dict[str, Any] | No
     if gap_usd <= 0:
         return None
 
+    # Bug reel trouve en verifiant une vraie collecte en production
+    # (2026-10-06) : sans raw_sectors/raw_theme (memes champs que
+    # parse_project() ci-dessus, meme projet - la cofinancing partage le
+    # meme secteur que l'engagement Banque Mondiale), process_message()
+    # (pipeline/processors/funding_validator.py, branche "world_bank")
+    # leve un KeyError sur message["raw_sectors"] et rejette silencieusement
+    # CHAQUE ligne publique - confirme en direct : 0 ligne reelle inseree
+    # malgre un DAG rapportant "success", pendant qu'une ligne de demo-
+    # fixture portant le meme nom de source masquait l'absence.
+    raw_sectors = [
+        entry["major_sector"]["major_sector_name"]
+        for entry in project.get("major_sectors", [])
+        if "major_sector" in entry
+    ]
+    raw_theme = [theme.strip() for theme in project.get("theme", "").split(",") if theme.strip()]
+
     country_codes = project.get("countrycode") or [""]
     alpha2 = country_codes[0]
     country = pycountry.countries.get(alpha_2=alpha2)
@@ -166,6 +182,8 @@ def parse_government_cofinancing(project: dict[str, Any]) -> dict[str, Any] | No
         "year": int(approval_date[:4]),
         "amount_usd": int(round(gap_usd)),
         "funding_type": "public",
+        "raw_sectors": raw_sectors,
+        "raw_theme": raw_theme,
         "borrower": borrower,
         "board_approval_date": approval_date[:10],
         "collected_at": dt.datetime.now(dt.timezone.utc).isoformat(),

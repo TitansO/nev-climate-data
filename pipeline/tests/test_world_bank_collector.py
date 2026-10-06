@@ -42,6 +42,8 @@ _SAMPLE_PROJECT_WITH_GOVERNMENT_COFINANCING = {
     "borrower": "Ministère de l'Économie, des Finances et du Plan",
     "boardapprovaldate": "2026-10-27T00:00:00Z",
     "status": "Active",
+    "major_sectors": [{"major_sector": {"major_sector_name": "Water, Sanitation and Waste Management"}}],
+    "theme": "Climate Change,Urban and Rural Development",
 }
 
 _SAMPLE_PROJECT_PIPELINE_NO_DATA = {
@@ -93,6 +95,14 @@ def test_parse_government_cofinancing_extracts_the_borrower_gap():
     assert payload["funding_type"] == "public"
     assert payload["borrower"] == "Ministère de l'Économie, des Finances et du Plan"
     assert payload["board_approval_date"] == "2026-10-27"
+    # Regression 2026-10-06 : sans ces 2 champs, funding_validator.process_message()
+    # (branche "world_bank") leve un KeyError sur message["raw_sectors"] et
+    # rejette silencieusement CHAQUE ligne - confirme en direct lors d'une
+    # vraie collecte (0 ligne "public" World Bank inseree malgre un DAG
+    # "success"). Memes valeurs que parse_project() pour le meme projet -
+    # meme secteur reel, juste cofinance.
+    assert payload["raw_sectors"] == ["Water, Sanitation and Waste Management"]
+    assert payload["raw_theme"] == ["Climate Change", "Urban and Rural Development"]
 
 
 def test_parse_government_cofinancing_returns_none_when_borrower_is_not_a_government():

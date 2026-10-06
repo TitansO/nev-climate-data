@@ -12,6 +12,7 @@ from pipeline.collectors.afdb import (
     fetch_afdb_activities,
     fetch_xdr_to_usd_rate,
     parse_activity,
+    parse_government_cofinancing,
 )
 from pipeline.common.alerting import default_args
 from pipeline.common.kafka_client import make_producer
@@ -41,6 +42,12 @@ def _transformer(**context) -> None:
         payload = parse_activity(raw_activity, xdr_to_usd_rate)
         if payload is not None:
             payloads.append(payload)
+        # 2026-10-06 (demande explicite utilisateur, donnees Public) :
+        # co-financement gouvernemental, en plus de l'engagement BAD
+        # lui-meme - voir pipeline/collectors/afdb.py::parse_government_cofinancing().
+        government_payload = parse_government_cofinancing(raw_activity, xdr_to_usd_rate)
+        if government_payload is not None:
+            payloads.append(government_payload)
 
     object_path = f"silver/afdb/{context['ds']}/payloads.json"
     upload_json(make_minio_client(), object_path, payloads)

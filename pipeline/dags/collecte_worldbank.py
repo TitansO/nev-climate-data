@@ -10,7 +10,7 @@ import pycountry
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-from pipeline.collectors.world_bank import fetch_projects_for_country, parse_project
+from pipeline.collectors.world_bank import fetch_projects_for_country, parse_government_cofinancing, parse_project
 from pipeline.common.alerting import default_args
 from pipeline.common.db import get_connection
 from pipeline.common.kafka_client import make_producer
@@ -55,6 +55,13 @@ def _transformer(**context) -> None:
         payload = parse_project(raw_project)
         if payload is not None:
             payloads.append(payload)
+        # 2026-10-06 (demande explicite utilisateur, donnees Public) :
+        # contrepartie gouvernementale, en plus de l'engagement Banque
+        # Mondiale lui-meme - voir pipeline/collectors/world_bank.py::
+        # parse_government_cofinancing().
+        government_payload = parse_government_cofinancing(raw_project)
+        if government_payload is not None:
+            payloads.append(government_payload)
 
     object_path = f"silver/worldbank/{context['ds']}/payloads.json"
     upload_json(make_minio_client(), object_path, payloads)

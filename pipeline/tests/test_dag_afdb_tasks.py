@@ -44,6 +44,7 @@ def test_transformer_parses_every_activity_with_the_staged_rate():
     with patch("pipeline.dags.collecte_afdb.make_minio_client"), \
          patch("pipeline.dags.collecte_afdb.download_json", return_value=staged_raw), \
          patch("pipeline.dags.collecte_afdb.parse_activity") as mock_parse, \
+         patch("pipeline.dags.collecte_afdb.parse_government_cofinancing", return_value=None), \
          patch("pipeline.dags.collecte_afdb.upload_json") as mock_upload:
         mock_parse.side_effect = [{"source": "afdb", "project_id": "A1"}, None]
         _transformer(**context)
@@ -54,6 +55,28 @@ def test_transformer_parses_every_activity_with_the_staged_rate():
     assert call_args[0][1] == "silver/afdb/2026-08-31/payloads.json"
     assert call_args[0][2] == [{"source": "afdb", "project_id": "A1"}]
     assert _pushed(context, "payloads_path") == "silver/afdb/2026-08-31/payloads.json"
+
+
+def test_transformer_also_appends_the_government_cofinancing_payload_when_present():
+    # 2026-10-06 : une activite cofinancee doit produire les 2 lignes
+    # (multilateral + public) dans le fichier silver, pas seulement la
+    # premiere - meme principe que collect_and_publish() deja teste dans
+    # test_afdb_collector.py.
+    context = _make_context(pulls={"raw_path": "bronze/afdb/2026-08-31/raw.json"})
+    staged_raw = {"xdr_to_usd_rate": 1.34, "activities": [{"iati_identifier": "A1"}]}
+
+    with patch("pipeline.dags.collecte_afdb.make_minio_client"), \
+         patch("pipeline.dags.collecte_afdb.download_json", return_value=staged_raw), \
+         patch("pipeline.dags.collecte_afdb.parse_activity", return_value={"source": "afdb", "project_id": "A1", "funding_type": "multilateral"}), \
+         patch("pipeline.dags.collecte_afdb.parse_government_cofinancing", return_value={"source": "afdb", "project_id": "A1:government-cofinancing", "funding_type": "public"}), \
+         patch("pipeline.dags.collecte_afdb.upload_json") as mock_upload:
+        _transformer(**context)
+
+    call_args = mock_upload.call_args
+    assert call_args[0][2] == [
+        {"source": "afdb", "project_id": "A1", "funding_type": "multilateral"},
+        {"source": "afdb", "project_id": "A1:government-cofinancing", "funding_type": "public"},
+    ]
 
 
 def test_publier_sends_every_payload_and_reports_the_published_count():

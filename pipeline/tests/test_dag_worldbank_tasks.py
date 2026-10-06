@@ -50,6 +50,7 @@ def test_transformer_parses_every_raw_project_and_skips_unparseable_ones():
     with patch("pipeline.dags.collecte_worldbank.make_minio_client"), \
          patch("pipeline.dags.collecte_worldbank.download_json", return_value=[{"id": "P001"}, {"id": "P002"}]), \
          patch("pipeline.dags.collecte_worldbank.parse_project") as mock_parse, \
+         patch("pipeline.dags.collecte_worldbank.parse_government_cofinancing", return_value=None), \
          patch("pipeline.dags.collecte_worldbank.upload_json") as mock_upload:
         mock_parse.side_effect = [{"source": "world_bank", "project_id": "P001"}, None]
         _transformer(**context)
@@ -58,6 +59,27 @@ def test_transformer_parses_every_raw_project_and_skips_unparseable_ones():
     assert call_args[0][1] == "silver/worldbank/2026-08-31/payloads.json"
     assert call_args[0][2] == [{"source": "world_bank", "project_id": "P001"}]
     assert _pushed(context, "payloads_path") == "silver/worldbank/2026-08-31/payloads.json"
+
+
+def test_transformer_also_appends_the_government_cofinancing_payload_when_present():
+    # 2026-10-06 : un projet cofinance doit produire les 2 lignes
+    # (multilateral + public) dans le fichier silver, pas seulement la
+    # premiere - meme principe que collect_and_publish() deja teste dans
+    # test_world_bank_collector.py.
+    context = _make_context(pulls={"raw_path": "bronze/worldbank/2026-08-31/raw.json"})
+
+    with patch("pipeline.dags.collecte_worldbank.make_minio_client"), \
+         patch("pipeline.dags.collecte_worldbank.download_json", return_value=[{"id": "P001"}]), \
+         patch("pipeline.dags.collecte_worldbank.parse_project", return_value={"source": "world_bank", "project_id": "P001", "funding_type": "multilateral"}), \
+         patch("pipeline.dags.collecte_worldbank.parse_government_cofinancing", return_value={"source": "world_bank", "project_id": "P001:government-cofinancing", "funding_type": "public"}), \
+         patch("pipeline.dags.collecte_worldbank.upload_json") as mock_upload:
+        _transformer(**context)
+
+    call_args = mock_upload.call_args
+    assert call_args[0][2] == [
+        {"source": "world_bank", "project_id": "P001", "funding_type": "multilateral"},
+        {"source": "world_bank", "project_id": "P001:government-cofinancing", "funding_type": "public"},
+    ]
 
 
 def test_publier_sends_every_payload_and_reports_the_published_count():
