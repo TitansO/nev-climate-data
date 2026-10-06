@@ -5,6 +5,7 @@ Kafka topic `nev.funding.raw` - see the B1.1 spec's payload shape.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from typing import Any, Iterator
 
 import pycountry
@@ -17,7 +18,25 @@ REQUEST_TIMEOUT_SECONDS = 30
 FIELDS = ",".join([
     "id", "countryname", "countrycode", "totalamt", "boardapprovaldate",
     "status", "major_sectors", "theme",
+    # borrower/lendprojectcost : ajoutes 2026-10-06 (demande explicite
+    # utilisateur, donnees Public/Privee) pour
+    # parse_government_cofinancing() ci-dessous - absents avant ca,
+    # jamais utilises par parse_project().
+    "borrower", "lendprojectcost",
 ])
+
+# 2026-10-06 : reconnait un emprunteur explicitement gouvernemental -
+# verifie en direct sur de vrais projets (ex. "Ministère de l'Économie,
+# des Finances et du Plan" pour un projet senegalais ou lendprojectcost
+# (50 M USD) depassait largement totalamt (7,42 M USD), l'ecart
+# correspondant a la contrepartie du gouvernement emprunteur nomme dans
+# `borrower`). Volontairement etroit : un emprunteur qui ne correspond a
+# aucun de ces motifs ne produit aucune ligne "public" plutot qu'une
+# supposition.
+GOVERNMENT_BORROWER_PATTERN = re.compile(
+    r"minist|government|gouvernement|republic|r[ée]publique|treasury|tr[ée]sor",
+    re.IGNORECASE,
+)
 
 
 def fetch_projects_for_country(country_iso: str) -> Iterator[dict[str, Any]]:
@@ -101,6 +120,58 @@ def parse_project(project: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def parse_government_cofinancing(project: dict[str, Any]) -> dict[str, Any] | None:
+    """Convertit la contrepartie gouvernementale d'un projet Banque
+    Mondiale (si identifiable) en un paiement `nev.funding.raw` distinct,
+    `funding_type: "public"` - en plus, jamais a la place, du paiement
+    "multilateral" que parse_project() produit deja pour l'engagement
+    propre de la Banque Mondiale (IDA/IBRD/don). Le signal : `lendprojectcost`
+    (cout total du projet) depasse `totalamt` (engagement propre de la
+    Banque Mondiale) - l'ecart est la part financee par d'autres sources,
+    presumee gouvernementale UNIQUEMENT quand `borrower` nomme clairement
+    un gouvernement (GOVERNMENT_BORROWER_PATTERN) - les prets IBRD/IDA
+    sont par construction accordes a l'Etat emprunteur, jamais a un tiers
+    prive, donc cet ecart est sa contrepartie budgetaire propre, pas un
+    co-financement d'un autre bailleur. Retourne None si l'ecart est nul/
+    negatif ou si `borrower` ne correspond a aucun motif gouvernemental -
+    jamais une repartition devinee.
+    """
+    total_amount = project.get("totalamt")
+    lend_project_cost = project.get("lendprojectcost")
+    approval_date = project.get("boardapprovaldate")
+    borrower = project.get("borrower") or ""
+
+    if not total_amount or not lend_project_cost or not approval_date:
+        return None
+    if not GOVERNMENT_BORROWER_PATTERN.search(borrower):
+        return None
+
+    gap_usd = float(lend_project_cost) - float(total_amount)
+    if gap_usd <= 0:
+        return None
+
+    country_codes = project.get("countrycode") or [""]
+    alpha2 = country_codes[0]
+    country = pycountry.countries.get(alpha_2=alpha2)
+    country_iso = country.alpha_3 if country is not None else alpha2
+
+    return {
+        "source": "world_bank",
+        # Suffixe distinct du project_id "multilateral" du meme projet -
+        # deux lignes `funding` reelles et distinctes pour un meme projet
+        # cofinance, jamais une cle Kafka en collision avec celle de
+        # parse_project() pour le meme id.
+        "project_id": project["id"] + ":government-cofinancing",
+        "country_iso": country_iso,
+        "year": int(approval_date[:4]),
+        "amount_usd": int(round(gap_usd)),
+        "funding_type": "public",
+        "borrower": borrower,
+        "board_approval_date": approval_date[:10],
+        "collected_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+
+
 def collect_and_publish(country_isos: list[str], producer) -> int:
     """Fetches climate-themed World Bank projects for every country in
     `country_isos` and publishes each parseable one to `nev.funding.raw`
@@ -118,10 +189,17 @@ def collect_and_publish(country_isos: list[str], producer) -> int:
     published = 0
     for country_iso in country_isos:
         for raw_project in fetch_projects_for_country(country_iso):
-            payload = parse_project(raw_project)
-            if payload is None:
-                continue
-            producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
-            published += 1
+            payloads = [
+                parse_project(raw_project),
+                # 2026-10-06 : contrepartie gouvernementale, en plus de
+                # l'engagement Banque Mondiale lui-meme - voir
+                # parse_government_cofinancing().
+                parse_government_cofinancing(raw_project),
+            ]
+            for payload in payloads:
+                if payload is None:
+                    continue
+                producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
+                published += 1
     producer.flush()
     return published

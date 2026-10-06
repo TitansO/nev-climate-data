@@ -12,6 +12,7 @@ from pipeline.collectors.afdb import (
     fetch_afdb_activities,
     fetch_xdr_to_usd_rate,
     parse_activity,
+    parse_government_cofinancing,
 )
 
 # Real activity, two AfDB-Group commitment transactions (same date - both
@@ -89,6 +90,21 @@ _SAMPLE_ACTIVITY_MIXED_OLD_AND_PLAUSIBLE_COMMITMENTS = {
     "transaction_transaction_date_iso_date": ["1967-05-12T00:00:00Z", "2018-03-01T00:00:00Z"],
 }
 
+# Reel (champs simplifies), 2026-10-06 : une activite cofinancee par la
+# BAD et le gouvernement beneficiaire - verifie en direct sur l'API IATI
+# reelle, motif "Government Of <pays>" confirme sur plusieurs vrais pays
+# (Burundi, Namibie, Ghana...).
+_SAMPLE_ACTIVITY_WITH_GOVERNMENT_COFINANCING = {
+    "iati_identifier": "46002-P-BI-AAG-003",
+    "recipient_country_code": ["BI"],
+    "sector_code": ["31120"],
+    "transaction_transaction_type_code": ["2", "2"],
+    "transaction_provider_org_ref": ["XM-DAC-46002", "BI-GOV-001"],
+    "transaction_provider_org_narrative": ["African Development Bank", "Government Of Burundi"],
+    "transaction_value": [5000000.0, 1200000.0],
+    "transaction_transaction_date_iso_date": ["2023-04-10T00:00:00Z", "2023-04-10T00:00:00Z"],
+}
+
 # Synthetic: no recipient country at all - 986/5,604 real AfDB activities
 # are like this (regional/institutional activities).
 _SAMPLE_ACTIVITY_NO_COUNTRY = {
@@ -125,6 +141,36 @@ def test_parse_activity_excludes_government_provided_commitment():
     assert payload["amount_usd"] == 1211106  # round(807403.72 * 1.5)
     assert payload["country_iso"] == "GNQ"
     assert payload["year"] == 1993
+
+
+def test_parse_government_cofinancing_extracts_the_government_provided_commitment():
+    payload = parse_government_cofinancing(_SAMPLE_ACTIVITY_WITH_GOVERNMENT_COFINANCING, xdr_to_usd_rate=1.5)
+
+    assert payload["source"] == "afdb"
+    assert payload["project_id"] == "46002-P-BI-AAG-003:government-cofinancing"
+    assert payload["country_iso"] == "BDI"  # converted from IATI's alpha-2 "BI"
+    assert payload["year"] == 2023
+    assert payload["original_amount"] == 1200000.0  # government line only, not the BAD line
+    assert payload["amount_usd"] == 1800000  # round(1,200,000 * 1.5)
+    assert payload["funding_type"] == "public"
+    assert payload["board_approval_date"] == "2023-04-10"
+
+
+def test_parse_government_cofinancing_returns_none_without_a_matching_government_provider():
+    # Meme activite que test_parse_activity_excludes_government_provided_commitment -
+    # provider_ref "GQ-COA-GOV" n'a pas de narrative "Government Of ..."
+    # dans ce fixture (champ absent) : motif deliberement etroit, jamais
+    # une devinette a partir du seul ref technique.
+    assert parse_government_cofinancing(_SAMPLE_ACTIVITY_EXCLUDES_GOVERNMENT_PROVIDER, xdr_to_usd_rate=1.5) is None
+
+
+def test_parse_activity_still_only_counts_the_bad_commitment_when_government_cofinancing_is_present():
+    # L'ajout de transaction_provider_org_narrative a FIELDS/aux fixtures
+    # ne doit rien changer au comportement existant de parse_activity().
+    payload = parse_activity(_SAMPLE_ACTIVITY_WITH_GOVERNMENT_COFINANCING, xdr_to_usd_rate=1.5)
+
+    assert payload["original_amount"] == 5000000.0
+    assert payload["funding_type"] == "multilateral"
 
 
 def test_parse_activity_excludes_commitments_from_other_funds_routed_through_afdb():
@@ -244,3 +290,26 @@ def test_collect_and_publish_fetches_rate_once_and_publishes_parseable_activitie
     mock_producer.send.assert_called_once()
     assert mock_producer.send.call_args[0][0] == "nev.funding.raw"
     mock_producer.flush.assert_called_once()
+
+
+def test_collect_and_publish_sends_both_multilateral_and_public_payloads_for_a_cofinanced_activity():
+    activities_response = MagicMock()
+    activities_response.json.return_value = {
+        "response": {
+            "numFound": 1,
+            "docs": [_SAMPLE_ACTIVITY_WITH_GOVERNMENT_COFINANCING],
+        },
+    }
+    rate_response = MagicMock()
+    rate_response.json.return_value = {"rates": {"USD": 1.5}}
+    mock_producer = MagicMock()
+
+    with patch(
+        "pipeline.collectors.afdb.requests.get",
+        side_effect=[rate_response, activities_response],
+    ):
+        published = collect_and_publish(mock_producer)
+
+    assert published == 2  # one "multilateral" row, one "public" row - same activity, two real financings
+    funding_types = {call.args[1]["funding_type"] for call in mock_producer.send.call_args_list}
+    assert funding_types == {"multilateral", "public"}

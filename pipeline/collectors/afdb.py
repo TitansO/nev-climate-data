@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 import time
 from typing import Any, Iterator
 
@@ -32,6 +33,11 @@ PAGINATION_DELAY_SECONDS = 1.1
 FIELDS = ",".join([
     "iati_identifier", "recipient_country_code", "sector_code",
     "transaction_transaction_type_code", "transaction_provider_org_ref",
+    # transaction_provider_org_narrative : ajoute 2026-10-06 (demande
+    # explicite utilisateur, donnees Public/Privee) pour
+    # parse_government_cofinancing() ci-dessous - absent de FIELDS avant
+    # ca, jamais utilise par parse_activity().
+    "transaction_provider_org_narrative",
     "transaction_value", "transaction_transaction_date_iso_date",
     "default_finance_type_code",
 ])
@@ -68,6 +74,18 @@ AFDB_GROUP_PROVIDER_REFS = frozenset({
 })
 
 XDR_RATE_URL = "https://open.er-api.com/v6/latest/XDR"
+
+# 2026-10-06 (demande explicite utilisateur, donnees Public/Privee) :
+# reconnait un fournisseur de transaction nomme explicitement "Government
+# of <pays>" - verifie en direct sur un echantillon de 300 activites
+# reelles (153 avec un engagement hors groupe BAD, dont 55 correspondant
+# a ce motif, totalisant >332 M USD : Burundi, Namibie, Ghana, Liberia,
+# Mauritanie, Erythree). Volontairement etroit (prefixe exact) plutot
+# qu'une liste de mots-cles plus large : un faux positif classerait un
+# fournisseur non-gouvernemental comme financement public, ce que ce
+# projet evite partout ailleurs (preferer `null`/l'absence a une donnee
+# fabriquee).
+GOVERNMENT_PROVIDER_PATTERN = re.compile(r"^government\s+of\s+", re.IGNORECASE)
 
 
 def fetch_afdb_activities() -> Iterator[dict[str, Any]]:
@@ -159,6 +177,88 @@ def _afdb_commitment_summary(activity: dict[str, Any]) -> tuple[float, int, str]
     return total, int(earliest_date[:4]), earliest_date
 
 
+def _government_commitment_summary(activity: dict[str, Any]) -> tuple[float, int, str] | None:
+    """Comme _afdb_commitment_summary, mais somme les transactions de type
+    Commitment dont le fournisseur correspond a GOVERNMENT_PROVIDER_PATTERN
+    (une contrepartie gouvernementale nommee) au lieu de l'allowlist du
+    groupe BAD - le meme "bruit" (interets/decaissements/autres fonds)
+    qu'_afdb_commitment_summary exclut deja via le filtre de type et de
+    plausibilite temporelle, applique ici au meme flux de transactions.
+    Retourne None si aucune transaction ne correspond - jamais un montant
+    devine pour un fournisseur qui ne nomme pas clairement un gouvernement.
+    """
+    types = activity.get("transaction_transaction_type_code", [])
+    narratives = activity.get("transaction_provider_org_narrative", [])
+    values = activity.get("transaction_value", [])
+    dates = activity.get("transaction_transaction_date_iso_date", [])
+    n = min(len(types), len(narratives), len(values), len(dates))
+
+    total = 0.0
+    matched_dates = []
+    for i in range(n):
+        narrative = narratives[i] or ""
+        if (
+            types[i] == COMMITMENT_TRANSACTION_TYPE
+            and GOVERNMENT_PROVIDER_PATTERN.match(narrative)
+            and int(dates[i][:4]) >= MIN_PLAUSIBLE_COMMITMENT_YEAR
+        ):
+            total += values[i]
+            matched_dates.append(dates[i])
+
+    if not matched_dates:
+        return None
+
+    matched_dates.sort()
+    earliest_date = matched_dates[0][:10]
+    return total, int(earliest_date[:4]), earliest_date
+
+
+def parse_government_cofinancing(activity: dict[str, Any], xdr_to_usd_rate: float) -> dict[str, Any] | None:
+    """Convertit le co-financement gouvernemental d'une activite BAD (s'il
+    y en a un) en un paiement `nev.funding.raw` distinct, `funding_type:
+    "public"` - en plus, jamais a la place, du paiement "multilateral" que
+    parse_activity() produit deja pour l'engagement propre de la BAD. Les
+    deux peuvent coexister pour la meme activite (projet cofinance), ou
+    cette fonction seule renvoyer None si aucun engagement gouvernemental
+    n'est identifiable. Meme hypothese de devise (XDR) que le reste de
+    l'activite - les transactions gouvernementales sont rapportees dans la
+    meme activite IATI publiee par la BAD, donc dans la meme convention de
+    devise que ses propres transactions.
+    """
+    commitment = _government_commitment_summary(activity)
+    if commitment is None:
+        return None
+    total_amount_xdr, year, commitment_date = commitment
+
+    country_codes = activity.get("recipient_country_code", [])
+    if not country_codes:
+        return None
+    alpha2 = country_codes[0]
+    country = pycountry.countries.get(alpha_2=alpha2)
+    country_iso = country.alpha_3 if country is not None else alpha2
+
+    amount_usd = int(round(total_amount_xdr * xdr_to_usd_rate))
+
+    return {
+        "source": "afdb",
+        # Suffixe distinct du project_id "multilateral" de la meme
+        # activite - deux lignes `funding` reelles et distinctes pour un
+        # meme projet cofinance, jamais une cle Kafka en collision avec
+        # celle de parse_activity() pour la meme iati_identifier.
+        "project_id": activity["iati_identifier"] + ":government-cofinancing",
+        "country_iso": country_iso,
+        "year": year,
+        "amount_usd": amount_usd,
+        "original_amount": total_amount_xdr,
+        "original_currency": "XDR",
+        "exchange_rate": xdr_to_usd_rate,
+        "funding_type": "public",
+        "raw_sector_codes": activity.get("sector_code", []),
+        "board_approval_date": commitment_date,
+        "collected_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+
+
 def parse_activity(activity: dict[str, Any], xdr_to_usd_rate: float) -> dict[str, Any] | None:
     """Converts one raw AfDB activity into a `nev.funding.raw` payload, or
     None if there's nothing to publish: no real AfDB Group commitment
@@ -224,10 +324,16 @@ def collect_and_publish(producer) -> int:
     xdr_to_usd_rate = fetch_xdr_to_usd_rate()
     published = 0
     for raw_activity in fetch_afdb_activities():
-        payload = parse_activity(raw_activity, xdr_to_usd_rate)
-        if payload is None:
-            continue
-        producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
-        published += 1
+        payloads = [
+            parse_activity(raw_activity, xdr_to_usd_rate),
+            # 2026-10-06 : co-financement gouvernemental, en plus de
+            # l'engagement BAD lui-meme - voir parse_government_cofinancing().
+            parse_government_cofinancing(raw_activity, xdr_to_usd_rate),
+        ]
+        for payload in payloads:
+            if payload is None:
+                continue
+            producer.send("nev.funding.raw", payload, key=f"{payload['source']}:{payload['project_id']}:{payload['country_iso']}")
+            published += 1
     producer.flush()
     return published
