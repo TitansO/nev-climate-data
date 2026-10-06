@@ -63,6 +63,28 @@ export default function NevScoreGauge({ label, score, state = "success", loading
           ))}
         </ul>
       )}
+      {/* Fiabilisation 2026-10-06 : sous le détail du calcul, jamais avant
+          - le chiffre et sa composition restent l'information principale,
+          ceci n'est que sa justification pour qui veut la vérifier. */}
+      {score.methodologyReferences && score.methodologyReferences.length > 0 && (
+        <div className="mt-3 border-t border-gray-2 pt-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-body-color">Références méthodologiques</p>
+          <ul className="mt-1.5 space-y-1">
+            {score.methodologyReferences.map((reference) => (
+              <li key={reference.framework} className="text-xs text-body-color">
+                {reference.url ? (
+                  <a href={reference.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-dark hover:underline">
+                    {reference.framework}
+                  </a>
+                ) : (
+                  <span className="font-medium text-dark-4">{reference.framework}</span>
+                )}
+                {reference.note && <span> — {reference.note}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </NevCard>
   );
 }

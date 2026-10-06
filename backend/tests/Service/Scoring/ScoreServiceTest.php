@@ -134,4 +134,41 @@ final class ScoreServiceTest extends KernelTestCase
         self::assertSame($first->getId(), $second->getId());
         self::assertSame(90.0, $second->getValue());
     }
+
+    /**
+     * Fiabilisation 2026-10-06 : chaque type de score réel doit citer au
+     * moins un référentiel externe reconnu (nom, url, note) - voir le
+     * docblock de methodologyReferencesFor(). Un type inconnu renvoie une
+     * liste vide plutôt qu'une erreur (scores futurs pas encore mappés).
+     */
+    public function testMethodologyReferencesForReturnsAtLeastOneReferenceForEachRealScoreType(): void
+    {
+        foreach (['bankability', 'investment_risk', 'equity', 'transparency', 'ndc_alignment'] as $scoreType) {
+            $references = ScoreService::methodologyReferencesFor($scoreType);
+
+            self::assertNotEmpty($references, \sprintf('"%s" devrait avoir au moins un référentiel.', $scoreType));
+            foreach ($references as $reference) {
+                self::assertArrayHasKey('framework', $reference);
+                self::assertArrayHasKey('url', $reference);
+                self::assertArrayHasKey('note', $reference);
+                self::assertNotSame('', $reference['framework']);
+            }
+        }
+
+        self::assertSame([], ScoreService::methodologyReferencesFor('un_type_qui_n_existe_pas'));
+    }
+
+    public function testToArrayIncludesTheMethodologyReferencesForTheScoreType(): void
+    {
+        $country = $this->persistCountry();
+        $scoreRepository = static::getContainer()->get(ScoreRepository::class);
+        $service = new ScoreService($scoreRepository);
+
+        $score = $service->compute(ScoreSubjectType::Country, $country->getId(), 'equity', $country, [$this->makeIndicator(1.0, 0.5)]);
+
+        $array = ScoreService::toArray($score);
+
+        self::assertSame(ScoreService::methodologyReferencesFor('equity'), $array['methodologyReferences']);
+        self::assertNotEmpty($array['methodologyReferences']);
+    }
 }

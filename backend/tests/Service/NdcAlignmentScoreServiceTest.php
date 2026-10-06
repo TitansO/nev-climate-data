@@ -69,8 +69,9 @@ final class NdcAlignmentScoreServiceTest extends KernelTestCase
         $target = new NdcTarget($country, 2030);
         $target->setConditional(true);
         // declaredNeedUsd et sector volontairement laisses null (cible
-        // economie entiere, besoin non chiffre - cas le plus frequent de
-        // NdcTargetFixtures : 10/12 pays).
+        // economie entiere, besoin non chiffre - cas frequent dans
+        // NdcTargetFixtures, fiabilisee le 2026-10-06 : 4 des 10 pays
+        // desormais couverts n'ont pas de besoin chiffre fiable).
         $this->entityManager->persist($target);
         $this->entityManager->flush();
 
