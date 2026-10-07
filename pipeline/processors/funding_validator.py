@@ -19,6 +19,7 @@ from pipeline.processors.sector_mapping import map_to_nev_sector
 from pipeline.processors.sector_mapping_gcf import map_gcf_sector
 from pipeline.processors.sector_mapping_afdb import map_afdb_sector
 from pipeline.processors.sector_mapping_opec import map_opec_sector
+from pipeline.processors.sector_mapping_proparco import map_proparco_sector
 
 # Sources that report a real, direct-from-institution non-USD amount
 # themselves (currently only AfDB, XDR) never go through the live-rate
@@ -53,6 +54,7 @@ AFDB_SOURCE_NAME = "African Development Bank Group - IATI Datastore"  # matches 
 OPEC_FUND_SOURCE_NAME = "OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)"  # matches backend/src/DataFixtures/SourceFixtures.php
 DFC_SOURCE_NAME = "U.S. DFC - Annual Project Data (Excel)"  # matches backend/src/DataFixtures/SourceFixtures.php
 NORFUND_SOURCE_NAME = "Norfund - Investment Overview (Excel)"  # matches backend/src/DataFixtures/SourceFixtures.php
+PROPARCO_SOURCE_NAME = "Proparco - Open Data AFD"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -148,6 +150,22 @@ def ensure_norfund_source(cursor) -> int:
         (NORFUND_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (NORFUND_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_proparco_source(cursor) -> int:
+    """Idempotently ensures the Proparco (Open Data AFD) row exists in
+    `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (PROPARCO_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (PROPARCO_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -398,6 +416,10 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         # fonction generique que World Bank, est donc necessaire ici.
         nev_sector = map_to_nev_sector(message["raw_sectors"], message["raw_theme"])
         ensure_source = ensure_norfund_source
+        contribution_project_id = message["project_id"]
+    elif source == "proparco":
+        nev_sector = map_proparco_sector(message["sector_label_raw"])
+        ensure_source = ensure_proparco_source
         contribution_project_id = message["project_id"]
     else:
         return False, "unknown_source"

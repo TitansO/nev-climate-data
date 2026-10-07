@@ -741,3 +741,84 @@ def test_norfund_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_ke
     norfund_source_id = db_cursor.fetchone()[0]
     norfund_row = _funding_row(db_cursor, norfund_source_id, country_id, sector_id, 2026, "private")
     assert norfund_row == (Decimal("5000000.00"), True)
+
+
+def _proparco_sample_message(amount_usd: int, project_id: str = "PTEST1001",
+                              sector_label_raw: str = "Energies renouvelables",
+                              original_amount: float = None, exchange_rate: float = None) -> dict:
+    return {
+        "source": "proparco",
+        "project_id": project_id,
+        "country_iso": "SEN",
+        "year": 2026,
+        "amount_usd": amount_usd,
+        "original_amount": original_amount if original_amount is not None else amount_usd / 1.08,
+        "original_currency": "EUR",
+        "exchange_rate": exchange_rate if exchange_rate is not None else 1.08,
+        "funding_type": "private",
+        "sector_label_raw": sector_label_raw,
+        "collected_at": "2026-10-07T00:00:00Z",
+    }
+
+
+def test_proparco_message_inserts_a_new_funding_row_with_currency_provenance(db_cursor):
+    # 2026-10-07 : contrairement a DFC/Norfund, Proparco rapporte un
+    # montant natif reel en EUR (comme AfDB en XDR) - original_amount/
+    # original_currency/exchange_rate doivent etre ceux du message, jamais
+    # derives d'un taux USD-pivot.
+    accepted, reason = process_message(db_cursor, _proparco_sample_message(5_000_000, original_amount=4_629_629.63, exchange_rate=1.08))
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Proparco - Open Data AFD'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "private")
+    assert row == (Decimal("5000000.00"), True)
+
+    db_cursor.execute(
+        """
+        SELECT original_amount, original_currency, exchange_rate FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = true
+        """,
+        (source_id, country_id, sector_id, 2026, "private"),
+    )
+    original_amount, original_currency, exchange_rate = db_cursor.fetchone()
+    assert original_amount == Decimal("4629629.63")
+    assert original_currency == "EUR"
+    assert exchange_rate == Decimal("1.08")
+
+
+def test_proparco_message_with_an_unclassifiable_sector_is_rejected(db_cursor):
+    # Verifie en direct : "Banque & Institution financière" est un
+    # secteur reel et frequent chez Proparco, mais n'est aucun des 5
+    # secteurs NEV - doit etre rejete plutot que force dans un mauvais
+    # secteur.
+    accepted, reason = process_message(
+        db_cursor,
+        _proparco_sample_message(5_000_000, sector_label_raw="Banque & Institution financière"),
+    )
+
+    assert accepted is False
+    assert reason == "unclassifiable_sector"
+
+
+def test_proparco_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_key(db_cursor):
+    process_message(db_cursor, _proparco_sample_message(5_000_000))
+    process_message(db_cursor, _sample_message(10_000_000))  # world_bank, multilateral
+
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Proparco - Open Data AFD'")
+    proparco_source_id = db_cursor.fetchone()[0]
+    proparco_row = _funding_row(db_cursor, proparco_source_id, country_id, sector_id, 2026, "private")
+    assert proparco_row == (Decimal("5000000.00"), True)

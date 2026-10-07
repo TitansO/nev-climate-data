@@ -43,6 +43,9 @@ final class SourceFixtures extends Fixture
         // un montant climat chiffre par investissement (pas seulement un
         // mot-cle) - voir pipeline/collectors/norfund.py.
         ['Norfund - Investment Overview (Excel)', 'norfund-investment-overview', SourceType::OfficialApi, SourceReliability::High],
+        // Troisieme source de financement climat PRIVE (2026-10-07, demande
+        // explicite utilisateur) - voir pipeline/collectors/proparco.py.
+        ['Proparco - Open Data AFD', 'proparco-open-data-afd', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];
