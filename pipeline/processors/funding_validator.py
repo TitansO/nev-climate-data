@@ -25,7 +25,7 @@ from pipeline.processors.sector_mapping_opec import map_opec_sector
 # conversion below - their message already carries the real figure, and
 # overwriting it with a derived one would replace a sourced number with a
 # less faithful one.
-SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf", "dfc"})
+SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf", "dfc", "norfund"})
 
 # In-memory cache for the long-running consumer (unlike the one-shot DAGs,
 # this process can stay up for weeks - fetching on every message would be
@@ -52,6 +52,7 @@ GCF_SOURCE_NAME = "Green Climate Fund - IATI Datastore"  # matches backend/src/D
 AFDB_SOURCE_NAME = "African Development Bank Group - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
 OPEC_FUND_SOURCE_NAME = "OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)"  # matches backend/src/DataFixtures/SourceFixtures.php
 DFC_SOURCE_NAME = "U.S. DFC - Annual Project Data (Excel)"  # matches backend/src/DataFixtures/SourceFixtures.php
+NORFUND_SOURCE_NAME = "Norfund - Investment Overview (Excel)"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -131,6 +132,22 @@ def ensure_dfc_source(cursor) -> int:
         (DFC_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (DFC_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_norfund_source(cursor) -> int:
+    """Idempotently ensures the Norfund (Investment Overview) row exists
+    in `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (NORFUND_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (NORFUND_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -371,6 +388,16 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         # la branche "adaptation" d'OPEC Fund ci-dessus.
         nev_sector = "Renewable Energy"
         ensure_source = ensure_dfc_source
+        contribution_project_id = message["project_id"]
+    elif source == "norfund":
+        # Contrairement a DFC, la categorie climat de Norfund ("Mitigation")
+        # couvre aussi des banques/fonds/industries qui ne sont elles-memes
+        # aucun des 5 secteurs NEV (verifie en direct 2026-10-07, voir
+        # pipeline/collectors/norfund.py) - une vraie classification par
+        # secteur reel (Secteur/Sous-secteur Norfund), reutilisant la meme
+        # fonction generique que World Bank, est donc necessaire ici.
+        nev_sector = map_to_nev_sector(message["raw_sectors"], message["raw_theme"])
+        ensure_source = ensure_norfund_source
         contribution_project_id = message["project_id"]
     else:
         return False, "unknown_source"

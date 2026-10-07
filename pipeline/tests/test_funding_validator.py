@@ -669,3 +669,75 @@ def test_dfc_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_key(db
     dfc_source_id = db_cursor.fetchone()[0]
     dfc_row = _funding_row(db_cursor, dfc_source_id, country_id, sector_id, 2026, "private")
     assert dfc_row == (Decimal("5000000.00"), True)
+
+
+def _norfund_sample_message(amount_usd: int, project_id: str = "Test Investee", raw_sectors=None, raw_theme=None) -> dict:
+    return {
+        "source": "norfund",
+        "project_id": project_id,
+        "country_iso": "SEN",
+        "year": 2026,
+        "amount_usd": amount_usd,
+        "funding_type": "private",
+        "raw_sectors": raw_sectors if raw_sectors is not None else ["Renewable Energy", "Hydropower"],
+        "raw_theme": raw_theme if raw_theme is not None else ["Mitigation"],
+        "collected_at": "2026-10-07T00:00:00Z",
+    }
+
+
+def test_norfund_message_inserts_a_new_funding_row_under_the_mapped_sector(db_cursor):
+    # 2026-10-07 : contrairement a DFC, Norfund n'a pas de secteur fixe -
+    # le secteur reel ("Renewable Energy"/"Hydropower") est classifie par
+    # map_to_nev_sector(), la meme fonction generique que World Bank (voir
+    # le commentaire de process_message()).
+    accepted, reason = process_message(db_cursor, _norfund_sample_message(5_000_000))
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Norfund - Investment Overview (Excel)'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "private")
+    assert row == (Decimal("5000000.00"), True)
+
+
+def test_norfund_message_with_an_unclassifiable_sector_is_rejected(db_cursor):
+    # Verifie en direct : la categorie "Mitigation" de Norfund couvre
+    # aussi des entreprises qui ne sont elles-memes aucun des 5 secteurs
+    # NEV (ex. B5 Plus Limited - fabrication de produits metalliques) -
+    # doit etre rejete plutot que force dans un mauvais secteur.
+    accepted, reason = process_message(
+        db_cursor,
+        _norfund_sample_message(
+            5_000_000,
+            raw_sectors=["Scalable enterprises", "Manufacture of fabricated metal products"],
+            raw_theme=["Mitigation"],
+        ),
+    )
+
+    assert accepted is False
+    assert reason == "unclassifiable_sector"
+
+
+def test_norfund_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_key(db_cursor):
+    # "private" et "multilateral" font partie de la cle de deduplication
+    # (uniq_funding_dedup_key_current) - une ligne Norfund privee ne doit
+    # jamais ecraser/fusionner avec une ligne multilaterale du meme pays/
+    # secteur/annee venue d'une autre source.
+    process_message(db_cursor, _norfund_sample_message(5_000_000))
+    process_message(db_cursor, _sample_message(10_000_000))  # world_bank, multilateral
+
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Norfund - Investment Overview (Excel)'")
+    norfund_source_id = db_cursor.fetchone()[0]
+    norfund_row = _funding_row(db_cursor, norfund_source_id, country_id, sector_id, 2026, "private")
+    assert norfund_row == (Decimal("5000000.00"), True)

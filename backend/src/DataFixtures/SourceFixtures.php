@@ -38,6 +38,11 @@ final class SourceFixtures extends Fixture
         // de financement climat PRIVE trouvee avec un signal fiable - voir
         // pipeline/collectors/dfc.py pour le detail de la verification.
         ['U.S. DFC - Annual Project Data (Excel)', 'dfc-annual-project-data', SourceType::OfficialApi, SourceReliability::High],
+        // Suite de la recherche P-10 bis (2026-10-07, demande explicite
+        // utilisateur) : deuxieme source de financement climat PRIVE, avec
+        // un montant climat chiffre par investissement (pas seulement un
+        // mot-cle) - voir pipeline/collectors/norfund.py.
+        ['Norfund - Investment Overview (Excel)', 'norfund-investment-overview', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];
