@@ -34,6 +34,10 @@ final class SourceFixtures extends Fixture
         ['African Development Bank Group - IATI Datastore', 'afdb-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['UN SDG Global Database - Indicator 9.4.1 (IEA)', 'un-sdg-en-atm-co2', SourceType::OfficialApi, SourceReliability::High],
         ['OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)', 'opec-fund-climate-finance-pdf', SourceType::PdfReport, SourceReliability::High],
+        // P-10 bis (2026-10-06, demande explicite utilisateur) : seule source
+        // de financement climat PRIVE trouvee avec un signal fiable - voir
+        // pipeline/collectors/dfc.py pour le detail de la verification.
+        ['U.S. DFC - Annual Project Data (Excel)', 'dfc-annual-project-data', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];

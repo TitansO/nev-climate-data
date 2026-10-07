@@ -25,7 +25,7 @@ from pipeline.processors.sector_mapping_opec import map_opec_sector
 # conversion below - their message already carries the real figure, and
 # overwriting it with a derived one would replace a sourced number with a
 # less faithful one.
-SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf"})
+SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf", "dfc"})
 
 # In-memory cache for the long-running consumer (unlike the one-shot DAGs,
 # this process can stay up for weeks - fetching on every message would be
@@ -51,6 +51,7 @@ WORLD_BANK_SOURCE_NAME = "World Bank Data API"  # matches backend/src/DataFixtur
 GCF_SOURCE_NAME = "Green Climate Fund - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php - a NEW row, not the existing PDF-typed one (see B1.2 plan Task 3, Step 1)
 AFDB_SOURCE_NAME = "African Development Bank Group - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
 OPEC_FUND_SOURCE_NAME = "OPEC Fund - Climate Finance Report (PDF, Gemini-assisted)"  # matches backend/src/DataFixtures/SourceFixtures.php
+DFC_SOURCE_NAME = "U.S. DFC - Annual Project Data (Excel)"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -114,6 +115,22 @@ def ensure_opec_fund_source(cursor) -> int:
         (OPEC_FUND_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (OPEC_FUND_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_dfc_source(cursor) -> int:
+    """Idempotently ensures the DFC (Annual Project Data) row exists in
+    `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (DFC_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (DFC_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -344,6 +361,17 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         # each is tracked as its own contribution, not one overwriting the
         # other.
         contribution_project_id = f"{message['project_id']}:{message['climate_dimension']}"
+    elif source == "dfc":
+        # Toujours "Renewable Energy" - jamais une table de correspondance
+        # (contrairement a map_opec_sector()) : le filtre du connecteur
+        # lui-meme (pipeline/collectors/dfc.py::parse_project(), secteur
+        # NAICS "Utilities" + mot-cle solaire/eolien/geothermie/hydro dans
+        # la description reelle) garantit deja que chaque message publie
+        # ici est un projet d'energie renouvelable - meme raisonnement que
+        # la branche "adaptation" d'OPEC Fund ci-dessus.
+        nev_sector = "Renewable Energy"
+        ensure_source = ensure_dfc_source
+        contribution_project_id = message["project_id"]
     else:
         return False, "unknown_source"
 

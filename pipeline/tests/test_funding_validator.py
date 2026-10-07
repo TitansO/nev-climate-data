@@ -614,3 +614,58 @@ def test_opec_adaptation_and_mitigation_from_the_same_row_are_tracked_as_separat
 
     mitigation_row = _funding_row(db_cursor, source_id, country_id, mitigation_sector_id, 2026, "multilateral")
     assert mitigation_row == (Decimal("2000000.00"), True)
+
+
+def _dfc_sample_message(amount_usd: int, project_id: str = "9000099999") -> dict:
+    return {
+        "source": "dfc",
+        "project_id": project_id,
+        "country_iso": "SEN",
+        "year": 2026,
+        "amount_usd": amount_usd,
+        "funding_type": "private",
+        "project_name": "Test Solar Project",
+        "project_description": "Test solar power generation project",
+        "collected_at": "2026-10-06T00:00:00Z",
+    }
+
+
+def test_dfc_message_inserts_a_new_funding_row_under_the_renewable_energy_sector(db_cursor):
+    # 2026-10-06 : premiere source de financement PRIVE du projet - le
+    # secteur est toujours "Renewable Energy" ici, jamais une table de
+    # correspondance (voir le commentaire de process_message()) : le
+    # connecteur lui-meme ne publie que des projets solaire/eolien/
+    # geothermie/hydro.
+    accepted, reason = process_message(db_cursor, _dfc_sample_message(5_000_000))
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'U.S. DFC - Annual Project Data (Excel)'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "private")
+    assert row == (Decimal("5000000.00"), True)
+
+
+def test_dfc_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_key(db_cursor):
+    # "private" et "multilateral" font partie de la cle de deduplication
+    # (uniq_funding_dedup_key_current) - une ligne DFC privee ne doit
+    # jamais ecraser/fusionner avec une ligne multilaterale du meme pays/
+    # secteur/annee venue d'une autre source.
+    process_message(db_cursor, _dfc_sample_message(5_000_000))
+    process_message(db_cursor, _sample_message(10_000_000))  # world_bank, multilateral
+
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'U.S. DFC - Annual Project Data (Excel)'")
+    dfc_source_id = db_cursor.fetchone()[0]
+    dfc_row = _funding_row(db_cursor, dfc_source_id, country_id, sector_id, 2026, "private")
+    assert dfc_row == (Decimal("5000000.00"), True)
