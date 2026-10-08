@@ -13,6 +13,13 @@ def test_maps_wind_code():
     assert map_afdb_sector(["23240"]) == "Renewable Energy"
 
 
+def test_maps_multiple_technologies_renewable_code():
+    # 23210 ("Energy generation, renewable sources - multiple
+    # technologies") - ajoute 2026-10-08 en construisant le connecteur
+    # FMO : un vrai code DAC, absent par omission de la table d'origine.
+    assert map_afdb_sector(["23210"]) == "Renewable Energy"
+
+
 def test_generic_energy_policy_alone_is_unclassifiable():
     # 23111 is AfDB's 4th most frequent code overall (315 occurrences) but
     # does not specify renewable vs non-renewable - must not default to

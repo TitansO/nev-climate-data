@@ -25,8 +25,16 @@ from __future__ import annotations
 # for GCF - appear anywhere in AfDB's real portfolio (verified live, 0
 # occurrences each): Adaptation is never populated by this connector, a
 # real, verified gap, not a bug.
+#
+# 23210 ("Energy generation, renewable sources - multiple technologies")
+# added 2026-10-08 while building the FMO connector (fmo.py) - a real gap
+# in the original table, not a new assumption: this is the official DAC
+# name/code for a technology-agnostic renewable generation purpose, found
+# live making up the bulk (59 of 59 classifiable rows) of FMO's real
+# African renewable-energy portfolio. Also benefits AfDB/AFD/OECD CRS/BII,
+# which all reuse this same table.
 _DAC_SECTOR_RULES: list[tuple[str, frozenset[str]]] = [
-    ("Renewable Energy", frozenset({"23220", "23230", "23240", "23250", "23260", "23270", "23280"})),
+    ("Renewable Energy", frozenset({"23210", "23220", "23230", "23240", "23250", "23260", "23270", "23280"})),
     ("Sustainable Transport", frozenset({"21012", "21023", "21030", "21040", "21050"})),
     ("Agriculture", frozenset({"31110", "31140", "31163", "31320", "32161"})),
     ("Forestry", frozenset({"31220"})),

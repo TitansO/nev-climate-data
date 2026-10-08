@@ -56,6 +56,10 @@ final class SourceFixtures extends Fixture
         // Cinquieme source de financement climat PRIVE (2026-10-08,
         // demande explicite utilisateur) - voir pipeline/collectors/bii.py.
         ['British International Investment - IATI Datastore', 'bii-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
+        // Sixieme source de financement climat PRIVE (2026-10-08,
+        // demande explicite utilisateur, recherche elargie au reseau EDFI) -
+        // voir pipeline/collectors/fmo.py.
+        ['FMO - IATI Datastore', 'fmo-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];

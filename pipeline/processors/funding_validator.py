@@ -58,6 +58,7 @@ PROPARCO_SOURCE_NAME = "Proparco - Open Data AFD"  # matches backend/src/DataFix
 OECD_CRS_SOURCE_NAME = "OECD CRS - Private Development Finance"  # matches backend/src/DataFixtures/SourceFixtures.php
 AFD_SOURCE_NAME = "Agence Francaise de Developpement - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
 BII_SOURCE_NAME = "British International Investment - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
+FMO_SOURCE_NAME = "FMO - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -217,6 +218,22 @@ def ensure_bii_source(cursor) -> int:
         (BII_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (BII_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_fmo_source(cursor) -> int:
+    """Idempotently ensures the FMO (IATI Datastore) row exists in
+    `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (FMO_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (FMO_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -501,6 +518,16 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         # pipeline/collectors/bii.py::_dac_sector_codes).
         nev_sector = map_afdb_sector(message["raw_sector_codes"])
         ensure_source = ensure_bii_source
+        contribution_project_id = message["project_id"]
+    elif source == "fmo":
+        # Reutilise map_afdb_sector() telle quelle - FMO publie ses
+        # vrais codes CRS CAD/OCDE a 5 chiffres sous un vocabulaire IATI
+        # mal etiquete (voir pipeline/collectors/fmo.py), donc aucun
+        # filtre de vocabulaire ici contrairement a afd.py/bii.py - un
+        # code non reconnu par map_afdb_sector() est simplement rejete
+        # comme n'importe quel autre secteur non mappable.
+        nev_sector = map_afdb_sector(message["raw_sector_codes"])
+        ensure_source = ensure_fmo_source
         contribution_project_id = message["project_id"]
     else:
         return False, "unknown_source"
