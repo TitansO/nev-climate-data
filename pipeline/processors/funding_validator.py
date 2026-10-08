@@ -26,7 +26,7 @@ from pipeline.processors.sector_mapping_proparco import map_proparco_sector
 # conversion below - their message already carries the real figure, and
 # overwriting it with a derived one would replace a sourced number with a
 # less faithful one.
-SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf", "dfc", "norfund", "oecd_crs"})
+SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf", "dfc", "norfund", "oecd_crs", "bii"})
 
 # In-memory cache for the long-running consumer (unlike the one-shot DAGs,
 # this process can stay up for weeks - fetching on every message would be
@@ -57,6 +57,7 @@ NORFUND_SOURCE_NAME = "Norfund - Investment Overview (Excel)"  # matches backend
 PROPARCO_SOURCE_NAME = "Proparco - Open Data AFD"  # matches backend/src/DataFixtures/SourceFixtures.php
 OECD_CRS_SOURCE_NAME = "OECD CRS - Private Development Finance"  # matches backend/src/DataFixtures/SourceFixtures.php
 AFD_SOURCE_NAME = "Agence Francaise de Developpement - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
+BII_SOURCE_NAME = "British International Investment - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -200,6 +201,22 @@ def ensure_afd_source(cursor) -> int:
         (AFD_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (AFD_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_bii_source(cursor) -> int:
+    """Idempotently ensures the BII (IATI Datastore) row exists in
+    `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (BII_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (BII_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -476,6 +493,14 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         # la classification interne de l'AFD (vocabulaire "99").
         nev_sector = map_afdb_sector(message["raw_sector_codes"])
         ensure_source = ensure_afd_source
+        contribution_project_id = message["project_id"]
+    elif source == "bii":
+        # Reutilise map_afdb_sector() telle quelle - meme systeme de
+        # codes CRS CAD/OCDE que AfDB/AFD/OECD CRS. Le connecteur a deja
+        # filtre aux codes en vocabulaire IATI "1" (voir
+        # pipeline/collectors/bii.py::_dac_sector_codes).
+        nev_sector = map_afdb_sector(message["raw_sector_codes"])
+        ensure_source = ensure_bii_source
         contribution_project_id = message["project_id"]
     else:
         return False, "unknown_source"

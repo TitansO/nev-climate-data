@@ -53,6 +53,9 @@ final class SourceFixtures extends Fixture
         // World Bank, 2026-10-08, demande explicite utilisateur) - voir
         // pipeline/collectors/afd.py.
         ['Agence Francaise de Developpement - IATI Datastore', 'afd-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
+        // Cinquieme source de financement climat PRIVE (2026-10-08,
+        // demande explicite utilisateur) - voir pipeline/collectors/bii.py.
+        ['British International Investment - IATI Datastore', 'bii-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];

@@ -987,3 +987,62 @@ def test_afd_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_key(db
     afd_source_id = db_cursor.fetchone()[0]
     afd_row = _funding_row(db_cursor, afd_source_id, country_id, sector_id, 2026, "public")
     assert afd_row == (Decimal("5000000.00"), True)
+
+
+def _bii_sample_message(amount_usd: int, project_id: str = "GB-COH-03877777-TEST001",
+                         raw_sector_codes: list = None) -> dict:
+    return {
+        "source": "bii",
+        "project_id": project_id,
+        "country_iso": "SEN",
+        "year": 2026,
+        "amount_usd": amount_usd,
+        "funding_type": "private",
+        "raw_sector_codes": raw_sector_codes if raw_sector_codes is not None else ["23230"],  # Solar energy -> Renewable Energy
+        "board_approval_date": "2026-01-15",
+        "collected_at": "2026-10-08T00:00:00Z",
+    }
+
+
+def test_bii_message_inserts_a_new_funding_row_via_the_reused_dac_sector_mapper(db_cursor):
+    # 2026-10-08 : reutilise map_afdb_sector() telle quelle - meme
+    # systeme de codes secteur DAC que AfDB/AFD/OECD CRS.
+    accepted, reason = process_message(db_cursor, _bii_sample_message(5_000_000))
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'British International Investment - IATI Datastore'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "private")
+    assert row == (Decimal("5000000.00"), True)
+
+
+def test_bii_message_with_an_unclassifiable_sector_is_rejected(db_cursor):
+    accepted, reason = process_message(
+        db_cursor,
+        _bii_sample_message(5_000_000, raw_sector_codes=["24030"]),  # Formal sector financial intermediaries - not a NEV sector
+    )
+
+    assert accepted is False
+    assert reason == "unclassifiable_sector"
+
+
+def test_bii_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_key(db_cursor):
+    process_message(db_cursor, _bii_sample_message(5_000_000))
+    process_message(db_cursor, _sample_message(10_000_000, project_id="P-BII-COMPARE"))  # world_bank, multilateral, Renewable Energy
+
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'British International Investment - IATI Datastore'")
+    bii_source_id = db_cursor.fetchone()[0]
+    bii_row = _funding_row(db_cursor, bii_source_id, country_id, sector_id, 2026, "private")
+    assert bii_row == (Decimal("5000000.00"), True)
