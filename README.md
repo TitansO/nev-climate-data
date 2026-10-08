@@ -1385,3 +1385,59 @@ chaque (pays, année, projet) apparaît 4 fois dans la réponse brute
 **Vérifié en direct sur les 54 pays africains du périmètre NEV, 2018-2024, en production** : 252
 lignes réelles, 1 366 176 434 $ (175 Adaptation, 71 Agriculture, 5 Renewable Energy, 1
 Forestry).
+
+### Connecteur AFD - financement climat PUBLIC (2026-10-08)
+
+Troisième source de financement climat public (après AfDB, World Bank), via l'IATI Datastore -
+`reporting_org_ref` réel `FR-3`, l'AFD elle-même (l'agence bilatérale publique française,
+distincte de Proparco sa filiale privée déjà intégrée séparément, via une API différente). Même
+système de codes secteur CRS CAD/OCDE à 5 chiffres que le connecteur AfDB : réutilise
+`map_afdb_sector()` telle quelle. `funding_type` toujours `public` (mandat institutionnel).
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_afd
+```
+
+Piège réel rencontré : chaque activité réelle porte ses codes secteur sous deux vocabulaires
+IATI parallèles (`sector_code`/`sector_vocabulary`, mêmes index) - vocabulaire `"1"` (codes CRS
+réels, à 5 chiffres) et vocabulaire `"99"` (classification interne de l'AFD, de simples
+entiers) - seul le premier est retenu, sous peine de transmettre un entier arbitraire à
+`map_afdb_sector()`. Devise native EUR (comme AfDB en XDR) - convertie via un taux réel récupéré
+une fois par run.
+
+**Vérifié en direct, en production** : 82 lignes réelles, 4 538 785 046 $ (30 Sustainable
+Transport, 34 Agriculture, 15 Renewable Energy, 3 Forestry) - la plus grosse source du projet
+en volume, trouvée en recherchant des alternatives après OECD CRS (IsDB écarté - portefeuille
+africain réel mais le sous-ensemble privé identifiable, ITFC, est du financement commercial à
+court terme et utilise un vocabulaire sectoriel non-standard ; MIGA ne publie sur IATI sous
+aucun nom testé).
+
+### Connecteur BII - financement climat PRIVE (2026-10-08)
+
+Cinquième source de financement privé (après DFC, Norfund, Proparco, OECD CRS), via l'IATI
+Datastore - British International Investment (ex-CDC Group, dont l'ancien nom ne retourne plus
+aucune activité réelle sur IATI, confirmé en direct). Mandat 100% secteur privé (investisseur
+dans des entreprises, jamais de prêt souverain) - `funding_type` toujours `private`. Même
+système de codes secteur que AFD/AfDB/OECD CRS, portefeuille en USD natif, un seul type de
+transaction réellement présent (Commitment) - ni conversion de devise ni dédoublonnage complexe
+nécessaire, le connecteur le plus simple des cinq sources privées.
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_bii
+```
+
+**Vérifié en direct, en production** : 15 lignes réelles, 557 588 454 $ (11 Renewable Energy, 2
+Agriculture, 2 Sustainable Transport).
+
+### Page Sources (frontend) branchée sur les vraies institutions (2026-10-08)
+
+`frontend/src/react/pages/SourcesPage.jsx` affichait 4 sources statiques codées en dur depuis sa
+création (A1.6/B1.1), jamais mises à jour pour aucun connecteur réel depuis (AfDB, OPEC Fund,
+PNUE, ni les 8 connecteurs de financement public/privé ajoutés cette session). Branchée sur
+`GET /api/public/institutions` (endpoint public déjà existant, réutilisé depuis
+`App\Controller\PublicController`, jusqu'ici seulement consommé par les statistiques du Hero de
+la page d'accueil) - toute source réellement connectée (ayant au moins une ligne `Funding`)
+apparaît désormais automatiquement, sans édition manuelle de cette page à chaque nouveau
+connecteur. Les champs non portés par cet endpoint (description, type de donnée, fréquence)
+restent une table de correspondance côté frontend, indexée par nom réel de source, avec un
+repli générique par `type` pour toute source future non encore répertoriée.
