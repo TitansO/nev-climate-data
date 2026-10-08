@@ -8,6 +8,7 @@ import NevBadge from "../components/ui/NevBadge";
 import NevButton from "../components/ui/NevButton";
 import NevSelect from "../components/ui/NevSelect";
 import NevDataState from "../components/ui/NevDataState";
+import NevAlert from "../components/ui/NevAlert";
 import NevPagination from "../components/ui/NevPagination";
 import ReportDetailModal from "../components/ReportDetailModal";
 import { DocumentIcon, SparklesIcon } from "../components/ui/icons";
@@ -43,7 +44,7 @@ function reportBadge(report, t) {
   return <NevBadge tone={meta.tone}>{label}</NevBadge>;
 }
 
-function ReportCard({ report, t, apiBaseUrl, viewMode, onOpenDetails }) {
+function ReportCard({ report, t, viewMode, onOpenDetails, onDownload }) {
   const meta = TYPE_META[report.type] || DEFAULT_TYPE_META;
   const isList = "list" === viewMode;
 
@@ -80,7 +81,14 @@ function ReportCard({ report, t, apiBaseUrl, viewMode, onOpenDetails }) {
         </dl>
       </div>
       <div className={"flex gap-2 " + (isList ? "mt-4 sm:mt-0" : "mt-5")}>
-        <NevButton as="a" href={apiBaseUrl + report.downloadUrl} variant="outline" size="md" onClick={(event) => event.stopPropagation()}>
+        <NevButton
+          variant="outline"
+          size="md"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDownload(report);
+          }}
+        >
           {t("reportsPage.view", "Consulter")}
         </NevButton>
         <NevButton variant="ghost" size="md" onClick={() => onOpenDetails(report)}>
@@ -110,6 +118,7 @@ const LIST_ICON = (
 export default function ReportsPage() {
   const { API_BASE_URL, isAuthenticated, authorizedFetch } = useAuth();
   const { t } = useI18n();
+  const [downloadError, setDownloadError] = useState(false);
 
   const [type, setType] = useState("");
   const [country, setCountry] = useState("");
@@ -156,6 +165,45 @@ export default function ReportsPage() {
     loadReports(type, country, page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, country, page]);
+
+  // GET /api/reports/{id}/download requires ROLE_USER since A3.12 - a plain
+  // <a href> navigation never sends the JWT (held in localStorage, not a
+  // cookie), so it always 401'd silently for every real viewer. Fetches the
+  // file through authorizedFetch instead and hands the browser a local blob
+  // URL to save, the standard pattern for an authenticated download.
+  async function downloadReport(report) {
+    setDownloadError(false);
+
+    let response;
+    try {
+      response = await authorizedFetch(API_BASE_URL + report.downloadUrl);
+    } catch (networkError) {
+      setDownloadError(true);
+      return;
+    }
+
+    if (!response.ok) {
+      setDownloadError(true);
+      return;
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    // Strips accents before collapsing non-word characters, so "État" becomes
+    // "Etat-..." rather than losing its leading letter ("normalize" splits a
+    // base letter from its diacritic, which \w alone never matches).
+    const slug = report.title
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^\w-]+/g, "-");
+    link.download = slug + ".pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  }
 
   function selectType(nextType) {
     setType(nextType);
@@ -271,7 +319,7 @@ export default function ReportsPage() {
                     {featured.publicationDate && <p className="text-sm text-white/60">{formatDate(featured.publicationDate)}</p>}
                   </div>
                   <div className="flex gap-2">
-                    <NevButton as="a" href={API_BASE_URL + featured.downloadUrl} variant="primary">
+                    <NevButton variant="primary" onClick={() => downloadReport(featured)}>
                       {t("reportsPage.view", "Consulter")}
                     </NevButton>
                     <NevButton
@@ -312,6 +360,12 @@ export default function ReportsPage() {
               </div>
             </div>
 
+            {downloadError && (
+              <NevAlert tone="danger" className="mb-4" onRetry={() => setDownloadError(false)} retryLabel={t("reportsPage.close", "Fermer")}>
+                {t("reportsPage.downloadError", "Le téléchargement a échoué. Veuillez réessayer.")}
+              </NevAlert>
+            )}
+
             <NevDataState
               state={"data" === status ? "success" : status}
               loadingText={t("dataPage.loadingData", "Chargement des données…")}
@@ -322,7 +376,7 @@ export default function ReportsPage() {
               <>
                 <div className={"grid grid-cols-1 gap-6 " + ("grid" === viewMode ? "md:grid-cols-2 xl:grid-cols-3" : "")}>
                   {reports.map((report) => (
-                    <ReportCard key={report.id} report={report} t={t} apiBaseUrl={API_BASE_URL} viewMode={viewMode} onOpenDetails={setDetailsReport} />
+                    <ReportCard key={report.id} report={report} t={t} viewMode={viewMode} onOpenDetails={setDetailsReport} onDownload={downloadReport} />
                   ))}
                 </div>
 
@@ -358,10 +412,10 @@ export default function ReportsPage() {
         report={detailsReport}
         badge={detailsReport ? reportBadge(detailsReport, t) : null}
         formattedDate={detailsReport && detailsReport.publicationDate ? formatDate(detailsReport.publicationDate) : ""}
-        apiBaseUrl={API_BASE_URL}
         t={t}
         open={null !== detailsReport}
         onClose={() => setDetailsReport(null)}
+        onDownload={downloadReport}
       />
     </>
   );

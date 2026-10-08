@@ -8,7 +8,7 @@ import NevButton from "./ui/NevButton";
  * NevModal's generic shell; `badge` is a pre-rendered <NevBadge> node so
  * this component doesn't duplicate ReportsPage's TYPE_META mapping.
  */
-export default function ReportDetailModal({ report, badge, formattedDate, apiBaseUrl, t, open, onClose }) {
+export default function ReportDetailModal({ report, badge, formattedDate, t, open, onClose, onDownload }) {
   if (!report) {
     return null;
   }
@@ -49,7 +49,7 @@ export default function ReportDetailModal({ report, badge, formattedDate, apiBas
           <dd className="font-medium tabular-nums text-dark-3">{report.downloadCount}</dd>
         </div>
       </dl>
-      <NevButton as="a" href={apiBaseUrl + report.downloadUrl} variant="primary" className="w-full">
+      <NevButton variant="primary" className="w-full" onClick={() => onDownload(report)}>
         {t("reportsPage.view", "Consulter")}
       </NevButton>
     </NevModal>
