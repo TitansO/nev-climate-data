@@ -1475,3 +1475,40 @@ repli générique par `type` pour toute source future non encore répertoriée.
 > HTML deja mute reference un bundle que le `rm -rf assets/react` du script `build` vient de
 > supprimer). Toujours `git checkout -- frontend/*.html frontend/assets/` avant ET apres avoir
 > verifie un build local - ne jamais committer le HTML mute.
+
+### Premiers vrais rapports du catalogue (2026-10-08)
+
+`App\Entity\Report` (A2.13) existait depuis le début du Volet A mais n'avait jamais porté que des
+PDF de démonstration (`ReportFixtures.php`) - jamais une donnée réelle, sur aucun des 4 types que
+la taxonomie du frontend prévoit déjà (`Annual Report`/`Regional Report`/`Sector Report`/
+`Country Report`, voir les filtres de `ReportsPage.jsx`). 21 rapports réels générés à partir de la
+base de production (jamais via `ReportFixtures.php`, réservée aux données de démonstration et
+purgée à chaque rechargement - même principe que pour toutes les données `Funding` réelles de ce
+projet) :
+
+- **1 rapport annuel** - « État du financement climat en Afrique », synthèse continentale (409,9
+  Md$, 3996 lignes, 53 pays, 9 sources).
+- **5 rapports régionaux** - un par région UN M49 déjà utilisée par `CountryFixtures.php` (Afrique
+  de l'Est/Ouest/du Nord/centrale/australe).
+- **5 rapports sectoriels** - un par secteur NEV (Adaptation, Transport durable, Agriculture,
+  Énergies renouvelables, Forêt).
+- **10 profils pays** - les 10 premiers pays par volume (Éthiopie, Kenya, Nigeria, Maroc,
+  Tanzanie, Égypte, Côte d'Ivoire, Mozambique, Ouganda, Afrique du Sud).
+
+Générés via un gabarit HTML paramétré par un script Node (pas 21 fichiers écrits à la main),
+rendus en PDF via Puppeteer (Chromium headless), et vérifiés visuellement (rendu réel converti en
+image) avant publication - un vrai défaut de génération trouvé et corrigé deux fois dans ce
+processus : une étiquette de graphique tronquée par les bords du `viewBox` SVG (rapport annuel),
+puis un décalage vertical initial manquant faisant chevaucher la première barre de chaque
+graphique avec son propre texte (rapports régionaux - corrigé une fois dans le gabarit partagé,
+jamais réintroduit dans les rapports sectoriels/pays qui le réutilisent).
+
+**Piège réel rencontré en committant les PDF** : `backend/resources/reports/` doit être un
+fichier *git-suivi*, jamais écrit à l'exécution (voir `ReportFixtures.php`, qui documente déjà
+cette leçon depuis B3.3 - le disque de Render est éphémère). Chaque nouveau rapport suit donc le
+même circuit que tout autre changement de code : commit du PDF → push → pipeline CI → déploiement
+automatique Render, puis insertion de la ligne réelle en base par clé naturelle (jamais un id
+numérique codé en dur) - même méthode que pour toutes les données `Funding` réelles de ce projet.
+
+Vérifié en direct pour les 21 rapports, en dev et en production : liste via `GET /api/reports`,
+téléchargement via `GET /api/reports/{id}/download` (200, taille exacte à l'octet près).
