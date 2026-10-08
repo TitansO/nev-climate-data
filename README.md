@@ -853,14 +853,19 @@ corrigés en cours de route) :
 ### Services
 
 `docker compose up -d` démarre désormais aussi `zookeeper`, `kafka`, `postgres-airflow`,
-`airflow`, `minio`, `kafka-ui` et `funding-validator`, en plus des services existants.
+`airflow`, `garage` (+ `garage-init`), `kafka-ui` et `funding-validator`, en plus des services
+existants.
 
 - Interface Airflow : `http://localhost:8081` (utilisateur `admin` ; mot de passe généré au
   premier démarrage et écrit dans
   `docker compose exec airflow cat /opt/airflow/standalone_admin_password.txt` - **pas** dans
   les logs du conteneur, malgré ce qu'indique la documentation Airflow standalone habituelle)
-- Console MinIO : `http://localhost:9001` (identifiants : `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`
-  du `.env` racine)
+- API S3 Garage (stockage objet bronze/silver, remplace MinIO depuis P-10 - voir plus bas) :
+  `http://localhost:9000`, compatible protocole S3 (identifiants générés par `garage-init` au
+  premier démarrage, injectés automatiquement aux services qui en ont besoin via le volume
+  partagé `garage_credentials` - jamais à saisir à la main). Pas de console web (Garage n'en
+  fournit pas en standalone, contrairement à MinIO) - inspection via le CLI `garage` dans le
+  conteneur (`docker compose exec garage garage bucket list`).
 - Kafka UI (navigateur visuel des topics/messages, ajouté pour l'observabilité locale) :
   `http://localhost:8083`
 
@@ -1075,6 +1080,10 @@ exactement à la somme des contributions individuelles suivies par projet
 
 ### Isolation Kafka/MinIO et architecture Bronze/Silver/Gold (B1.8, 2026-08-31)
 
+> MinIO a été remplacé par Garage le 2026-10-05 (P-10, voir plus bas) - cette section décrit
+> l'état du projet à sa date, le raisonnement sur l'isolation et l'architecture Bronze/Silver/Gold
+> reste valable à l'identique avec Garage.
+
 Vérifié en direct plutôt que supposé : l'isolation NEV/CIMA (cahier des charges 6.5) est déjà
 réelle et complète - 6 topics Kafka, tous préfixés `nev.` (`nev.funding.*`, `nev.emissions.*`),
 sur un broker dédié à ce projet ; un seul bucket MinIO (`nev-climate-data`) sur une instance
@@ -1225,3 +1234,154 @@ pas une erreur de rejeu : confirmé être une vraie révision de la source IATI 
 exécutions, correctement absorbée en delta par `funding_project_contribution` plutôt qu'additionnée
 aveuglément. OPEC Fund confirme le cache SHA-256 (B1.5) : second déclenchement, 0 message
 republié. Critère de recette 6.8 satisfait.
+
+### P-10 - Migration du stockage objet MinIO → Garage (2026-10-05)
+
+MinIO (bronze/silver, B1.1-B1.8 ci-dessus) remplacé par Garage, un stockage objet
+S3-compatible, plus léger à faire tourner sur un Codespace partagé avec le reste de la pile.
+Aucun changement de contrat côté pipeline : `pipeline/common/minio_staging.py` et tous les DAGs
+qui l'utilisent sont inchangés (Garage parle le même protocole S3) - seul `docker-compose.yml`
+change (service `garage` + `garage-init`, qui génère les identifiants une seule fois au premier
+démarrage et les partage via le volume `garage_credentials`, jamais codés en dur). Les services
+qui consomment ce stockage (`funding-validator`, `airflow`, `db-backup`) reçoivent ces
+identifiants via un script d'entrée qui les exporte sous les mêmes noms de variable que MinIO
+(`MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`) - aucun code applicatif n'a besoin de connaître Garage
+par son nom.
+
+Piège réel rencontré : `${GARAGE_ACCESS_KEY:-}` dans `docker-compose.yml` est interpolé par
+Compose lui-même **au moment du parsing du fichier** (donc avant que `garage-init` n'ait rien
+généré) si on ne l'échappe pas - corrigé en `$${GARAGE_ACCESS_KEY:-}` (double dollar), qui
+survit jusqu'à l'exécution réelle du script d'entrée dans le conteneur. Vérifié via
+`docker compose config` que la forme échappée traverse bien le rendu sans être résolue trop tôt.
+
+### Fiabilisation des scores climat-finance (2026-10-06)
+
+Les 5 scores exposés par `ScoreService` (et les réponses du Copilot IA qui s'appuient sur le
+même corpus) manquaient de traçabilité vers de vraies normes/référentiels - audit mené sur
+chaque score pour vérifier en direct ses valeurs sources et les corriger si besoin :
+
+- `ScoreService::methodologyReferencesFor()` (nouveau) associe chaque score à ses références
+  méthodologiques réelles (ND-GAIN, Accords de Paris/NDC officiels, GCF Results Handbook...),
+  exposées dans `toArray()` et affichées sur `NevScoreGauge.jsx` (4 pages du frontend).
+- Indice de vulnérabilité ND-GAIN corrigé avec les vraies valeurs 2024 pour 12 pays
+  (`CountryEquityDataFixtures.php`), vérifiées en direct contre la source.
+- Cibles NDC (`NdcTargetFixtures.php`) corrigées après recherche en direct approfondie -
+  Sénégal et Tanzanie explicitement exclus (`null`) plutôt qu'une valeur non vérifiée avec
+  assez de confiance : exclure plutôt que deviner, même principe que le reste du projet.
+- Citations erronées ("GCF Results Handbook") corrigées dans `ImpactFactorFixtures.php`.
+- Nouveau document indexé par le corpus RAG du Copilot :
+  [`docs/methodologie/referentiels-scores-climat-finance.md`](docs/methodologie/referentiels-scores-climat-finance.md).
+
+### Financement climat PUBLIC réel - cofinancement gouvernemental (2026-10-06)
+
+Jusqu'ici, `funding_type = 'public'` n'existait qu'en données de démonstration (A1.6) - les
+connecteurs réels (B1.1-B1.5) ne produisaient que du `multilateral`. Les collecteurs AfDB et
+World Bank, déjà en place, sont étendus pour extraire **en plus** (jamais à la place) le
+cofinancement apporté par la contrepartie gouvernementale réelle du projet :
+
+- `afdb.py::parse_government_cofinancing()` - reconnaît un fournisseur de transaction IATI
+  nommé explicitement `Government of <pays>` (motif volontairement étroit : un faux positif
+  classerait à tort un fournisseur non gouvernemental comme financement public).
+- `world_bank.py::parse_government_cofinancing()` - le vrai écart entre `lendprojectcost` (coût
+  total du projet) et les composantes propres de la Banque Mondiale (`totalamt`/`idacommamt`/
+  `curr_ibrd_commitment`/`grantamt`) représente la part financée par l'État emprunteur.
+
+Chaque DAG (`collecte_afdb.py`/`collecte_worldbank.py`) appelle désormais les deux fonctions de
+parsing par élément brut, publiant jusqu'à 2 paiements distincts par projet cofinancé.
+
+**Vrai bug trouvé et corrigé en vérifiant bout-en-bout** : `parse_government_cofinancing()` de
+`world_bank.py` omettait `raw_sectors`/`raw_theme` du paiement publié, que
+`funding_validator.py` lit sans valeur par défaut (`message["raw_sectors"]`) - chaque message
+World Bank public était silencieusement rejeté (`KeyError`, avalé par le `try`/`except` du
+consommateur), alors que le DAG rapportait quand même `success`. Trouvé en constatant 0 ligne
+publique World Bank réelle malgré un run "réussi", corrigé en reprenant la même extraction de
+secteur que `parse_project()`.
+
+**Vérifié en direct, en production** : 546 lignes publiques réelles (181 AfDB + 365 World Bank),
+85,1 M$ au total (1,72 M$ + 83,4 M$).
+
+### Connecteur DFC - financement climat PRIVE (2026-10-07)
+
+Première source de financement climat **privé** réelle de ce projet (jusqu'ici, `private`
+n'existait qu'en données de démonstration). Recherche menée sur plusieurs institutions
+candidates (IFC écartée - aucun signal climat fiable vérifié en direct sur les pages projet
+réelles) avant de retenir la DFC (U.S. International Development Finance Corporation), dont le
+fichier Excel annuel réel et public (« Annual Project Data ») filtre proprement sur secteur
+NAICS « Utilities » + mot-clé climat dans la description + `Sovereign (Yes/No) = No` (exclut les
+projets garantis par un État, hors périmètre « privé ») + devise USD uniquement.
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_dfc
+```
+
+Le secteur NEV est toujours « Renewable Energy » (jamais une table de correspondance) : le
+filtre du connecteur lui-même garantit déjà que chaque projet publié est solaire/éolien/
+géothermie/hydro. Vérifié en direct, en production : 17 lignes réelles, 1 016 557 355 $.
+
+### Connecteur Norfund - financement climat PRIVE (2026-10-07)
+
+Deuxième source de financement privé réelle, via le fichier Excel mensuel réel et public de
+Norfund (fonds souverain norvégien, mandat secteur privé exclusif - comme Proparco/FMO/BII).
+Signal climat plus riche que DFC : un **montant** climat chiffré par investissement (pas
+seulement un mot-clé), issu du croisement de 3 feuilles réelles (financement climat par
+investissement, part pays pondérée, date d'engagement par instrument).
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_norfund
+```
+
+Contrairement à DFC, la catégorie climat de Norfund couvre aussi des entités hors des 5 secteurs
+NEV (banques, fonds, industries) - la classification sectorielle réelle réutilise
+`map_to_nev_sector()` (même fonction générique que World Bank), appliquée au Secteur/Sous-secteur
+réels de chaque investissement. Vérifié en direct, en production : 102 lignes réelles,
+908 522 067 $ (97 Renewable Energy, 4 Forestry, 1 Adaptation).
+
+### Connecteur Proparco - financement climat PRIVE (2026-10-07)
+
+Troisième source explorée, via l'API JSON réelle et publique d'opendata.afd.fr (899 lignes).
+Inspection complète en direct : le champ climat est en réalité une **part** (%) saisie sous des
+formats incohérents (fraction, pourcentage nu, chaîne avec "%", texte libre) - normalisée par
+regex plutôt que devinée, cas ambigus exclus. Pays et secteurs en français : résolution via
+`babel`/CLDR (données de référence officielles, jamais une table inventée à la main) plutôt que
+`pycountry` (anglais, échoue sur la quasi-totalité des noms réels). Nouveau module dédié
+`pipeline/processors/sector_mapping_proparco.py` (mots-clés français).
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_proparco
+```
+
+**Résultat réel, vérifié en direct sur les 899 lignes** : l'intersection du périmètre NEV (54
+pays africains × 5 secteurs climat) est **vide** - les financements climat africains de
+Proparco sont presque tous des crédits bancaires/microfinance « verts », pas des secteurs NEV
+directs (DAG déclenché avec succès, 39 messages réels publiés et correctement rejetés :
+`unknown_country` ou `unclassifiable_sector`, jamais une donnée devinée pour forcer un
+résultat). Code et 38 tests conservés comme infrastructure correcte, prête si Proparco étend un
+jour son suivi climat direct en Afrique - rien à exporter en production pour l'instant.
+
+### Connecteur OECD CRS - financement climat PRIVE (2026-10-08)
+
+Quatrième source, et la plus riche des quatre : l'API SDMX réelle d'OCDE CRS (via le paquet
+`oda_reader`). `measure = 30` (« Private Development Finance ») isole le privé via une
+classification institutionnelle officielle de l'OCDE/CAD (jamais un champ texte libre à
+interpréter) ; les Marqueurs de Rio (`climate_mitigation`/`climate_adaptation`, standard
+international) donnent un signal climat déjà normalisé au niveau du projet ; le code secteur DAC
+5 chiffres est **exactement** le même système que celui déjà utilisé par le connecteur AfDB -
+`pipeline/processors/sector_mapping_afdb.py::map_afdb_sector()` est réutilisée telle quelle,
+aucune nouvelle table de correspondance. Repli sur le Marqueur de Rio adaptation (jamais deviné)
+quand le code secteur seul ne suffit pas.
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_oecd_crs
+```
+
+Piège réel rencontré : le filtre `measure` de l'API attend le **code** numérique (`30`), jamais
+le libellé (`"Private Development Finance"` échoue silencieusement avec `NoResultsFound`) ;
+chaque (pays, année, projet) apparaît 4 fois dans la réponse brute
+(Commitments/Disbursements × Current/Constant prices) - dédupliqué à `flow_type_code == "C"` et
+`amount_type == "Current prices"` pour éviter tout double comptage. `oda_reader` et
+`google-genai` (B1.5) exigeaient des versions de `requests` incompatibles - résolu en alignant
+`pipeline/requirements.txt` sur `requests==2.34.2`.
+
+**Vérifié en direct sur les 54 pays africains du périmètre NEV, 2018-2024, en production** : 252
+lignes réelles, 1 366 176 434 $ (175 Adaptation, 71 Agriculture, 5 Renewable Energy, 1
+Forestry).
