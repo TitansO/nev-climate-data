@@ -56,6 +56,7 @@ DFC_SOURCE_NAME = "U.S. DFC - Annual Project Data (Excel)"  # matches backend/sr
 NORFUND_SOURCE_NAME = "Norfund - Investment Overview (Excel)"  # matches backend/src/DataFixtures/SourceFixtures.php
 PROPARCO_SOURCE_NAME = "Proparco - Open Data AFD"  # matches backend/src/DataFixtures/SourceFixtures.php
 OECD_CRS_SOURCE_NAME = "OECD CRS - Private Development Finance"  # matches backend/src/DataFixtures/SourceFixtures.php
+AFD_SOURCE_NAME = "Agence Francaise de Developpement - IATI Datastore"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -183,6 +184,22 @@ def ensure_oecd_crs_source(cursor) -> int:
         (OECD_CRS_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (OECD_CRS_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_afd_source(cursor) -> int:
+    """Idempotently ensures the AFD (IATI Datastore) row exists in
+    `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (AFD_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (AFD_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -450,6 +467,15 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         if nev_sector is None and message.get("climate_adaptation_rio_marker"):
             nev_sector = "Adaptation"
         ensure_source = ensure_oecd_crs_source
+        contribution_project_id = message["project_id"]
+    elif source == "afd":
+        # Reutilise map_afdb_sector() telle quelle - meme systeme de
+        # codes CRS CAD/OCDE que l'IATI Datastore d'AfDB/OECD CRS. Le
+        # connecteur a deja filtre aux codes en vocabulaire IATI "1"
+        # (voir pipeline/collectors/afd.py::_dac_sector_codes) - jamais
+        # la classification interne de l'AFD (vocabulaire "99").
+        nev_sector = map_afdb_sector(message["raw_sector_codes"])
+        ensure_source = ensure_afd_source
         contribution_project_id = message["project_id"]
     else:
         return False, "unknown_source"

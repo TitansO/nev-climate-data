@@ -905,3 +905,85 @@ def test_oecd_crs_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_k
     oecd_crs_source_id = db_cursor.fetchone()[0]
     oecd_crs_row = _funding_row(db_cursor, oecd_crs_source_id, country_id, sector_id, 2026, "private")
     assert oecd_crs_row == (Decimal("5000000.00"), True)
+
+
+def _afd_sample_message(amount_usd: int, project_id: str = "FR-3-TEST-001",
+                         raw_sector_codes: list = None,
+                         original_amount: float = None, exchange_rate: float = None) -> dict:
+    return {
+        "source": "afd",
+        "project_id": project_id,
+        "country_iso": "SEN",
+        "year": 2026,
+        "amount_usd": amount_usd,
+        "original_amount": original_amount if original_amount is not None else amount_usd / 1.08,
+        "original_currency": "EUR",
+        "exchange_rate": exchange_rate if exchange_rate is not None else 1.08,
+        "funding_type": "public",
+        "raw_sector_codes": raw_sector_codes if raw_sector_codes is not None else ["21012"],  # Road transport -> Sustainable Transport
+        "board_approval_date": "2026-01-15",
+        "collected_at": "2026-10-08T00:00:00Z",
+    }
+
+
+def test_afd_message_inserts_a_new_funding_row_with_currency_provenance(db_cursor):
+    # 2026-10-08 : contrairement a DFC/Norfund/Proparco/OECD CRS, l'AFD
+    # rapporte un montant natif reel en EUR (comme AfDB en XDR) -
+    # original_amount/original_currency/exchange_rate doivent etre ceux
+    # du message, jamais derives d'un taux USD-pivot.
+    accepted, reason = process_message(db_cursor, _afd_sample_message(5_000_000, original_amount=4_629_629.63, exchange_rate=1.08))
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Agence Francaise de Developpement - IATI Datastore'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Sustainable Transport'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "public")
+    assert row == (Decimal("5000000.00"), True)
+
+    db_cursor.execute(
+        """
+        SELECT original_amount, original_currency, exchange_rate FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = true
+        """,
+        (source_id, country_id, sector_id, 2026, "public"),
+    )
+    original_amount, original_currency, exchange_rate = db_cursor.fetchone()
+    assert original_amount == Decimal("4629629.63")
+    assert original_currency == "EUR"
+    assert exchange_rate == Decimal("1.08")
+
+
+def test_afd_message_with_an_unclassifiable_sector_is_rejected(db_cursor):
+    accepted, reason = process_message(
+        db_cursor,
+        _afd_sample_message(5_000_000, raw_sector_codes=["15160"]),  # Human rights - not a NEV sector
+    )
+
+    assert accepted is False
+    assert reason == "unclassifiable_sector"
+
+
+def test_afd_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_key(db_cursor):
+    # "public" et "multilateral" font partie de la cle de deduplication
+    # (uniq_funding_dedup_key_current) - une ligne AFD publique ne doit
+    # jamais ecraser/fusionner avec une ligne multilaterale du meme
+    # pays/secteur/annee venue d'une autre source.
+    process_message(db_cursor, _afd_sample_message(5_000_000))
+    process_message(db_cursor, _sample_message(10_000_000, project_id="P-AFD-COMPARE"))  # world_bank, multilateral, Renewable Energy
+
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Sustainable Transport'")
+    sector_id = db_cursor.fetchone()[0]
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Agence Francaise de Developpement - IATI Datastore'")
+    afd_source_id = db_cursor.fetchone()[0]
+    afd_row = _funding_row(db_cursor, afd_source_id, country_id, sector_id, 2026, "public")
+    assert afd_row == (Decimal("5000000.00"), True)

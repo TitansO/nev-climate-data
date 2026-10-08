@@ -49,6 +49,10 @@ final class SourceFixtures extends Fixture
         // Quatrieme source de financement climat PRIVE (2026-10-07, demande
         // explicite utilisateur) - voir pipeline/collectors/oecd_crs.py.
         ['OECD CRS - Private Development Finance', 'oecd-crs-private-development-finance', SourceType::OfficialApi, SourceReliability::High],
+        // Troisieme source de financement climat PUBLIC (apres AfDB et
+        // World Bank, 2026-10-08, demande explicite utilisateur) - voir
+        // pipeline/collectors/afd.py.
+        ['Agence Francaise de Developpement - IATI Datastore', 'afd-iati-datastore', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];
