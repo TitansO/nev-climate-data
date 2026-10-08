@@ -822,3 +822,86 @@ def test_proparco_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_k
     proparco_source_id = db_cursor.fetchone()[0]
     proparco_row = _funding_row(db_cursor, proparco_source_id, country_id, sector_id, 2026, "private")
     assert proparco_row == (Decimal("5000000.00"), True)
+
+
+def _oecd_crs_sample_message(amount_usd: int, project_id: str = "2026990001",
+                              raw_sector_codes: list = None, climate_adaptation_rio_marker: bool = False) -> dict:
+    return {
+        "source": "oecd_crs",
+        "project_id": project_id,
+        "country_iso": "SEN",
+        "year": 2026,
+        "amount_usd": amount_usd,
+        "funding_type": "private",
+        "raw_sector_codes": raw_sector_codes if raw_sector_codes is not None else ["31320"],  # Fishery development -> Agriculture
+        "climate_adaptation_rio_marker": climate_adaptation_rio_marker,
+        "collected_at": "2026-10-07T00:00:00Z",
+    }
+
+
+def test_oecd_crs_message_inserts_a_new_funding_row_via_the_reused_dac_sector_mapper(db_cursor):
+    # 2026-10-07 : reutilise map_afdb_sector() telle quelle - meme systeme
+    # de codes secteur DAC que l'IATI Datastore d'AfDB (verifie en direct).
+    accepted, reason = process_message(db_cursor, _oecd_crs_sample_message(5_000_000))
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OECD CRS - Private Development Finance'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Agriculture'")
+    sector_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "private")
+    assert row == (Decimal("5000000.00"), True)
+
+
+def test_oecd_crs_message_falls_back_to_adaptation_via_the_rio_marker(db_cursor):
+    # Code secteur sans correspondance DAC (ex. "Education facilities and
+    # training", 11240) mais Marqueur de Rio adaptation reel non nul -
+    # repli sur "Adaptation" plutot qu'un rejet, meme principe que le
+    # theme World Bank.
+    accepted, reason = process_message(
+        db_cursor,
+        _oecd_crs_sample_message(5_000_000, raw_sector_codes=["11240"], climate_adaptation_rio_marker=True),
+    )
+
+    assert accepted is True
+    assert reason is None
+
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Adaptation'")
+    sector_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OECD CRS - Private Development Finance'")
+    source_id = db_cursor.fetchone()[0]
+
+    row = _funding_row(db_cursor, source_id, country_id, sector_id, 2026, "private")
+    assert row == (Decimal("5000000.00"), True)
+
+
+def test_oecd_crs_message_without_a_sector_match_or_rio_marker_is_rejected(db_cursor):
+    accepted, reason = process_message(
+        db_cursor,
+        _oecd_crs_sample_message(5_000_000, raw_sector_codes=["11240"], climate_adaptation_rio_marker=False),
+    )
+
+    assert accepted is False
+    assert reason == "unclassifiable_sector"
+
+
+def test_oecd_crs_rows_stay_separate_from_multilateral_rows_for_the_same_dedup_key(db_cursor):
+    process_message(db_cursor, _oecd_crs_sample_message(5_000_000))
+    process_message(db_cursor, _sample_message(10_000_000))  # world_bank, multilateral, Renewable Energy
+
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Agriculture'")
+    sector_id = db_cursor.fetchone()[0]
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'OECD CRS - Private Development Finance'")
+    oecd_crs_source_id = db_cursor.fetchone()[0]
+    oecd_crs_row = _funding_row(db_cursor, oecd_crs_source_id, country_id, sector_id, 2026, "private")
+    assert oecd_crs_row == (Decimal("5000000.00"), True)

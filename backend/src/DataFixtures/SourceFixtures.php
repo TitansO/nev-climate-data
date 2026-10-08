@@ -46,6 +46,9 @@ final class SourceFixtures extends Fixture
         // Troisieme source de financement climat PRIVE (2026-10-07, demande
         // explicite utilisateur) - voir pipeline/collectors/proparco.py.
         ['Proparco - Open Data AFD', 'proparco-open-data-afd', SourceType::OfficialApi, SourceReliability::High],
+        // Quatrieme source de financement climat PRIVE (2026-10-07, demande
+        // explicite utilisateur) - voir pipeline/collectors/oecd_crs.py.
+        ['OECD CRS - Private Development Finance', 'oecd-crs-private-development-finance', SourceType::OfficialApi, SourceReliability::High],
         ['GreenAccess Platform Events', 'greenaccess-events', SourceType::GreenAccessEvent, SourceReliability::Medium],
         ['NEV Climate Data - Internal Demonstration', 'internal-demo', SourceType::InternalDemo, SourceReliability::Low],
     ];

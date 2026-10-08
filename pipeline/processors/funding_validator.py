@@ -26,7 +26,7 @@ from pipeline.processors.sector_mapping_proparco import map_proparco_sector
 # conversion below - their message already carries the real figure, and
 # overwriting it with a derived one would replace a sourced number with a
 # less faithful one.
-SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf", "dfc", "norfund"})
+SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT = frozenset({"world_bank", "gcf", "opec_fund_pdf", "dfc", "norfund", "oecd_crs"})
 
 # In-memory cache for the long-running consumer (unlike the one-shot DAGs,
 # this process can stay up for weeks - fetching on every message would be
@@ -55,6 +55,7 @@ OPEC_FUND_SOURCE_NAME = "OPEC Fund - Climate Finance Report (PDF, Gemini-assiste
 DFC_SOURCE_NAME = "U.S. DFC - Annual Project Data (Excel)"  # matches backend/src/DataFixtures/SourceFixtures.php
 NORFUND_SOURCE_NAME = "Norfund - Investment Overview (Excel)"  # matches backend/src/DataFixtures/SourceFixtures.php
 PROPARCO_SOURCE_NAME = "Proparco - Open Data AFD"  # matches backend/src/DataFixtures/SourceFixtures.php
+OECD_CRS_SOURCE_NAME = "OECD CRS - Private Development Finance"  # matches backend/src/DataFixtures/SourceFixtures.php
 
 
 def ensure_world_bank_source(cursor) -> int:
@@ -166,6 +167,22 @@ def ensure_proparco_source(cursor) -> int:
         (PROPARCO_SOURCE_NAME,),
     )
     cursor.execute("SELECT id FROM source WHERE name = %s", (PROPARCO_SOURCE_NAME,))
+    return cursor.fetchone()[0]
+
+
+def ensure_oecd_crs_source(cursor) -> int:
+    """Idempotently ensures the OECD CRS (Private Development Finance)
+    row exists in `source`, and returns its id.
+    """
+    cursor.execute(
+        """
+        INSERT INTO source (name, type, reliability)
+        VALUES (%s, 'official_api', 'high')
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (OECD_CRS_SOURCE_NAME,),
+    )
+    cursor.execute("SELECT id FROM source WHERE name = %s", (OECD_CRS_SOURCE_NAME,))
     return cursor.fetchone()[0]
 
 
@@ -420,6 +437,19 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
     elif source == "proparco":
         nev_sector = map_proparco_sector(message["sector_label_raw"])
         ensure_source = ensure_proparco_source
+        contribution_project_id = message["project_id"]
+    elif source == "oecd_crs":
+        # Reutilise map_afdb_sector() telle quelle - OCDE CRS et AfDB/IATI
+        # partagent le meme systeme de codes secteur DAC 5 chiffres,
+        # verifie en direct (2026-10-07). Repli sur le Marqueur de Rio
+        # adaptation officiel (jamais devine) quand le code secteur seul
+        # ne correspond a aucun des 4 autres secteurs NEV - meme principe
+        # que la branche "world_bank" (secteur d'abord, theme en repli),
+        # applique ici a un signal structure plutot qu'a du texte libre.
+        nev_sector = map_afdb_sector(message["raw_sector_codes"])
+        if nev_sector is None and message.get("climate_adaptation_rio_marker"):
+            nev_sector = "Adaptation"
+        ensure_source = ensure_oecd_crs_source
         contribution_project_id = message["project_id"]
     else:
         return False, "unknown_source"
