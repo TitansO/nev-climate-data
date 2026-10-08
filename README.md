@@ -1429,6 +1429,32 @@ docker compose exec airflow airflow dags trigger collecte_bii
 **Vérifié en direct, en production** : 15 lignes réelles, 557 588 454 $ (11 Renewable Energy, 2
 Agriculture, 2 Sustainable Transport).
 
+### Connecteur FMO - financement climat PRIVE (2026-10-08)
+
+Sixième source de financement privé, trouvée en élargissant la recherche au réseau EDFI
+(institutions européennes de financement du développement) : sur 15+ institutions testées (DEG,
+Finnfund, Swedfund, IFU, BIO, COFIDES, Triodos, responsAbility, Africa50, GuarantCo...), FMO
+(banque néerlandaise de développement) est la seule à publier réellement sur IATI sous un nom
+vérifiable - Norfund elle-même, utilisée comme témoin de contrôle, ne publie pas non plus sur
+IATI (confirme que sa vraie source est bien son fichier Excel, pas IATI - la méthode de
+recherche ne génère donc pas de faux positifs).
+
+```bash
+docker compose exec airflow airflow dags trigger collecte_fmo
+```
+
+Corrige un vrai gap dans `sector_mapping_afdb.py` (table partagée par AfDB/AFD/BII/OECD CRS) :
+le code DAC CRS `23210` (« Energy generation, renewable sources - multiple technologies »)
+manquait par omission - trouvé en creusant pourquoi le portefeuille africain réel de FMO
+donnait 0 ligne malgré des codes secteur a priori valides. Piège réel spécifique à FMO,
+différent de AFD/BII : ses codes secteur réels (5 chiffres) sont publiés sous un vocabulaire
+IATI mal étiqueté (`"2"` au lieu de `"1"`) - ce connecteur ne filtre donc pas par vocabulaire,
+transmet `sector_code` brut et laisse `funding_validator.py` rejeter naturellement tout ce qui
+ne correspond à aucun des 5 secteurs NEV.
+
+**Vérifié en direct, en production** : 34 lignes réelles, 310 843 388 $ (toutes Renewable
+Energy).
+
 ### Page Sources (frontend) branchée sur les vraies institutions (2026-10-08)
 
 `frontend/src/react/pages/SourcesPage.jsx` affichait 4 sources statiques codées en dur depuis sa
@@ -1441,3 +1467,11 @@ apparaît désormais automatiquement, sans édition manuelle de cette page à ch
 connecteur. Les champs non portés par cet endpoint (description, type de donnée, fréquence)
 restent une table de correspondance côté frontend, indexée par nom réel de source, avec un
 repli générique par `type` pour toute source future non encore répertoriée.
+
+> **Piège réel rencontré en vérifiant ce changement** : `frontend/vite.config.js` definit
+> `outDir: "."` - `npm run build` ecrit sa sortie directement dans les fichiers HTML commites
+> (scripts hashes), pas dans un dossier dist separe. Lancer `npm run build` une seconde fois
+> sans reinitialiser entre les deux echoue (`Failed to resolve /assets/react/<hash>.js` - le
+> HTML deja mute reference un bundle que le `rm -rf assets/react` du script `build` vient de
+> supprimer). Toujours `git checkout -- frontend/*.html frontend/assets/` avant ET apres avoir
+> verifie un build local - ne jamais committer le HTML mute.

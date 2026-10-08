@@ -72,6 +72,11 @@ const SOURCE_METADATA = {
     dataType: "Financement de projets",
     updateFrequency: "Trimestrielle",
   },
+  "FMO - IATI Datastore": {
+    description: "Financement climat privé de FMO, banque néerlandaise de financement du développement.",
+    dataType: "Financement de projets",
+    updateFrequency: "Trimestrielle",
+  },
   "GreenAccess Platform Events": {
     description: "Scores climat, demandes de financement et contrats d'assurance, agrégés et anonymisés avant intégration.",
     dataType: "Indicateurs agrégés",
