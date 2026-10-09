@@ -4,6 +4,7 @@ ai-db connection nor a real Gemini key (same offline-by-default
 convention as the rest of this project's test suites).
 """
 import os
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -11,9 +12,21 @@ from fastapi.testclient import TestClient
 from ai.main import app
 
 
-def _client() -> TestClient:
-    with patch("ai.main.db.ensure_schema"):
-        return TestClient(app)
+@contextmanager
+def _client():
+    """`TestClient.__enter__` (not the constructor) is what fires the ASGI
+    lifespan startup event, i.e. `db.ensure_schema()` - a `with patch(...):
+    return TestClient(app)` body closes the patch as soon as it returns,
+    before any caller's `with _client() as client:` reaches `__enter__`, so
+    every real lifespan boot still hit a genuine (and here unreachable)
+    database. Found live: all 7 tests in this file that go through
+    `_client()` failed in CI with `psycopg2.OperationalError: connection ...
+    Connection refused`, while the other 30 ai/tests/ tests (which never
+    touch TestClient) passed - the patch has to stay entered for as long as
+    the TestClient itself is, hence wrapping both in one context manager.
+    """
+    with patch("ai.main.db.ensure_schema"), TestClient(app) as client:
+        yield client
 
 
 def test_health_returns_ok_when_database_and_gemini_config_are_both_fine():

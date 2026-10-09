@@ -10,6 +10,16 @@ stages:
 # reellement echouer le pipeline, pas seulement lors d'un audit manuel
 # occasionnel - repond directement au constat de l'audit ("aucun gate CI
 # ne bloque un probleme de securite critique").
+#
+# --ignore-platform-req=ext-gd (ajoute le 2026-10-09) : cette image
+# minimale php:8.4-cli n'a jamais eu l'extension gd (contrairement au job
+# phpunit, qui l'installe explicitement - voir son before_script). Ce job
+# n'execute aucun code applicatif (seulement composer install + audit des
+# versions declarees dans composer.lock), donc gd n'est pas necessaire ici
+# - mais composer verifie les requirements de plateforme par defaut des
+# "composer install", meme sans executer une ligne de PHP. Casse depuis
+# l'ajout de phpoffice/phpspreadsheet (A2.3, export XLSX, qui requiert
+# ext-gd) : regression invisible jusqu'a l'ouverture reelle des logs du job.
 composer_audit:
   stage: test
   image: php:8.4-cli
@@ -17,14 +27,20 @@ composer_audit:
     - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
   script:
     - cd backend
-    - composer install --no-interaction --no-progress --prefer-dist --no-scripts
+    - composer install --no-interaction --no-progress --prefer-dist --no-scripts --ignore-platform-req=ext-gd
     - composer audit
 
+# pip install --upgrade pip (ajoute le 2026-10-09) : pip-audit auditait
+# aussi l'outil pip lui-meme (ambiant dans l'image python:3.12-slim, pas
+# une entree de requirements.txt) - 25.0.1 accumulait 6 CVE reelles.
+# N'est pas pinnable dans requirements.txt (ce n'est pas une dependance du
+# projet) - la mise a jour se fait ici, au niveau de l'image du job.
 pip_audit_ai:
   stage: test
   image: python:3.12-slim
   before_script:
     - cd ai
+    - pip install --no-cache-dir --upgrade pip
     - pip install --no-cache-dir -r requirements.txt pip-audit
   script:
     - pip-audit --strict
@@ -34,6 +50,7 @@ pip_audit_pipeline:
   image: python:3.12-slim
   before_script:
     - cd pipeline
+    - pip install --no-cache-dir --upgrade pip
     - pip install --no-cache-dir -r requirements.txt pip-audit
   script:
     - pip-audit --strict
@@ -157,15 +174,20 @@ ai_tests:
     - cd ..
     - python -m pytest ai/tests/ -v
 
-# Limite assumee (documentee, pas cachee) : sur 28 fichiers, seuls les 21
+# Limite assumee (documentee, pas cachee) : sur 42 fichiers, seuls les 28
 # qui ne touchent ni une vraie base Postgres ni le package `airflow`
 # tournent ici. test_funding_validator.py/test_emission_validator.py
 # ecrivent reellement en base (necessiteraient un service Postgres +
-# migrations Doctrine appliquees dans ce job) et les 5 fichiers
-# test_dag_*_tasks.py importent `airflow` directement (package lourd, non
-# present dans pipeline/requirements.txt par design - voir le
-# docker-compose.yml, seul le conteneur `airflow` l'installe). Exclus
-# explicitement plutot que de pretendre une couverture qu'on n'a pas.
+# migrations Doctrine appliquees dans ce job) et les 12 fichiers
+# test_dag_*_tasks.py (5 initiaux + 7 ajoutes avec les connecteurs de
+# financement climat prive/public AFD/BII/DFC/FMO/Norfund/OECD CRS/
+# Proparco) importent `airflow` directement (package lourd, non present
+# dans pipeline/requirements.txt par design - voir le docker-compose.yml,
+# seul le conteneur `airflow` l'installe). Exclus explicitement plutot que
+# de pretendre une couverture qu'on n'a pas - mis a jour a chaque nouveau
+# connecteur (regression constatee le 2026-10-09 : les 7 fichiers DAG des
+# connecteurs ajoutes les 07-08/10 n'avaient jamais ete ajoutes a cette
+# liste, faisant echouer toute la collecte pytest du job).
 pipeline_tests:
   stage: test
   image: python:3.12-slim
@@ -183,6 +205,13 @@ pipeline_tests:
       --ignore=pipeline/tests/test_dag_gcf_tasks.py
       --ignore=pipeline/tests/test_dag_pnue_tasks.py
       --ignore=pipeline/tests/test_dag_worldbank_tasks.py
+      --ignore=pipeline/tests/test_dag_afd_tasks.py
+      --ignore=pipeline/tests/test_dag_bii_tasks.py
+      --ignore=pipeline/tests/test_dag_dfc_tasks.py
+      --ignore=pipeline/tests/test_dag_fmo_tasks.py
+      --ignore=pipeline/tests/test_dag_norfund_tasks.py
+      --ignore=pipeline/tests/test_dag_oecd_crs_tasks.py
+      --ignore=pipeline/tests/test_dag_proparco_tasks.py
 
 # Construit et publie l'image Docker sur le Container Registry GitLab.
 # Ce n'est PAS un déploiement : rien ne récupère ni ne fait tourner cette

@@ -2,10 +2,10 @@ kafka-python-ng==2.2.3
 psycopg2-binary==2.9.9
 requests==2.34.2
 pycountry==24.6.1
-pytest==8.3.3
+pytest==9.0.3
 google-genai==2.20.0
 minio==7.2.20
-pypdf==6.16.2
+pypdf==6.19.0
 openpyxl==3.1.5
 babel==2.18.0
 oda_reader==1.11.2
