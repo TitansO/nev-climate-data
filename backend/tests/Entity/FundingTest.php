@@ -51,6 +51,16 @@ final class FundingTest extends TestCase
         self::assertNull($funding->getValidTo());
         self::assertTrue($funding->isCurrent());
         self::assertSame(FundingInstrument::Unknown, $funding->getInstrument());
+        self::assertNull($funding->getExternalReference());
+    }
+
+    public function testExternalReferenceCanBeSet(): void
+    {
+        $funding = $this->makeFunding();
+
+        $funding->setExternalReference('P178523');
+
+        self::assertSame('P178523', $funding->getExternalReference());
     }
 
     public function testInstrumentCanBeSet(): void

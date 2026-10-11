@@ -260,7 +260,8 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
                     original_amount: Decimal | None = None,
                     original_currency: str | None = None,
                     exchange_rate: Decimal | None = None,
-                    instrument: str = "unknown") -> None:
+                    instrument: str = "unknown",
+                    external_reference: str | None = None) -> None:
     """Applies `delta` (can be negative - see apply_project_contribution's
     sector/year-change case) to the current row for this dedup key,
     historizing the previous version, or inserts a fresh row if none
@@ -290,7 +291,12 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
     dedup key - a dedup key is not currently split by instrument (unlike
     funding_type, which already was one), so two projects with different
     instruments sharing the same key will show whichever one wrote most
-    recently.
+    recently. `external_reference` (audit Prompt Maitre #3, point 5,
+    2026-10-11) follows the exact same rule - the source's own project
+    identifier for the latest contribution only, not a list of every
+    project ever merged into this aggregate, so it can be used to look up
+    *a* contributing project at the source, never assumed to be the only
+    one.
     """
     cursor.execute(
         """
@@ -309,10 +315,10 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
                 """
                 UPDATE funding
                 SET collection_date = %s, original_amount = %s, original_currency = %s,
-                    exchange_rate = %s, instrument = %s, updated_at = now()
+                    exchange_rate = %s, instrument = %s, external_reference = %s, updated_at = now()
                 WHERE id = %s
                 """,
-                (collection_date, original_amount, original_currency, exchange_rate, instrument, existing_id),
+                (collection_date, original_amount, original_currency, exchange_rate, instrument, external_reference, existing_id),
             )
         return
 
@@ -332,16 +338,16 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
             country_id, sector_id, year, amount, funding_type, source_id,
             collection_date, validation_status, valid_from, is_current,
             original_amount, original_currency, exchange_rate, instrument,
-            created_at, updated_at
+            external_reference, created_at, updated_at
         ) VALUES (
             %s, %s, %s, %s, %s, %s,
             %s, 'validated', now(), true,
             %s, %s, %s, %s,
-            now(), now()
+            %s, now(), now()
         )
         """,
         (country_id, sector_id, year, new_amount, funding_type, source_id, collection_date,
-         original_amount, original_currency, exchange_rate, instrument),
+         original_amount, original_currency, exchange_rate, instrument, external_reference),
     )
 
 
@@ -382,7 +388,7 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
             year=year, funding_type=funding_type, delta=amount, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
-            exchange_rate=exchange_rate, instrument=instrument,
+            exchange_rate=exchange_rate, instrument=instrument, external_reference=project_id,
         )
         cursor.execute(
             """
@@ -403,14 +409,17 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
             year=year, funding_type=funding_type, delta=delta, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
-            exchange_rate=exchange_rate, instrument=instrument,
+            exchange_rate=exchange_rate, instrument=instrument, external_reference=project_id,
         )
     else:
         # Closing out the old key: `instrument` isn't tracked per
         # contribution in `funding_project_contribution` (same simplification
         # as original_amount/original_currency/exchange_rate just above),
         # so this call has no real instrument to preserve for the old
-        # bucket - left at the "unknown" default rather than guessing.
+        # bucket - left at the "unknown" default rather than guessing. Same
+        # reasoning now applies to external_reference (audit Prompt Maitre
+        # #3, point 5): left unset so the zeroed-out old bucket doesn't
+        # inherit this project's reference.
         upsert_funding(
             cursor, source_id=source_id, country_id=country_id, sector_id=old_sector_id,
             year=old_year, funding_type=old_funding_type, delta=-old_amount,
@@ -420,7 +429,7 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             cursor, source_id=source_id, country_id=country_id, sector_id=sector_id,
             year=year, funding_type=funding_type, delta=amount, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
-            exchange_rate=exchange_rate, instrument=instrument,
+            exchange_rate=exchange_rate, instrument=instrument, external_reference=project_id,
         )
 
     cursor.execute(

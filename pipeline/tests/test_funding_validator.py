@@ -51,6 +51,19 @@ def _funding_instrument(cursor, source_id, country_id, sector_id, year, funding_
     return row[0] if row else None
 
 
+def _funding_external_reference(cursor, source_id, country_id, sector_id, year, funding_type):
+    cursor.execute(
+        """
+        SELECT external_reference FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = true
+        """,
+        (source_id, country_id, sector_id, year, funding_type),
+    )
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
 def _sample_message(amount_usd: int, project_id: str = "P-TEST") -> dict:
     return {
         "source": "world_bank",
@@ -106,6 +119,48 @@ def test_two_different_projects_same_dedup_key_sum_and_historize(db_cursor):
         (source_id, country_id, sector_id, 2026, "multilateral"),
     )
     assert db_cursor.fetchone()[0] == 1
+
+
+def test_project_id_is_persisted_as_external_reference(db_cursor):
+    """Audit Prompt Maitre #3 (point 5, 2026-10-11): project_id was already
+    produced by every connector and already persisted in
+    funding_project_contribution, but never reported onto `funding` itself -
+    making it impossible to manually verify a suspected cross-source
+    duplicate (same country/sector/year/amount reported by two different
+    sources) without digging into each source's raw data by hand.
+    """
+    process_message(db_cursor, _sample_message(1_000_000, project_id="P178523"))
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    assert _funding_external_reference(db_cursor, source_id, country_id, sector_id, 2026, "multilateral") == "P178523"
+
+
+def test_external_reference_survives_a_same_project_delta_zero_republish(db_cursor):
+    """Same idempotency-refresh scenario already covered by
+    test_instrument_is_refreshed_even_when_the_republished_amount_is_unchanged
+    below (GCF/AfDB republish their entire portfolio every run, so the same
+    project comes back with the exact same amount - delta 0, a plain UPDATE
+    on the existing row, never an INSERT): external_reference is one of
+    upsert_funding's provenance fields (see its own docblock) and must
+    survive that UPDATE-only path, not be left NULL because no INSERT ran.
+    """
+    process_message(db_cursor, _sample_message(1_000_000, project_id="P178523"))
+    process_message(db_cursor, _sample_message(1_000_000, project_id="P178523"))  # same project, same amount -> delta 0
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    assert _funding_external_reference(db_cursor, source_id, country_id, sector_id, 2026, "multilateral") == "P178523"
 
 
 def test_unclassifiable_sector_is_rejected_without_writing(db_cursor):

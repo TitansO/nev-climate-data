@@ -96,6 +96,7 @@ final class FundingController extends AbstractController
                                         new OA\Property(property: 'id', type: 'integer', example: 1),
                                         new OA\Property(property: 'name', type: 'string', example: 'World Bank Data API'),
                                     ], type: 'object'),
+                                    new OA\Property(property: 'externalReference', type: 'string', nullable: true, example: 'P178523', description: "Identifiant du projet chez la source (ex. identifiant d'activite IATI) - voir le docblock de Funding::\$externalReference. Reflete la contribution la plus recente, pas une valeur mergee entre plusieurs projets partageant cette cle de dedup. Null pour les lignes anterieures a ce champ (audit Prompt Maitre #3, point 5) ou issues d'une source sans identifiant de projet exploitable."),
                                     new OA\Property(property: 'collectionDate', type: 'string', format: 'date', example: '2025-03-15'),
                                     new OA\Property(property: 'validationStatus', type: 'string', example: 'validated'),
                                 ]
@@ -309,6 +310,7 @@ final class FundingController extends AbstractController
      *     originalCurrency: string|null,
      *     fundingType: string,
      *     source: array{id: int|null, name: string},
+     *     externalReference: string|null,
      *     collectionDate: string,
      *     validationStatus: string,
      * }
@@ -339,6 +341,10 @@ final class FundingController extends AbstractController
                 'id' => $funding->getSource()->getId(),
                 'name' => $funding->getSource()->getName(),
             ],
+            // Audit Prompt Maitre #3 (point 5) : identifiant projet chez la
+            // source, pour verifier manuellement un doublon cross-source
+            // suspecte - voir le docblock de Funding::$externalReference.
+            'externalReference' => $funding->getExternalReference(),
             'collectionDate' => $funding->getCollectionDate()->format('Y-m-d'),
             'validationStatus' => $funding->getValidationStatus()->value,
         ];

@@ -100,6 +100,23 @@ class Funding
     #[ORM\Column(type: Types::STRING, enumType: FundingInstrument::class, length: 25, options: ['default' => 'unknown'])]
     private FundingInstrument $instrument = FundingInstrument::Unknown;
 
+    // Audit Prompt Maitre #3 (point 5, 2026-10-11) : identifiant du projet
+    // chez la source (ex. identifiant d'activite IATI), deja produit par
+    // chaque connecteur pipeline sous `project_id` et deja persiste dans
+    // `funding_project_contribution`, mais jusqu'ici jamais reporte sur
+    // cette ligne agregee elle-meme - aucun moyen de verifier manuellement
+    // un doublon cross-source suspecte (meme pays/secteur/annee/montant
+    // proche rapporte par deux bailleurs differents) sans cet identifiant.
+    // Meme traitement que originalAmount/originalCurrency/exchangeRate/
+    // instrument ci-dessus : reflete la contribution la plus recente, pas
+    // une valeur mergee entre plusieurs projets partageant cette cle de
+    // dedup (voir le docblock d'upsert_funding() cote pipeline). Nullable :
+    // toute ligne anterieure a ce changement, et toute source qui ne
+    // publie aucun identifiant de projet exploitable, reste a NULL plutot
+    // que de deviner.
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $externalReference = null;
+
     #[ORM\ManyToOne(targetEntity: Source::class)]
     #[ORM\JoinColumn(nullable: false)]
     private Source $source;
@@ -256,6 +273,18 @@ class Funding
     public function setInstrument(FundingInstrument $instrument): static
     {
         $this->instrument = $instrument;
+
+        return $this;
+    }
+
+    public function getExternalReference(): ?string
+    {
+        return $this->externalReference;
+    }
+
+    public function setExternalReference(?string $externalReference): static
+    {
+        $this->externalReference = $externalReference;
 
         return $this;
     }
