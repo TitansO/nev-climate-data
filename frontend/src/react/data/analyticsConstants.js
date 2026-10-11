@@ -27,7 +27,7 @@ export const SECTOR_COLORS = [PRIMARY_COLOR, "#22c55e", "#86efac", "#14532d", "#
 // breaks financing down by type (the bar chart and the donut) - so a color
 // always means the same type no matter which chart it's in.
 export const TYPE_COLORS = { public: PRIMARY_COLOR, private: "#052e1c", multilateral: "#2563eb" };
-export const TYPE_LABELS = { public: "Public", private: "Privé", multilateral: "Multilatéral" };
+export const TYPE_LABELS = { public: "Bilatéral", private: "Privé", multilateral: "Multilatéral" };
 
 /**
  * C1.2: labels for the CountryMap layer selector's "Instrument" filter -

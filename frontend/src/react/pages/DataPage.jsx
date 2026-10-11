@@ -17,7 +17,7 @@ import { BanknoteIcon } from "../components/ui/icons";
 const PAGE_SIZE = 10;
 const EXPORT_POLL_INTERVAL_MS = 3000;
 
-const FUNDING_TYPE_LABELS = { public: "Public", private: "Privé", multilateral: "Multilatéral" };
+const FUNDING_TYPE_LABELS = { public: "Bilatéral", private: "Privé", multilateral: "Multilatéral" };
 const VALIDATION_STATUS_LABELS = { demo: "Démonstration", validated: "Validée" };
 // ApiKey.quota and Funding.amount both store USD (the project's pivot
 // currency); the API doesn't return a currency field because it never
@@ -405,7 +405,7 @@ export default function DataPage() {
                 onChange={(event) => setFilters({ ...filters, fundingType: event.target.value })}
               >
                 <option value="">{t("dataPage.allTypes", "Tous les types")}</option>
-                <option value="public">{t("dataPage.typePublic", "Public")}</option>
+                <option value="public">{t("dataPage.typePublic", "Bilatéral")}</option>
                 <option value="private">{t("dataPage.typePrivate", "Privé")}</option>
                 <option value="multilateral">{t("dataPage.typeMultilateral", "Multilatéral")}</option>
               </NevSelect>
@@ -524,7 +524,7 @@ export default function DataPage() {
             dangerouslySetInnerHTML={{
               __html: t(
                 "dataPage.disclaimer",
-                'Données réelles issues de <code class="font-mono">GET /api/funding</code> (A2.1). Le jeu de données provient actuellement des fixtures de démonstration (A1.6) et porte le statut « Démonstration ».'
+                'Données réelles issues de <code class="font-mono">GET /api/funding</code> (A2.1), collectées par les connecteurs (Banque mondiale, BAD, GCF, AFD, DFC, Norfund, BII, FMO, OCDE CRS). Le statut de validation de chaque ligne (Démonstration / Validée) est indiqué dans la colonne « Statut ».'
               ),
             }}
           />

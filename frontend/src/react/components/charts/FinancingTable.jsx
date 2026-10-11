@@ -8,7 +8,7 @@ export default function FinancingTable({ rows, totals }) {
         <thead className="border-b border-stroke text-xs font-semibold uppercase tracking-wide text-dark-4">
           <tr>
             <th className="py-3 pr-4">Année</th>
-            <th className="py-3 pr-4 text-right">Public</th>
+            <th className="py-3 pr-4 text-right">Bilatéral</th>
             <th className="py-3 pr-4 text-right">Privé</th>
             <th className="py-3 pr-4 text-right">Multilatéral</th>
             <th className="py-3 pl-4 text-right">Total</th>
