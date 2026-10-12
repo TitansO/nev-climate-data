@@ -55,15 +55,19 @@ export const INSTRUMENT_COLORS = {
   unknown: "#9ca3af",
 };
 
-// One color per Sankey layer (bailleur/pays/secteur), independent of the
-// fixed SECTOR_COLORS/INSTRUMENT_COLORS palettes above - here color
+// One color per Sankey layer (bailleur/objectif/pays/secteur), independent
+// of the fixed SECTOR_COLORS/INSTRUMENT_COLORS palettes above - here color
 // encodes *position in the flow* (which hop a node belongs to), not what
 // the node itself represents. Every "Autres X" bucket, whichever layer
 // it's in, shares one muted gray so it always reads as "aggregated",
 // never mistaken for a real distinguishable entity. Moved here from
 // SankeyFlow.jsx (audit pre-production 2026-09-23, P3) so its "source"
 // entry stays in sync with PRIMARY_COLOR instead of repeating the literal.
-export const SANKEY_LAYER_COLORS = { source: PRIMARY_COLOR, country: "#c98a2c", sector: "#2563eb", other: "#9aa5a0" };
+// "objective" (audit Prompt Maitre #3, point 2, 2026-10-12) : distinct hue
+// from "sector" even though both ultimately derive from Sector, so a
+// reader never mistakes the approximate objective layer for the real
+// per-record sector layer at the end of the diagram.
+export const SANKEY_LAYER_COLORS = { source: PRIMARY_COLOR, objective: "#b8862f", country: "#c98a2c", sector: "#2563eb", other: "#9aa5a0" };
 
 /**
  * ISO 3166-1 alpha-3 -> alpha-2, the 54 African countries seeded by

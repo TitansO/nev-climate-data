@@ -198,8 +198,8 @@ final class AnalyticsController extends AbstractController
 
     #[Route('/api/analytics/funding-flows', name: 'api_analytics_funding_flows', methods: ['GET'])]
     #[OA\Get(
-        summary: 'Flux de financement bailleur -> pays -> secteur, pour un diagramme de Sankey (mis en cache 15 min)',
-        description: 'C1.5 : nœuds + liens agrégés en SQL, filtrables par instrument et année. Chaque "couche" (bailleur, pays, secteur) est plafonnée aux `topN` premiers par montant total ; le reste est regroupé dans un unique nœud "Autres" par couche (jamais un nœud "Autres" vide fabriqué s\'il n\'y a rien à y mettre). Un pays garde la même identité (lui-même, ou "Autres pays") des deux côtés du diagramme, pour ne jamais scinder un même pays réel en deux nœuds déconnectés.',
+        summary: 'Flux de financement bailleur -> objectif climatique -> pays -> secteur, pour un diagramme de Sankey (mis en cache 15 min)',
+        description: 'C1.5 : nœuds + liens agrégés en SQL, filtrables par instrument et année. Chaque couche à cardinalité ouverte (bailleur, pays, secteur) est plafonnée aux `topN` premiers par montant total ; le reste est regroupé dans un unique nœud "Autres" par couche (jamais un nœud "Autres" vide fabriqué s\'il n\'y a rien à y mettre). Un pays garde la même identité (lui-même, ou "Autres pays") partout où il apparaît, pour ne jamais scinder un même pays réel en deux nœuds déconnectés. **La couche "objectif" (Adaptation/Atténuation, audit Prompt Maître #3 point 2, 2026-10-12) est un PROXY APPROXIMATIF dérivé du secteur** (Adaptation -> objectif Adaptation, les 4 autres secteurs -> Atténuation par défaut), pas une vraie classification par projet - voir App\Service\FundingFlowService::objectiveKeyForSector() pour la justification complète et sa limite documentée. Jamais soumise au `topN`/"Autres" (seulement 2 valeurs possibles).',
         tags: ['Analytics'],
         security: [['bearerAuth' => []]],
         parameters: [
@@ -217,7 +217,7 @@ final class AnalyticsController extends AbstractController
                             properties: [
                                 new OA\Property(property: 'id', type: 'string', example: 'source:12'),
                                 new OA\Property(property: 'label', type: 'string', example: 'World Bank Data API'),
-                                new OA\Property(property: 'layer', type: 'string', enum: ['source', 'country', 'sector'], example: 'source'),
+                                new OA\Property(property: 'layer', type: 'string', enum: ['source', 'objective', 'country', 'sector'], example: 'source'),
                             ]
                         )),
                         new OA\Property(property: 'links', type: 'array', items: new OA\Items(

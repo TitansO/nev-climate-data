@@ -272,12 +272,22 @@ class FundingRepository extends ServiceEntityRepository
      *
      * @return list<array{sourceId: int, sourceName: string, isoCode: string, countryName: string, total: string}>
      */
-    public function findSourceCountryFlowAggregate(FundingFlowCriteria $criteria): array
+    /**
+     * Audit Prompt Maitre #3 (point 2, 2026-10-12) : remplace l'ancienne
+     * findSourceCountryFlowAggregate() (bailleur -> pays directement) -
+     * desormais le flux passe par la couche "objectif climatique"
+     * (Adaptation/Attenuation, voir FundingFlowService::objectiveKeyForSector())
+     * intercalee entre bailleur et pays, deduite du secteur ici selectionne.
+     * Memes filtres/raisonnement que findCountryToSectorFlowAggregate().
+     *
+     * @return list<array{sourceId: int, sourceName: string, sectorId: int, sectorName: string, total: string}>
+     */
+    public function findSourceToSectorFlowAggregate(FundingFlowCriteria $criteria): array
     {
         $qb = $this->onlyValidated($this->createQueryBuilder('funding')
-            ->select('source.id AS sourceId', 'source.name AS sourceName', 'country.isoCode AS isoCode', 'country.name AS countryName', 'SUM(funding.amount) AS total')
+            ->select('source.id AS sourceId', 'source.name AS sourceName', 'sector.id AS sectorId', 'sector.name AS sectorName', 'SUM(funding.amount) AS total')
             ->join('funding.source', 'source')
-            ->join('funding.country', 'country')
+            ->join('funding.sector', 'sector')
             ->where('funding.isCurrent = true'));
 
         if (null !== $criteria->instrument) {
@@ -290,17 +300,19 @@ class FundingRepository extends ServiceEntityRepository
         return $qb
             ->groupBy('source.id')
             ->addGroupBy('source.name')
-            ->addGroupBy('country.isoCode')
-            ->addGroupBy('country.name')
+            ->addGroupBy('sector.id')
+            ->addGroupBy('sector.name')
             ->orderBy('total', 'DESC')
             ->getQuery()
             ->getResult();
     }
 
     /**
-     * C1.5 (funding-flows Sankey) : deuxième "couche" du flux - pays ->
-     * secteur. Mêmes filtres/raisonnement que findSourceCountryFlowAggregate()
-     * juste au-dessus.
+     * C1.5 (funding-flows Sankey) : couche finale du flux - pays ->
+     * secteur. Mêmes filtres/raisonnement que findSourceToSectorFlowAggregate()
+     * juste au-dessus - sert aussi à dériver le lien objectif -> pays
+     * (audit Prompt Maitre #3, point 2) puisque chaque ligne porte déjà le
+     * secteur nécessaire pour ça.
      *
      * @return list<array{isoCode: string, countryName: string, sectorId: int, sectorName: string, total: string}>
      */

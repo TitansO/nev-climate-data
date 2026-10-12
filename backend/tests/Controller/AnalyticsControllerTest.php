@@ -500,6 +500,14 @@ final class AnalyticsControllerTest extends WebTestCase
         return ['sourceA' => $sourceA, 'sourceB' => $sourceB, 'senegal' => $senegal, 'kenya' => $kenya, 'renewableEnergy' => $renewableEnergy, 'agriculture' => $agriculture, 'auth' => $this->loginAs($client, $user)];
     }
 
+    /**
+     * Audit Prompt Maitre #3 (point 2, 2026-10-12) : seedFlowDataset() ne
+     * contient que des secteurs "Renewable Energy"/"Agriculture" - aucun
+     * "Adaptation" - donc toutes les lignes ci-dessous tombent sur
+     * l'objectif "Atténuation" (voir FundingFlowService::objectiveKeyForSector()).
+     * La classification Adaptation vs Atténuation elle-même est couverte
+     * par son propre test dédié, testFundingFlowsClassifiesAdaptationSectorAsAdaptationObjective().
+     */
     public function testFundingFlowsBuildsNodesAndLinksFromRealData(): void
     {
         $client = static::createClient();
@@ -511,6 +519,8 @@ final class AnalyticsControllerTest extends WebTestCase
         $nodeIds = array_column($data['nodes'], 'id');
         self::assertContains('source:'.$entities['sourceA']->getId(), $nodeIds);
         self::assertContains('source:'.$entities['sourceB']->getId(), $nodeIds);
+        self::assertContains('objective:mitigation', $nodeIds);
+        self::assertNotContains('objective:adaptation', $nodeIds, 'no Adaptation-sector row in this dataset');
         self::assertContains('country:SEN', $nodeIds);
         self::assertContains('country:KEN', $nodeIds);
         self::assertContains('sector:'.$entities['renewableEnergy']->getId(), $nodeIds);
@@ -521,12 +531,62 @@ final class AnalyticsControllerTest extends WebTestCase
         foreach ($data['links'] as $link) {
             $linksByPair[$link['source'].'->'.$link['target']] = $link['value'];
         }
-        self::assertEquals(100.0, $linksByPair['source:'.$entities['sourceA']->getId().'->country:SEN']);
-        self::assertEquals(200.0, $linksByPair['source:'.$entities['sourceA']->getId().'->country:KEN']);
-        self::assertEquals(300.0, $linksByPair['source:'.$entities['sourceB']->getId().'->country:SEN']);
+        self::assertEquals(300.0, $linksByPair['source:'.$entities['sourceA']->getId().'->objective:mitigation'], '100 (SEN/RenewableEnergy) + 200 (KEN/Agriculture)');
+        self::assertEquals(300.0, $linksByPair['source:'.$entities['sourceB']->getId().'->objective:mitigation']);
+        self::assertEquals(400.0, $linksByPair['objective:mitigation->country:SEN'], '100 (RenewableEnergy) + 300 (Agriculture)');
+        self::assertEquals(200.0, $linksByPair['objective:mitigation->country:KEN']);
         self::assertEquals(100.0, $linksByPair['country:SEN->sector:'.$entities['renewableEnergy']->getId()]);
         self::assertEquals(200.0, $linksByPair['country:KEN->sector:'.$entities['agriculture']->getId()]);
         self::assertEquals(300.0, $linksByPair['country:SEN->sector:'.$entities['agriculture']->getId()]);
+    }
+
+    /**
+     * Audit Prompt Maitre #3 (point 2, 2026-10-12) : la seule regle metier
+     * reellement nouvelle introduite par ce point - verifie directement
+     * FundingFlowService::objectiveKeyForSector() via l'API plutot que de
+     * la retester unitairement en isolation (elle est private, et son seul
+     * effet observable est deja ce noeud/lien).
+     */
+    public function testFundingFlowsClassifiesAdaptationSectorAsAdaptationObjective(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $container = static::getContainer();
+        $this->entityManager = $container->get(EntityManagerInterface::class);
+        $this->entityManager->getConnection()->beginTransaction();
+
+        $source = new Source('Flow Source Adapt', SourceType::OfficialApi, SourceReliability::High);
+        $senegal = new Country('Flow Senegal Adapt', 'SEN', "Afrique de l'Ouest");
+        $adaptation = new Sector('Adaptation');
+        $agriculture = new Sector('Agriculture');
+        $user = new User('Amina Diallo', 'flows-adapt@example.com', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), UserRole::InternalAnalyst);
+
+        foreach ([$source, $senegal, $adaptation, $agriculture, $user] as $entity) {
+            $this->entityManager->persist($entity);
+        }
+        // Adaptation sector -> objective:adaptation
+        $this->entityManager->persist(new Funding($senegal, $adaptation, 2024, '150.00', FundingType::Public, $source, new \DateTimeImmutable('2024-01-01'), ValidationStatus::Validated));
+        // Any other sector -> objective:mitigation (the default)
+        $this->entityManager->persist(new Funding($senegal, $agriculture, 2024, '250.00', FundingType::Public, $source, new \DateTimeImmutable('2024-01-01'), ValidationStatus::Validated));
+        $this->entityManager->flush();
+        $container->get('cache.analytics')->clear();
+        $auth = $this->loginAs($client, $user);
+
+        $client->request('GET', '/api/analytics/funding-flows', server: $auth);
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $nodeIds = array_column($data['nodes'], 'id');
+        self::assertContains('objective:adaptation', $nodeIds);
+        self::assertContains('objective:mitigation', $nodeIds);
+
+        $linksByPair = [];
+        foreach ($data['links'] as $link) {
+            $linksByPair[$link['source'].'->'.$link['target']] = $link['value'];
+        }
+        self::assertEquals(150.0, $linksByPair['source:'.$source->getId().'->objective:adaptation']);
+        self::assertEquals(250.0, $linksByPair['source:'.$source->getId().'->objective:mitigation']);
+        self::assertEquals(150.0, $linksByPair['objective:adaptation->country:SEN']);
+        self::assertEquals(250.0, $linksByPair['objective:mitigation->country:SEN']);
     }
 
     public function testFundingFlowsBucketsBeyondTopNIntoAnOthersNodeWithARealCount(): void
@@ -541,14 +601,13 @@ final class AnalyticsControllerTest extends WebTestCase
         self::assertArrayHasKey('source:other', $sourceNodes, 'the smaller of the 2 sources must be bucketed');
         self::assertSame('Autres bailleurs (1)', $sourceNodes['source:other']['label']);
 
-        $linksByPair = array_column($data['links'], 'value', null);
         $found = false;
         foreach ($data['links'] as $link) {
-            if ('source:other' === $link['source'] && str_starts_with($link['target'], 'country:')) {
+            if ('source:other' === $link['source'] && str_starts_with($link['target'], 'objective:')) {
                 $found = true;
             }
         }
-        self::assertTrue($found, 'the bucketed source must still link into a country node');
+        self::assertTrue($found, 'the bucketed source must still link into an objective node (objective is never top-N bucketed itself)');
     }
 
     public function testFundingFlowsFiltersByYear(): void
@@ -561,8 +620,9 @@ final class AnalyticsControllerTest extends WebTestCase
         $data = json_decode($client->getResponse()->getContent(), true);
         $total = array_sum(array_column($data['links'], 'value'));
         // Only the 2025 row (Flow Source B -> Senegal -> Agriculture, 300)
-        // contributes on each side -> 300 (source->country) + 300 (country->sector) = 600.
-        self::assertEquals(600.0, $total);
+        // contributes on each of the 3 hops -> 300 (source->objective) +
+        // 300 (objective->country) + 300 (country->sector) = 900.
+        self::assertEquals(900.0, $total);
     }
 
     public function testFundingFlowsRejectsAnInvalidTopNValue(): void

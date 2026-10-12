@@ -481,7 +481,18 @@ export default function DashboardPage() {
 
             {/* Funding flows Sankey */}
             <section className="mb-8">
-              <NevChartCard title={t("vizPage.fundingFlows", "Flux de financement (bailleurs → pays → secteurs)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
+              <NevChartCard title={t("vizPage.fundingFlows", "Flux de financement (bailleurs → objectif climatique → pays → secteurs)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
+                {/* Audit Prompt Maitre #3 (point 2, 2026-10-12) : la couche
+                    "objectif climatique" est un proxy approximatif derive
+                    du secteur (voir FundingFlowService::objectiveKeyForSector()
+                    cote backend pour la regle exacte et sa limite) - jamais
+                    affichee sans cet avertissement. */}
+                <p className="mb-3 rounded-md bg-status-demo-bg px-3 py-2 text-xs font-semibold text-warning">
+                  {t(
+                    "vizPage.fundingFlowsObjectiveWarning",
+                    "La colonne « objectif climatique » est une approximation dérivée du secteur (Adaptation → Adaptation, les 4 autres secteurs → Atténuation par défaut), pas une classification réelle par projet."
+                  )}
+                </p>
                 <ChartStateBox state={flows.state} message={flows.message} onRetry={flows.reload}>
                   {flows.data && <SankeyFlow nodes={flows.data.nodes} links={flows.data.links} />}
                 </ChartStateBox>
