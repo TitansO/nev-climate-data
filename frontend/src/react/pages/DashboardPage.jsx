@@ -443,7 +443,14 @@ export default function DashboardPage() {
                     ("" === trendGroupBy ? (
                       <>
                         <FinancingBarChart rows={trends.data.data} />
-                        {financingTotals && <FinancingTable rows={trends.data.data} totals={financingTotals} />}
+                        {financingTotals && (
+                          <details className="mt-4">
+                            <summary className="cursor-pointer text-xs font-semibold text-primary-dark hover:underline">
+                              {t("vizPage.financingTableDetail", "Voir le détail par année")}
+                            </summary>
+                            <FinancingTable rows={trends.data.data} totals={financingTotals} />
+                          </details>
+                        )}
                       </>
                     ) : (
                       <GenericTrendChart rows={trends.data.data} groupBy={trendGroupBy} />

@@ -553,6 +553,7 @@
   "recommendations.priorityScore": "priority score",
 
   "vizPage.movingAverageDetail": "View exact values",
+  "vizPage.financingTableDetail": "View yearly detail",
   "vizPage.seeCountryProfile": "Check a country's NDC alignment and investment risk →",
   "vizPage.seeImpactCalculator": "Estimate the impact of an investment by sector →",
 
