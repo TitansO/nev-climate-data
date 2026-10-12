@@ -173,7 +173,7 @@
   "reportsPage.published": "Rapports publiés",
   "reportsPage.lastUpdate": "Dernière mise à jour",
   "reportsPage.comingSoon": "Bientôt disponible",
-  "reportsPage.disclaimer": "Données réelles issues de <code class=\"font-mono\">GET /api/reports</code> (A2.13). Le jeu de rapports provient actuellement des fixtures de démonstration (A1.6).",
+  "reportsPage.disclaimer": "Données réelles issues de <code class=\"font-mono\">GET /api/reports</code> (A2.13) : rapports régionaux, sectoriels et profils pays réels, publiés par NEV.",
   "reportsPage.downloads": "Téléchargements",
 
   "sourcesPage.title": "Sources de données",

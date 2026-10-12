@@ -102,7 +102,7 @@ export default function IndexPage() {
               <h1
                 className="mb-[14px] text-[clamp(1.7rem,4vw,2.6rem)] font-bold leading-[1.2] text-white"
                 dangerouslySetInnerHTML={{
-                  __html: t("hero.title", 'Comprendre le climat. Structurer les données.<br class="hidden sm:block" />Éclairer les décisions.'),
+                  __html: t("hero.title", 'Comprendre le climat. Structurer les données.&nbsp;<br class="hidden sm:block" />Éclairer les décisions.'),
                 }}
               />
               <p className="mx-auto mb-[28px] max-w-[520px] text-base text-white/80 lg:mx-0">
@@ -229,7 +229,7 @@ export default function IndexPage() {
                 <BanknoteIcon />
               </div>
               <h3 className="mb-2 text-[0.95rem] font-bold text-dark">{t("categories.funding.title", "Données de financement")}</h3>
-              <p className="mb-[14px] text-[0.82rem] leading-[1.55] text-body-color">{t("categories.funding.desc", "Financements publics, privés et multilatéraux par pays, secteur et année.")}</p>
+              <p className="mb-[14px] text-[0.82rem] leading-[1.55] text-body-color">{t("categories.funding.desc", "Financements bilatéraux, privés et multilatéraux par pays, secteur et année.")}</p>
               <NevButton as="a" href="data.html" size="sm" className="px-[13px] py-[6px] text-[0.78rem]">
                 {t("categories.funding.cta", "Explorer")}
               </NevButton>

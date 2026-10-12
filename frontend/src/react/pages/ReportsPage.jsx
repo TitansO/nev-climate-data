@@ -401,7 +401,7 @@ export default function ReportsPage() {
             <p
               className="mt-8 text-xs text-dark-5"
               dangerouslySetInnerHTML={{
-                __html: t("reportsPage.disclaimer", 'Données réelles issues de <code class="font-mono">GET /api/reports</code> (A2.13). Le jeu de rapports provient actuellement des fixtures de démonstration (A1.6).'),
+                __html: t("reportsPage.disclaimer", 'Données réelles issues de <code class="font-mono">GET /api/reports</code> (A2.13) : rapports régionaux, sectoriels et profils pays réels, publiés par NEV.'),
               }}
             />
           </main>

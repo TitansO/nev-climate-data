@@ -173,7 +173,7 @@
   "reportsPage.published": "Published reports",
   "reportsPage.lastUpdate": "Last update",
   "reportsPage.comingSoon": "Coming soon",
-  "reportsPage.disclaimer": "Real data from <code class=\"font-mono\">GET /api/reports</code> (A2.13). The report set currently comes from the demonstration fixtures (A1.6).",
+  "reportsPage.disclaimer": "Real data from <code class=\"font-mono\">GET /api/reports</code> (A2.13): real regional, sector and country-profile reports published by NEV.",
   "reportsPage.downloads": "Downloads",
 
   "sourcesPage.title": "Data sources",
