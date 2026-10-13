@@ -4,7 +4,7 @@ import { formatCompactUsd, PRIMARY_COLOR } from "../../data/analyticsConstants";
 
 /**
  * C1.6 : rendu graphique de `financing-trends.movingAverageTotal` (moyenne
- * mobile 3 ans, total tous groupes confondus) - remplace la liste de texte
+ * mobile 3 ans, total tous types de financement confondus) - remplace la liste de texte
  * brute (illisible sur ~60 ans de données) sans la retirer : la liste reste
  * en dessous pour qui veut les valeurs exactes point par point.
  */

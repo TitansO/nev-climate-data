@@ -25,7 +25,6 @@ const VALIDATION_STATUS_LABELS = { demo: "Démonstration", validated: "Validée"
 const DISPLAY_CURRENCY = "USD";
 
 const EMPTY_FILTERS = { country: "", sector: "", year: "", fundingType: "", periodStart: "", periodEnd: "" };
-const COUNTRY_LABELS = Object.fromEntries(COUNTRY_GROUPS.flatMap((group) => group.options).map((option) => [option.value, option.label]));
 
 function filtersFromUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -208,45 +207,6 @@ export default function DataPage() {
     loadFunding(1, EMPTY_FILTERS);
   }
 
-  // Active-filters chip summary (new UI addition, reads existing `filters`
-  // state only - no new business logic). Removing one chip applies
-  // immediately and keeps the URL in sync, same spirit as resetFilters().
-  function chipLabel(key, value) {
-    if ("country" === key) {
-      return t("dataPage.country", "Pays") + " : " + (COUNTRY_LABELS[value] || value);
-    }
-    if ("sector" === key) {
-      const sector = sectorOptions.find((option) => String(option.id) === value);
-      return t("dataPage.sector", "Secteur") + " : " + (sector ? sector.name : value);
-    }
-    if ("year" === key) {
-      return t("dataPage.year", "Année") + " : " + value;
-    }
-    if ("fundingType" === key) {
-      return t("dataPage.fundingType", "Type de financement") + " : " + (FUNDING_TYPE_LABELS[value] || value);
-    }
-    if ("periodStart" === key) {
-      return t("dataPage.since", "Depuis") + " : " + value;
-    }
-    return t("dataPage.until", "Jusqu'à") + " : " + value;
-  }
-
-  function removeFilterChip(key) {
-    const next = { ...filters, [key]: "" };
-    setFilters(next);
-    const params = new URLSearchParams();
-    Object.entries(next).forEach(([k, v]) => {
-      if (v) {
-        params.set(k, v);
-      }
-    });
-    const query = params.toString();
-    window.history.replaceState(null, "", window.location.pathname + (query ? "?" + query : ""));
-    loadFunding(1, next);
-  }
-
-  const activeFilterChips = Object.entries(filters).filter(([, value]) => "" !== value);
-
   function exportUrl(path) {
     const url = new URL(API_BASE_URL + path, window.location.origin);
     Object.entries(filters).forEach(([key, value]) => {
@@ -424,27 +384,6 @@ export default function DataPage() {
                 onChange={(event) => setFilters({ ...filters, periodEnd: event.target.value })}
               />
             </div>
-
-            {activeFilterChips.length > 0 && (
-              <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-stroke pt-5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-dark-5">{t("dataPage.activeFilters", "Filtres actifs")}</span>
-                {activeFilterChips.map(([key, value]) => (
-                  <span key={key} className="inline-flex items-center gap-1.5 rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-deep-3">
-                    {chipLabel(key, value)}
-                    <button
-                      type="button"
-                      onClick={() => removeFilterChip(key)}
-                      aria-label={t("dataPage.removeFilter", "Retirer ce filtre") + " : " + chipLabel(key, value)}
-                      className="rounded-full p-0.5 transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    >
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <NevButton variant="primary" onClick={applyFilters}>

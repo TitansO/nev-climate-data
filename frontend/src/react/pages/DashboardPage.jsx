@@ -406,22 +406,15 @@ export default function DashboardPage() {
 
         {showAdvanced && (
           <div id="advanced-analytics">
-            {/* Financing type donut */}
-            <section className="mb-8">
-              <NevChartCard title={t("vizPage.fundingByType", "Répartition par type de financement")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
-                <ChartStateBox state={financing.state} message={financing.message} onRetry={financing.reload}>
-                  {financingTotals && <TypeDonutChart totals={financingTotals} />}
-                </ChartStateBox>
-                {/* C1.7: "type de financement" (bailleur) is one classification axis;
-                    "instrument financier" (don/prêt/garantie) is the other - this card's
-                    natural next step for a reader exploring how money is structured. */}
-                <a href="instruments.html" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-dark hover:underline">
-                  {t("vizPage.seeInstruments", "Voir la répartition par instrument financier →")}
-                </a>
-              </NevChartCard>
-            </section>
-
-            {/* Financing by year and type */}
+            {/* Financing by type and by year - audit Prompt Maitre #3 (point
+                4, 2026-10-12) : fusionnes en une seule carte (ex-"Répartition
+                par type de financement" + "Financement par année"), qui
+                affichaient toutes deux le meme decoupage bilateral/prive/
+                multilateral - l'une en total agrege (donut), l'autre dans le
+                temps (barres) - sous deux cartes separees redondantes.
+                Le donut ne s'affiche que quand trendGroupBy="" (vue par
+                type, la seule ou son decoupage correspond a celui du
+                graphique en barres a cote). */}
             <section className="mb-8">
               <NevChartCard title={t("vizPage.financingByYear", "Financement par année (USD)")} sourceLabel={DATA_SOURCE_LABEL} periodLabel={DATA_PERIOD_LABEL}>
                 <div className="mb-4 max-w-xs">
@@ -442,7 +435,12 @@ export default function DashboardPage() {
                   {trends.data &&
                     ("" === trendGroupBy ? (
                       <>
-                        <FinancingBarChart rows={trends.data.data} />
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr] lg:items-center">
+                          <ChartStateBox state={financing.state} message={financing.message} onRetry={financing.reload}>
+                            {financingTotals && <TypeDonutChart totals={financingTotals} />}
+                          </ChartStateBox>
+                          <FinancingBarChart rows={trends.data.data} />
+                        </div>
                         {financingTotals && (
                           <details className="mt-4">
                             <summary className="cursor-pointer text-xs font-semibold text-primary-dark hover:underline">
@@ -456,10 +454,16 @@ export default function DashboardPage() {
                       <GenericTrendChart rows={trends.data.data} groupBy={trendGroupBy} />
                     ))}
                 </ChartStateBox>
+                {/* C1.7: "type de financement" (bailleur) is one classification axis;
+                    "instrument financier" (don/prêt/garantie) is the other - this card's
+                    natural next step for a reader exploring how money is structured. */}
+                <a href="instruments.html" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-dark hover:underline">
+                  {t("vizPage.seeInstruments", "Voir la répartition par instrument financier →")}
+                </a>
                 {trends.data && trends.data.movingAverageTotal.length > 0 && (
                   <div className="mt-4 border-t border-stroke pt-3">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-body-color">
-                      {t("vizPage.movingAverage", "Moyenne mobile (3 ans, total tous groupes confondus)")}
+                      {t("vizPage.movingAverage", "Moyenne mobile (3 ans, total tous types de financement confondus)")}
                     </p>
                     <MovingAverageChart rows={trends.data.movingAverageTotal} />
                     <details className="mt-3">
