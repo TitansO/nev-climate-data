@@ -88,11 +88,12 @@ class Funding
     // montant natif a preserver (World Bank, GCF...) recoivent une vraie
     // conversion calculee vers la devise du PAYS beneficiaire (voir
     // SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT cote
-    // pipeline/processors/funding_validator.py). `originalCurrency` est le
-    // seul moyen fiable de savoir laquelle des deux s'applique a une ligne
-    // donnee - jamais supposer "devise locale" a partir du seul nom de ce
-    // champ. Les deux restent nullable (une ligne peut predater cette
-    // metadonnee, ou son pays n'a pas de devise connue).
+    // pipeline/processors/funding_validator.py). Pour obtenir la vraie
+    // devise du pays beneficiaire de maniere fiable quelle que soit la
+    // source, voir $localAmount/$localCurrency/$localExchangeRate
+    // ci-dessous plutot que de deviner a partir de ce champ-ci. Les deux
+    // restent nullable (une ligne peut predater cette metadonnee, ou son
+    // pays n'a pas de devise connue).
     #[ORM\Column(type: Types::DECIMAL, precision: 15, scale: 2, nullable: true)]
     private ?string $originalAmount = null;
 
@@ -101,6 +102,25 @@ class Funding
 
     #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 6, nullable: true)]
     private ?string $exchangeRate = null;
+
+    // Audit 2026-10-13 : contrairement a originalAmount/originalCurrency
+    // ci-dessus (qui restent la figure propre de la source quand elle
+    // existe - EUR pour AFD, XDR pour AfDB - jamais ecrasee), ces 3 champs
+    // sont TOUJOURS une conversion live-rate vers la devise du PAYS
+    // beneficiaire, calculee de la meme facon pour toutes les sources -
+    // voir process_message() cote pipeline/processors/funding_validator.py.
+    // C'est la seule paire de champs a utiliser pour afficher "la devise
+    // locale" d'une ligne de maniere fiable. Nullable : devise pays
+    // inconnue, taux indisponible au moment de la collecte, ou ligne
+    // anterieure a l'ajout de ce champ.
+    #[ORM\Column(type: Types::DECIMAL, precision: 15, scale: 2, nullable: true)]
+    private ?string $localAmount = null;
+
+    #[ORM\Column(length: 3, nullable: true)]
+    private ?string $localCurrency = null;
+
+    #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 6, nullable: true)]
+    private ?string $localExchangeRate = null;
 
     #[ORM\Column(type: Types::STRING, enumType: FundingType::class, length: 20)]
     private FundingType $fundingType;
@@ -264,6 +284,42 @@ class Funding
     public function setExchangeRate(?string $exchangeRate): static
     {
         $this->exchangeRate = $exchangeRate;
+
+        return $this;
+    }
+
+    public function getLocalAmount(): ?string
+    {
+        return $this->localAmount;
+    }
+
+    public function setLocalAmount(?string $localAmount): static
+    {
+        $this->localAmount = $localAmount;
+
+        return $this;
+    }
+
+    public function getLocalCurrency(): ?string
+    {
+        return $this->localCurrency;
+    }
+
+    public function setLocalCurrency(?string $localCurrency): static
+    {
+        $this->localCurrency = $localCurrency;
+
+        return $this;
+    }
+
+    public function getLocalExchangeRate(): ?string
+    {
+        return $this->localExchangeRate;
+    }
+
+    public function setLocalExchangeRate(?string $localExchangeRate): static
+    {
+        $this->localExchangeRate = $localExchangeRate;
 
         return $this;
     }

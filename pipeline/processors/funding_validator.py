@@ -261,7 +261,10 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
                     original_currency: str | None = None,
                     exchange_rate: Decimal | None = None,
                     instrument: str = "unknown",
-                    external_reference: str | None = None) -> None:
+                    external_reference: str | None = None,
+                    local_amount: Decimal | None = None,
+                    local_currency: str | None = None,
+                    local_exchange_rate: Decimal | None = None) -> None:
     """Applies `delta` (can be negative - see apply_project_contribution's
     sector/year-change case) to the current row for this dedup key,
     historizing the previous version, or inserts a fresh row if none
@@ -296,7 +299,16 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
     identifier for the latest contribution only, not a list of every
     project ever merged into this aggregate, so it can be used to look up
     *a* contributing project at the source, never assumed to be the only
-    one.
+    one. `local_amount`/`local_currency`/`local_exchange_rate` (audit
+    2026-10-13, found live by the user on an AFD row showing "8 300
+    000,00 EUR" under a "devise locale" label - EUR is not any African
+    country's local currency) are DISTINCT from `original_amount`/
+    `original_currency`/`exchange_rate` above and never overwrite them:
+    the latter stay whatever the source itself reports (AFD/AfDB's own
+    EUR/XDR figure, kept as real provenance, never discarded), while the
+    former are ALWAYS a live-rate conversion to the funded COUNTRY's own
+    currency, computed the exact same way for every source - see
+    process_message() below for where this is computed once and reused.
     """
     cursor.execute(
         """
@@ -315,10 +327,13 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
                 """
                 UPDATE funding
                 SET collection_date = %s, original_amount = %s, original_currency = %s,
-                    exchange_rate = %s, instrument = %s, external_reference = %s, updated_at = now()
+                    exchange_rate = %s, instrument = %s, external_reference = %s,
+                    local_amount = %s, local_currency = %s, local_exchange_rate = %s,
+                    updated_at = now()
                 WHERE id = %s
                 """,
-                (collection_date, original_amount, original_currency, exchange_rate, instrument, external_reference, existing_id),
+                (collection_date, original_amount, original_currency, exchange_rate, instrument, external_reference,
+                 local_amount, local_currency, local_exchange_rate, existing_id),
             )
         return
 
@@ -338,16 +353,19 @@ def upsert_funding(cursor, *, source_id: int, country_id: int, sector_id: int, y
             country_id, sector_id, year, amount, funding_type, source_id,
             collection_date, validation_status, valid_from, is_current,
             original_amount, original_currency, exchange_rate, instrument,
-            external_reference, created_at, updated_at
+            external_reference, local_amount, local_currency, local_exchange_rate,
+            created_at, updated_at
         ) VALUES (
             %s, %s, %s, %s, %s, %s,
             %s, 'validated', now(), true,
             %s, %s, %s, %s,
-            %s, now(), now()
+            %s, %s, %s, %s,
+            now(), now()
         )
         """,
         (country_id, sector_id, year, new_amount, funding_type, source_id, collection_date,
-         original_amount, original_currency, exchange_rate, instrument, external_reference),
+         original_amount, original_currency, exchange_rate, instrument, external_reference,
+         local_amount, local_currency, local_exchange_rate),
     )
 
 
@@ -357,7 +375,10 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
                                 original_amount: Decimal | None = None,
                                 original_currency: str | None = None,
                                 exchange_rate: Decimal | None = None,
-                                instrument: str = "unknown") -> None:
+                                instrument: str = "unknown",
+                                local_amount: Decimal | None = None,
+                                local_currency: str | None = None,
+                                local_exchange_rate: Decimal | None = None) -> None:
     """Applies one project's real, current contribution to the `funding`
     aggregate for its dedup key - idempotently. Fixes a real production
     bug (2026-08-31): every collection DAG re-publishes its entire current
@@ -389,6 +410,7 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             year=year, funding_type=funding_type, delta=amount, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
             exchange_rate=exchange_rate, instrument=instrument, external_reference=project_id,
+            local_amount=local_amount, local_currency=local_currency, local_exchange_rate=local_exchange_rate,
         )
         cursor.execute(
             """
@@ -410,6 +432,7 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             year=year, funding_type=funding_type, delta=delta, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
             exchange_rate=exchange_rate, instrument=instrument, external_reference=project_id,
+            local_amount=local_amount, local_currency=local_currency, local_exchange_rate=local_exchange_rate,
         )
     else:
         # Closing out the old key: `instrument` isn't tracked per
@@ -430,6 +453,7 @@ def apply_project_contribution(cursor, *, source_id: int, project_id: str, count
             year=year, funding_type=funding_type, delta=amount, collection_date=collection_date,
             original_amount=original_amount, original_currency=original_currency,
             exchange_rate=exchange_rate, instrument=instrument, external_reference=project_id,
+            local_amount=local_amount, local_currency=local_currency, local_exchange_rate=local_exchange_rate,
         )
 
     cursor.execute(
@@ -554,16 +578,50 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
 
     source_id = ensure_source(cursor)
 
-    # AfDB messages carry a real, institution-reported original_amount/
+    # Audit 2026-10-13 : local_amount/local_currency/local_exchange_rate -
+    # TOUJOURS une conversion live-rate vers la devise du PAYS beneficiaire,
+    # calculee ici une seule fois pour TOUTES les sources (jamais
+    # l'AfricanCurrencies illustrative table, reservee au jeu de
+    # demonstration - voir fx_rates.py). Distinct d'original_amount/
+    # original_currency/exchange_rate ci-dessous : ceux-la restent la
+    # figure propre de la source quand elle existe (EUR pour AFD, XDR pour
+    # AfDB - la devise DE L'INSTITUTION, jamais ecrasee ni devinee), celle-ci
+    # est toujours la devise DU PAYS. Une devise pays inconnue ou un taux
+    # indisponible laisse les trois a None plutot que de deviner.
+    local_currency_code = lookup_country_currency(cursor, country_id)
+    rates: dict[str, float] = {}
+    if local_currency_code:
+        try:
+            rates = get_current_usd_rates()
+        except Exception as exc:
+            # Audit post-C3 2026-10-01 : echec silencieux auparavant - une
+            # panne prolongee de l'API de taux de change degradait
+            # silencieusement ces champs (laisses a None, indiscernables
+            # d'un pays "sans devise connue") pendant des mois sans aucun
+            # signal. print() plutot que `logging` : meme convention que le
+            # catch-all de run() plus bas dans ce fichier (capture par les
+            # logs de tache Airflow).
+            print(f"[funding-validator] failed to fetch USD exchange rates: {exc!r}")
+            rates = {}
+    local_rate = rates.get(local_currency_code) if local_currency_code else None
+
+    local_amount: Decimal | None = None
+    local_currency: str | None = None
+    local_exchange_rate: Decimal | None = None
+    if local_rate:
+        local_amount = Decimal(str(message["amount_usd"])) * Decimal(str(local_rate))
+        local_currency = local_currency_code
+        local_exchange_rate = Decimal("1") / Decimal(str(local_rate))
+
+    # AfDB/AFD messages carry a real, institution-reported original_amount/
     # original_currency/exchange_rate (floats, from JSON) - convert via
     # str() to avoid binary float artifacts in the Decimal conversion (e.g.
-    # Decimal(1.370818) != 1.370818). World Bank/GCF/OPEC Fund report
-    # directly in USD with no native non-USD figure to preserve, so their
-    # "devise locale" column is instead a real, live-rate USD -> country
-    # currency conversion (never the AfricanCurrencies illustrative table,
-    # which is reserved for the demo dataset) - see fx_rates.py. A missing
-    # country currency or rate leaves all three fields None rather than
-    # guessing, exactly like AfDB's own existing null-safety.
+    # Decimal(1.370818) != 1.370818) - this is THEIR OWN reporting currency
+    # (EUR, XDR...), not necessarily the funded country's (see local_amount
+    # above for that). World Bank/GCF/OPEC Fund report directly in USD with
+    # no native non-USD figure to preserve, so their original_amount is
+    # simply the same local-currency conversion computed above, reused
+    # rather than recomputed.
     original_amount: Decimal | None
     original_currency: str | None
     exchange_rate: Decimal | None
@@ -572,27 +630,7 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         original_currency = message.get("original_currency")
         exchange_rate = Decimal(str(message["exchange_rate"])) if "exchange_rate" in message else None
     elif source in SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT:
-        original_amount, original_currency, exchange_rate = None, None, None
-        local_currency = lookup_country_currency(cursor, country_id)
-        if local_currency:
-            try:
-                rates = get_current_usd_rates()
-            except Exception as exc:
-                # Audit post-C3 2026-10-01 : echec silencieux auparavant -
-                # une panne prolongee de l'API de taux de change degradait
-                # silencieusement original_amount/original_currency/
-                # exchange_rate (laisses a None, indiscernables d'un pays
-                # "sans devise connue") pendant des mois sans aucun signal.
-                # print() plutot que `logging` : meme convention que le
-                # catch-all de run() plus bas dans ce fichier (capture par
-                # les logs de tache Airflow).
-                print(f"[funding-validator] failed to fetch USD exchange rates: {exc!r}")
-                rates = {}
-            rate = rates.get(local_currency)
-            if rate:
-                original_amount = Decimal(str(message["amount_usd"])) * Decimal(str(rate))
-                original_currency = local_currency
-                exchange_rate = Decimal("1") / Decimal(str(rate))
+        original_amount, original_currency, exchange_rate = local_amount, local_currency, local_exchange_rate
     else:
         original_amount, original_currency, exchange_rate = None, None, None
 
@@ -616,6 +654,9 @@ def process_message(cursor, message: dict[str, Any]) -> tuple[bool, str | None]:
         original_currency=original_currency,
         exchange_rate=exchange_rate,
         instrument=instrument,
+        local_amount=local_amount,
+        local_currency=local_currency,
+        local_exchange_rate=local_exchange_rate,
     )
     return True, None
 

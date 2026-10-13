@@ -48,25 +48,36 @@ function formatAmount(amount) {
  * the same figure as item.amount, but NOT always in the funded country's
  * own currency - audit 2026-10-13, trouve en direct par l'utilisateur sur
  * une ligne AFD (8 300 000,00 EUR, qui n'est la devise locale d'aucun pays
- * africain). Depend de la source : AFD/AfDB rapportent leur propre montant
- * institutionnel tel quel (EUR/XDR - voir pipeline/collectors/afd.py et
- * afdb.py), tandis que World Bank/GCF (sans montant natif a preserver)
- * recoivent une vraie conversion calculee vers la devise du pays receveur
- * (voir SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT cote
- * pipeline/processors/funding_validator.py). Le nom de colonne doit donc
- * rester neutre ("devise d'origine", jamais "devise locale") - le code
- * devise affiche juste a cote de chaque montant (ex. "EUR", "XOF") reste
- * la seule facon fiable de savoir laquelle des deux s'applique a une ligne
- * donnee. Les deux champs restent nullable (une ligne peut predater cette
- * metadonnee, ou son pays n'a pas de devise connue), d'ou le tiret plutot
- * qu'un "0" trompeur dans ce cas.
+ * africain). AFD/AfDB rapportent leur propre montant institutionnel tel
+ * quel (EUR/XDR - voir pipeline/collectors/afd.py et afdb.py) - la devise
+ * DE LA SOURCE, jamais ecrasee. Pour la vraie devise du pays beneficiaire
+ * de maniere fiable quelle que soit la source, voir formatLocalCurrencyAmount()
+ * et item.localAmount/localCurrency juste en dessous plutot que ces deux
+ * champs-ci. Nullable (une ligne peut predater cette metadonnee), d'ou le
+ * tiret plutot qu'un "0" trompeur dans ce cas.
  */
-function formatLocalAmount(item) {
+function formatOriginalAmount(item) {
   if (!item.originalAmount || !item.originalCurrency) {
     return "-";
   }
   const value = Number(item.originalAmount);
   return Number.isNaN(value) ? "-" : value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + item.originalCurrency;
+}
+
+/**
+ * "Devise locale" column (ajoutee 2026-10-13) : item.localAmount/
+ * localCurrency sont TOUJOURS une conversion live-rate vers la devise du
+ * PAYS beneficiaire, calculee de la meme facon pour toutes les sources -
+ * voir process_message() cote pipeline/processors/funding_validator.py.
+ * Contrairement a formatOriginalAmount() ci-dessus, cette colonne est donc
+ * directement comparable d'une ligne a l'autre, peu importe la source.
+ */
+function formatLocalCurrencyAmount(item) {
+  if (!item.localAmount || !item.localCurrency) {
+    return "-";
+  }
+  const value = Number(item.localAmount);
+  return Number.isNaN(value) ? "-" : value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + item.localCurrency;
 }
 
 function formatDate(isoDate) {
@@ -304,7 +315,8 @@ export default function DataPage() {
     { key: "fundingType", label: t("dataPage.type", "Type"), render: (item) => FUNDING_TYPE_LABELS[item.fundingType] || item.fundingType },
     { key: "amount", label: t("dataPage.amount", "Montant"), align: "right", render: (item) => <span className="font-semibold text-deep-3">{formatAmount(item.amount)}</span> },
     { key: "currency", label: t("dataPage.currency", "Devise"), width: "w-24", render: () => DISPLAY_CURRENCY },
-    { key: "localAmount", label: t("dataPage.localAmount", "Montant d'origine"), align: "right", width: "w-40", render: (item) => <span className="text-dark-4">{formatLocalAmount(item)}</span> },
+    { key: "originalAmount", label: t("dataPage.localAmount", "Montant d'origine"), align: "right", width: "w-40", render: (item) => <span className="text-dark-4">{formatOriginalAmount(item)}</span> },
+    { key: "localAmount", label: t("dataPage.localCurrencyAmount", "Devise locale"), align: "right", width: "w-40", render: (item) => <span className="text-dark-4">{formatLocalCurrencyAmount(item)}</span> },
     { key: "source", label: t("dataPage.source", "Source"), render: (item) => item.source.name },
     {
       key: "status",

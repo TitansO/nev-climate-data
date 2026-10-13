@@ -419,7 +419,7 @@ final class FundingControllerTest extends WebTestCase
         $item = $data['data'][0];
 
         self::assertSame(
-            ['id', 'country', 'sector', 'year', 'amount', 'originalAmount', 'originalCurrency', 'fundingType', 'source', 'collectionDate', 'validationStatus'],
+            ['id', 'country', 'sector', 'year', 'amount', 'originalAmount', 'originalCurrency', 'localAmount', 'localCurrency', 'fundingType', 'source', 'externalReference', 'collectionDate', 'validationStatus'],
             array_keys($item),
         );
         self::assertSame(['name', 'isoCode', 'currency'], array_keys($item['country']));
@@ -431,12 +431,19 @@ final class FundingControllerTest extends WebTestCase
         self::assertSame(['id', 'name'], array_keys($item['source']));
         self::assertSame('Test Source', $item['source']['name']);
         self::assertSame('1000000.00', $item['amount']);
-        // Same amount, in Senegal's own currency (A2.x's "Montant (devise
-        // locale)" data.html column) - see the seedDataset() row this
-        // request resolves to (i === 9, the only one with these set).
+        // Same amount, in the SOURCE's own reporting currency (not always
+        // Senegal's - see Funding::$originalAmount's docblock) - see the
+        // seedDataset() row this request resolves to (i === 9, the only
+        // one with these set).
         self::assertSame('600000000.00', $item['originalAmount']);
         self::assertSame('XOF', $item['originalCurrency']);
+        // localAmount/localCurrency are always the recipient COUNTRY's own
+        // currency (Funding::$localAmount's docblock) - unset here since
+        // seedDataset() never populates them, unlike originalAmount above.
+        self::assertNull($item['localAmount']);
+        self::assertNull($item['localCurrency']);
         self::assertSame('public', $item['fundingType']);
+        self::assertNull($item['externalReference']);
         self::assertSame('2025-03-15', $item['collectionDate']);
         self::assertSame('validated', $item['validationStatus']);
 

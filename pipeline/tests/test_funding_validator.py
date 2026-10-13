@@ -96,6 +96,36 @@ def test_first_message_inserts_a_new_funding_row(db_cursor):
     assert row == (Decimal("1000000.00"), True)
 
 
+def test_world_bank_message_local_currency_equals_original_currency(db_cursor):
+    """Audit 2026-10-13 : World Bank n'a pas de montant natif propre (voir
+    SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT), donc original_amount/
+    original_currency etaient DEJA la conversion vers la devise du pays -
+    local_amount/local_currency doivent donc etre strictement identiques,
+    jamais recalcules une seconde fois avec un resultat different.
+    """
+    accepted, reason = process_message(db_cursor, _sample_message(1_000_000))
+    assert accepted is True
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'World Bank Data API'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Renewable Energy'")
+    sector_id = db_cursor.fetchone()[0]
+
+    db_cursor.execute(
+        """
+        SELECT original_amount, original_currency, local_amount, local_currency FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = true
+        """,
+        (source_id, country_id, sector_id, 2026, "multilateral"),
+    )
+    original_amount, original_currency, local_amount, local_currency = db_cursor.fetchone()
+    assert local_amount == original_amount
+    assert local_currency == original_currency
+
+
 def test_two_different_projects_same_dedup_key_sum_and_historize(db_cursor):
     process_message(db_cursor, _sample_message(1_000_000, project_id="P-TEST-1"))
     process_message(db_cursor, _sample_message(500_000, project_id="P-TEST-2"))
@@ -1013,6 +1043,46 @@ def test_afd_message_inserts_a_new_funding_row_with_currency_provenance(db_curso
     assert original_amount == Decimal("4629629.63")
     assert original_currency == "EUR"
     assert exchange_rate == Decimal("1.08")
+
+
+def test_afd_message_local_currency_is_the_recipient_countrys_own_not_eur(db_cursor):
+    """Audit 2026-10-13 : reproduit exactement le cas trouve en direct par
+    l'utilisateur - une ligne AFD affichant "8 300 000,00 EUR" sous
+    l'ancienne colonne "devise locale" alors qu'EUR n'est la devise
+    d'aucun pays africain. local_amount/local_currency doivent toujours
+    etre la devise du PAYS beneficiaire (ici le Senegal, XOF) - jamais
+    EUR, meme si original_currency (la devise propre de l'AFD, testee
+    ci-dessus) reste EUR comme attendu.
+    """
+    accepted, reason = process_message(db_cursor, _afd_sample_message(5_000_000, original_amount=4_629_629.63, exchange_rate=1.08))
+    assert accepted is True
+
+    db_cursor.execute("SELECT id FROM source WHERE name = 'Agence Francaise de Developpement - IATI Datastore'")
+    source_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM country WHERE iso_code = 'SEN'")
+    country_id = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT currency FROM country WHERE id = %s", (country_id,))
+    expected_local_currency = db_cursor.fetchone()[0]
+    db_cursor.execute("SELECT id FROM sector WHERE name = 'Sustainable Transport'")
+    sector_id = db_cursor.fetchone()[0]
+
+    db_cursor.execute(
+        """
+        SELECT local_amount, local_currency, local_exchange_rate, original_currency FROM funding
+        WHERE source_id = %s AND country_id = %s AND sector_id = %s
+          AND year = %s AND funding_type = %s AND is_current = true
+        """,
+        (source_id, country_id, sector_id, 2026, "public"),
+    )
+    local_amount, local_currency, local_exchange_rate, original_currency = db_cursor.fetchone()
+    assert expected_local_currency is not None, "fixture gap: Senegal must have a known currency for this test to mean anything"
+    assert local_currency == expected_local_currency
+    assert local_currency != "EUR"
+    assert local_amount is not None
+    assert local_exchange_rate is not None
+    # original_currency (l'AFD elle-meme) reste EUR - les deux champs
+    # coexistent, l'un n'ecrase jamais l'autre.
+    assert original_currency == "EUR"
 
 
 def test_afd_message_with_an_unclassifiable_sector_is_rejected(db_cursor):

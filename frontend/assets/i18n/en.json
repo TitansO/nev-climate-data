@@ -112,6 +112,7 @@
   "dataPage.amount": "Amount",
   "dataPage.currency": "Currency",
   "dataPage.localAmount": "Original amount",
+  "dataPage.localCurrencyAmount": "Local currency",
   "dataPage.source": "Source",
   "dataPage.status": "Status",
   "dataPage.previous": "Previous",

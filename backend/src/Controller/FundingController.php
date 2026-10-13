@@ -89,8 +89,10 @@ final class FundingController extends AbstractController
                                         example: '4032000.00',
                                         description: 'Pivot currency (always USD). IMPORTANT (audit 2026-09-23) : for a row fed by more than one collection run, this is the CUMULATIVE sum across all contributions ever recorded for this (source, country, sector, year, fundingType) key - not necessarily the amount of a single transaction. `originalAmount`/`originalCurrency`/`exchangeRate` below describe only the LATEST contributing message, never the accumulated total, so `amount ≈ originalAmount × exchangeRate` only holds for a row fed by exactly one contribution. Confirmed on live data (2026-09-23): this equality fails on ~22% of rows carrying a non-USD original currency - by design, not a conversion bug. Do not use these three fields together to reverse-engineer amount from a single conversion.'
                                     ),
-                                    new OA\Property(property: 'originalAmount', type: 'string', nullable: true, example: '2419200000.00', description: "Latest contributing message's amount in its ORIGINAL currency - NOT always the funded country's own currency (audit 2026-10-13, found live on an AFD row reporting in EUR, not the recipient's currency): AFD/AfDB report their own institution's amount as-is (EUR/XDR), while sources with no native non-pivot figure (World Bank, GCF...) get a computed conversion to the recipient country's currency instead. `originalCurrency` is the only reliable way to tell which applies to a given row - see the warning on `amount` above before comparing the two."),
+                                    new OA\Property(property: 'originalAmount', type: 'string', nullable: true, example: '2419200000.00', description: "Latest contributing message's amount in its ORIGINAL currency - NOT always the funded country's own currency (audit 2026-10-13, found live on an AFD row reporting in EUR, not the recipient's currency): AFD/AfDB report their own institution's amount as-is (EUR/XDR), while sources with no native non-pivot figure (World Bank, GCF...) get the same value as `localAmount` below. `originalCurrency` is the only reliable way to tell which applies to a given row - see the warning on `amount` above before comparing the two. Use `localAmount`/`localCurrency` instead if you specifically need the funded country's own currency."),
                                     new OA\Property(property: 'originalCurrency', type: 'string', nullable: true, example: 'XOF'),
+                                    new OA\Property(property: 'localAmount', type: 'string', nullable: true, example: '4895200.00', description: "Added 2026-10-13. ALWAYS a live-rate conversion to the funded country's own currency, computed the same way for every source - unlike `originalAmount` above, which keeps whichever currency the source itself reported (EUR for AFD, XDR for AfDB) when it reports one natively. Null when the country's currency isn't known or no exchange rate was available at collection time."),
+                                    new OA\Property(property: 'localCurrency', type: 'string', nullable: true, example: 'XOF'),
                                     new OA\Property(property: 'fundingType', type: 'string', example: 'public'),
                                     new OA\Property(property: 'source', properties: [
                                         new OA\Property(property: 'id', type: 'integer', example: 1),
@@ -308,6 +310,8 @@ final class FundingController extends AbstractController
      *     amount: string,
      *     originalAmount: string|null,
      *     originalCurrency: string|null,
+     *     localAmount: string|null,
+     *     localCurrency: string|null,
      *     fundingType: string,
      *     source: array{id: int|null, name: string},
      *     externalReference: string|null,
@@ -337,6 +341,11 @@ final class FundingController extends AbstractController
             // record predates this metadata.
             'originalAmount' => $funding->getOriginalAmount(),
             'originalCurrency' => $funding->getOriginalCurrency(),
+            // Audit 2026-10-13 : contrairement a originalAmount ci-dessus,
+            // TOUJOURS la devise du pays beneficiaire - voir le docblock de
+            // Funding::$localAmount. data.html's "Devise locale" column.
+            'localAmount' => $funding->getLocalAmount(),
+            'localCurrency' => $funding->getLocalCurrency(),
             'fundingType' => $funding->getFundingType()->value,
             'source' => [
                 'id' => $funding->getSource()->getId(),
