@@ -89,7 +89,7 @@ final class FundingController extends AbstractController
                                         example: '4032000.00',
                                         description: 'Pivot currency (always USD). IMPORTANT (audit 2026-09-23) : for a row fed by more than one collection run, this is the CUMULATIVE sum across all contributions ever recorded for this (source, country, sector, year, fundingType) key - not necessarily the amount of a single transaction. `originalAmount`/`originalCurrency`/`exchangeRate` below describe only the LATEST contributing message, never the accumulated total, so `amount ≈ originalAmount × exchangeRate` only holds for a row fed by exactly one contribution. Confirmed on live data (2026-09-23): this equality fails on ~22% of rows carrying a non-USD original currency - by design, not a conversion bug. Do not use these three fields together to reverse-engineer amount from a single conversion.'
                                     ),
-                                    new OA\Property(property: 'originalAmount', type: 'string', nullable: true, example: '2419200000.00', description: "Latest contributing message's amount in the country's own national currency - see the warning on `amount` above before comparing the two."),
+                                    new OA\Property(property: 'originalAmount', type: 'string', nullable: true, example: '2419200000.00', description: "Latest contributing message's amount in its ORIGINAL currency - NOT always the funded country's own currency (audit 2026-10-13, found live on an AFD row reporting in EUR, not the recipient's currency): AFD/AfDB report their own institution's amount as-is (EUR/XDR), while sources with no native non-pivot figure (World Bank, GCF...) get a computed conversion to the recipient country's currency instead. `originalCurrency` is the only reliable way to tell which applies to a given row - see the warning on `amount` above before comparing the two."),
                                     new OA\Property(property: 'originalCurrency', type: 'string', nullable: true, example: 'XOF'),
                                     new OA\Property(property: 'fundingType', type: 'string', example: 'public'),
                                     new OA\Property(property: 'source', properties: [
@@ -330,10 +330,11 @@ final class FundingController extends AbstractController
             ],
             'year' => $funding->getYear(),
             'amount' => $funding->getAmount(),
-            // Same amount, in the funded country's own national currency
-            // rather than the USD pivot above - data.html's "Montant
-            // (devise locale)" column. Null when a record predates this
-            // metadata (see Funding::$originalAmount's own docblock).
+            // Same amount in its original currency (not always the funded
+            // country's own currency - audit 2026-10-13, see Funding::
+            // $originalAmount's own docblock) rather than the USD pivot
+            // above - data.html's "Montant d'origine" column. Null when a
+            // record predates this metadata.
             'originalAmount' => $funding->getOriginalAmount(),
             'originalCurrency' => $funding->getOriginalCurrency(),
             'fundingType' => $funding->getFundingType()->value,

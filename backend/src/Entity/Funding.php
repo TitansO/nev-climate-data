@@ -78,6 +78,21 @@ class Funding
     #[ORM\Column(type: Types::DECIMAL, precision: 15, scale: 2)]
     private string $amount;
 
+    // Audit 2026-10-13 : meme montant que `amount` ci-dessus, mais dans sa
+    // devise D'ORIGINE - PAS TOUJOURS celle du pays beneficiaire, contrairement
+    // a ce que le nom pourrait laisser croire (trouve en direct par
+    // l'utilisateur sur une ligne AFD en EUR, qui n'est la devise d'aucun
+    // pays africain). Selon la source : AFD/AfDB rapportent leur propre
+    // montant institutionnel tel quel (EUR/XDR - voir
+    // pipeline/collectors/afd.py et afdb.py), tandis que les sources sans
+    // montant natif a preserver (World Bank, GCF...) recoivent une vraie
+    // conversion calculee vers la devise du PAYS beneficiaire (voir
+    // SOURCES_WITHOUT_NATIVE_ORIGINAL_AMOUNT cote
+    // pipeline/processors/funding_validator.py). `originalCurrency` est le
+    // seul moyen fiable de savoir laquelle des deux s'applique a une ligne
+    // donnee - jamais supposer "devise locale" a partir du seul nom de ce
+    // champ. Les deux restent nullable (une ligne peut predater cette
+    // metadonnee, ou son pays n'a pas de devise connue).
     #[ORM\Column(type: Types::DECIMAL, precision: 15, scale: 2, nullable: true)]
     private ?string $originalAmount = null;
 
