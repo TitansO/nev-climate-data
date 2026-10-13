@@ -294,7 +294,7 @@ export default function DataPage() {
     { key: "fundingType", label: t("dataPage.type", "Type"), render: (item) => FUNDING_TYPE_LABELS[item.fundingType] || item.fundingType },
     { key: "amount", label: t("dataPage.amount", "Montant"), align: "right", render: (item) => <span className="font-semibold text-deep-3">{formatAmount(item.amount)}</span> },
     { key: "currency", label: t("dataPage.currency", "Devise"), width: "w-24", render: () => DISPLAY_CURRENCY },
-    { key: "localAmount", label: t("dataPage.localAmount", "Montant (devise locale)"), align: "right", render: (item) => <span className="text-dark-4">{formatLocalAmount(item)}</span> },
+    { key: "localAmount", label: t("dataPage.localAmount", "Devise locale"), align: "right", width: "w-40", render: (item) => <span className="text-dark-4">{formatLocalAmount(item)}</span> },
     { key: "source", label: t("dataPage.source", "Source"), render: (item) => item.source.name },
     {
       key: "status",

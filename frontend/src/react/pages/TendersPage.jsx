@@ -193,6 +193,7 @@ export default function TendersPage() {
       key: "submissionDeadline",
       label: t("tenderPage.deadline", "Dépôt des offres avant"),
       align: "right",
+      width: "w-36",
       render: (tender) => formatDate(tender.submissionDeadline),
     },
   ];

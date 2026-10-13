@@ -99,7 +99,7 @@ export default function AccountApiKeysPage() {
   const columns = [
     { key: "id", label: t("apiKeysPage.identifier", "Identifiant"), render: (key) => "#" + key.id },
     { key: "status", label: t("dataPage.status", "Statut"), render: (key) => <NevBadge tone={"active" === key.status ? "success" : "neutral"}>{"active" === key.status ? "Active" : "Révoquée"}</NevBadge> },
-    { key: "quota", label: t("apiKeysPage.quota", "Quota (req./jour)"), align: "right", render: (key) => key.quota.toLocaleString("fr-FR") },
+    { key: "quota", label: t("apiKeysPage.quota", "Quota (req./jour)"), align: "right", width: "w-36", render: (key) => key.quota.toLocaleString("fr-FR") },
     { key: "created_at", label: t("apiKeysPage.createdOn", "Créée le"), render: (key) => formatDate(key.created_at) },
     { key: "revoked_at", label: t("apiKeysPage.revokedOn", "Révoquée le"), render: (key) => (key.revoked_at ? formatDate(key.revoked_at) : "-") },
     {
